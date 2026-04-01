@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { FileText, Loader2 } from "lucide-react"
+import { Markdown } from "@/components/markdown"
 import {
   CartesianGrid,
   Legend,
@@ -252,11 +253,7 @@ export default function AnalyticsPage() {
                 </div>
               </div>
 
-              <div className="prose prose-sm max-w-none">
-                <p className="text-sm leading-relaxed whitespace-pre-wrap">
-                  {reportMutation.data.summary}
-                </p>
-              </div>
+              <Markdown>{reportMutation.data.summary}</Markdown>
 
               <p className="text-xs text-muted-foreground">
                 Generated {new Date(reportMutation.data.generatedAt).toLocaleString()}

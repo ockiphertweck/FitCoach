@@ -3,8 +3,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { Bot, Send, Trash2, User } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
-import ReactMarkdown from "react-markdown"
-import remarkGfm from "remark-gfm"
+import { Markdown } from "@/components/markdown"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Textarea } from "@/components/ui/textarea"
@@ -120,9 +119,7 @@ export default function CoachPage() {
                 )}
               >
                 {msg.role === "assistant" ? (
-                  <div className="prose prose-sm dark:prose-invert max-w-none [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
-                  </div>
+                  <Markdown>{msg.content}</Markdown>
                 ) : (
                   <p className="whitespace-pre-wrap">{msg.content}</p>
                 )}
@@ -145,8 +142,8 @@ export default function CoachPage() {
               </div>
               <div className="max-w-[80%] rounded-lg px-4 py-3 text-sm bg-muted">
                 {streamingMessage ? (
-                  <div className="prose prose-sm dark:prose-invert max-w-none [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{streamingMessage}</ReactMarkdown>
+                  <div>
+                    <Markdown>{streamingMessage}</Markdown>
                     {isStreaming && <span className="animate-pulse">▋</span>}
                   </div>
                 ) : (

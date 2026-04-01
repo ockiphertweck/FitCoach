@@ -2,6 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { Activity, RefreshCw, TrendingDown, TrendingUp, Zap } from "lucide-react"
+import { Markdown } from "@/components/markdown"
 import { useState } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -182,10 +183,8 @@ export default function Dashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="prose prose-sm max-w-none whitespace-pre-wrap text-sm leading-relaxed">
-              {recommendation}
-              {isStreaming && <span className="animate-pulse">▋</span>}
-            </div>
+            <Markdown>{recommendation}</Markdown>
+            {isStreaming && <span className="animate-pulse">▋</span>}
           </CardContent>
         </Card>
       )}
