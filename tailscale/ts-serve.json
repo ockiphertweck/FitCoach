@@ -1,0 +1,19 @@
+{
+  "TCP": {
+    "443": {
+      "HTTPS": true
+    }
+  },
+  "Web": {
+    "fitcoach-dev:443": {
+      "Handlers": {
+        "/": {
+          "Proxy": "http://localhost:3000"
+        }
+      }
+    }
+  },
+  "AllowFunnel": {
+    "fitcoach-dev:443": true
+  }
+}

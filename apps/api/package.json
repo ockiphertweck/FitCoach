@@ -1,0 +1,43 @@
+{
+  "name": "api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsup src/index.ts --format esm --out-dir dist",
+    "test": "vitest run",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:studio": "drizzle-kit studio"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.36.3",
+    "@fastify/cookie": "^11.0.1",
+    "@fastify/cors": "^10.0.1",
+    "@fastify/sensible": "^6.0.1",
+    "fastify-type-provider-zod": "^4.0.2",
+    "@fitcoach/shared": "workspace:*",
+    "@t3-oss/env-core": "^0.11.1",
+    "bcryptjs": "^2.4.3",
+    "dotenv": "^16.4.7",
+    "drizzle-orm": "^0.38.3",
+    "fastify": "^5.2.1",
+    "jose": "^5.9.6",
+    "posthog-node": "^4.3.2",
+    "postgres": "^3.4.5",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^22.10.2",
+    "drizzle-kit": "^0.30.1",
+    "tsup": "^8.3.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

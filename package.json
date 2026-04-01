@@ -1,0 +1,23 @@
+{
+  "name": "fitcoach",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": ">=22.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "scripts": {
+    "dev": "concurrently \"pnpm --filter api dev\" \"pnpm --filter frontend dev\"",
+    "build": "pnpm --filter shared build && pnpm --filter api build && pnpm --filter frontend build",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "test": "pnpm --filter api test && pnpm --filter shared test"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "concurrently": "^9.1.2"
+  },
+  "pnpm": {
+    "overrides": {}
+  }
+}

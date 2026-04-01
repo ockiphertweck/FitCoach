@@ -1,0 +1,8 @@
+**/.git
+**/node_modules
+**/.next
+**/dist
+**/.env
+**/*.log
+.pnpm-store
+docker-compose.override.yml

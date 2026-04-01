@@ -1,0 +1,11 @@
+node_modules
+.env
+dist
+.next
+out
+docker-compose.override.yml
+*.local
+.DS_Store
+*.log
+.pnpm-store
+drizzle/meta
