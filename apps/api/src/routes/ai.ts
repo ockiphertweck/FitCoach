@@ -48,11 +48,14 @@ const aiRoutes: FastifyPluginAsyncZod = async (fastify) => {
       const anthropic = await getAnthropicClient(userId)
       const context = await buildRecommendationContext(userId, db)
 
+      const origin = request.headers.origin ?? env.FRONTEND_URL
       reply.raw.writeHead(200, {
         "Content-Type": "text/event-stream; charset=utf-8",
         "Cache-Control": "no-cache",
         Connection: "keep-alive",
         "X-Accel-Buffering": "no",
+        "Access-Control-Allow-Origin": origin,
+        "Access-Control-Allow-Credentials": "true",
       })
 
       let fullResponse = ""
@@ -150,11 +153,14 @@ const aiRoutes: FastifyPluginAsyncZod = async (fastify) => {
       // Append the new user message
       messages.push({ role: "user", content: message })
 
+      const origin = request.headers.origin ?? env.FRONTEND_URL
       reply.raw.writeHead(200, {
         "Content-Type": "text/event-stream; charset=utf-8",
         "Cache-Control": "no-cache",
         Connection: "keep-alive",
         "X-Accel-Buffering": "no",
+        "Access-Control-Allow-Origin": origin,
+        "Access-Control-Allow-Credentials": "true",
       })
 
       let fullResponse = ""

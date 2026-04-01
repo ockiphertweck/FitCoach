@@ -1,7 +1,7 @@
 "use client"
 
 import { useMutation } from "@tanstack/react-query"
-import { Dumbbell } from "lucide-react"
+import { Dumbbell, Eye, EyeOff } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -17,6 +17,7 @@ export default function SetupPage() {
   const [password, setPassword] = useState("")
   const [confirm, setConfirm] = useState("")
   const [validationError, setValidationError] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
 
   const setupMutation = useMutation({
     mutationFn: () => api.post("/auth/setup", { email, password }),
@@ -43,7 +44,7 @@ export default function SetupPage() {
   }
 
   return (
-    <div className="flex items-center justify-center min-h-screen -ml-16 bg-background">
+    <div className="flex items-center justify-center min-h-screen bg-background">
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
           <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground">
@@ -72,26 +73,40 @@ export default function SetupPage() {
 
             <div className="space-y-1">
               <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Min. 8 characters"
-                required
-              />
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Min. 8 characters"
+                  required
+                  className="pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  tabIndex={-1}
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
             </div>
 
             <div className="space-y-1">
               <Label htmlFor="confirm">Confirm password</Label>
-              <Input
-                id="confirm"
-                type="password"
-                value={confirm}
-                onChange={(e) => setConfirm(e.target.value)}
-                placeholder="Repeat password"
-                required
-              />
+              <div className="relative">
+                <Input
+                  id="confirm"
+                  type={showPassword ? "text" : "password"}
+                  value={confirm}
+                  onChange={(e) => setConfirm(e.target.value)}
+                  placeholder="Repeat password"
+                  required
+                  className="pr-10"
+                />
+              </div>
             </div>
 
             {(validationError || setupMutation.isError) && (

@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
 import { Inter } from "next/font/google"
+import { MainLayout } from "@/components/main-layout"
 import { Nav } from "@/components/nav"
 import { PostHogProvider } from "@/components/posthog-provider"
 import { QueryProvider } from "@/lib/query-client"
@@ -20,7 +21,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <QueryProvider>
             <div className="flex min-h-screen">
               <Nav />
-              <main className="ml-16 flex-1 p-6">{children}</main>
+              <MainLayout>{children}</MainLayout>
             </div>
           </QueryProvider>
         </PostHogProvider>

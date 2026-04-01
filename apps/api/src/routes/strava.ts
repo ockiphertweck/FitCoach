@@ -29,6 +29,9 @@ const stravaRoutes: FastifyPluginAsyncZod = async (fastify) => {
       },
     },
     async (request, reply) => {
+      if (!env.STRAVA_WEBHOOK_VERIFY_TOKEN) {
+        return reply.code(503).send({ error: "Webhooks not configured (STRAVA_WEBHOOK_VERIFY_TOKEN not set)" })
+      }
       const query = request.query
       if (
         query["hub.mode"] === "subscribe" &&
@@ -55,6 +58,9 @@ const stravaRoutes: FastifyPluginAsyncZod = async (fastify) => {
       },
     },
     async (request, reply) => {
+      if (!env.STRAVA_WEBHOOK_VERIFY_TOKEN) {
+        return reply.code(503).send({ error: "Webhooks not configured" })
+      }
       // Acknowledge immediately
       reply.code(200).send()
 

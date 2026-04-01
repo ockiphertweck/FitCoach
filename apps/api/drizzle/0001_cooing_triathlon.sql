@@ -1,0 +1,1 @@
+ALTER TABLE "strava_tokens" ADD CONSTRAINT "strava_tokens_user_id_unique" UNIQUE("user_id");

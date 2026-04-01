@@ -3,6 +3,8 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { Bot, Send, Trash2, User } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
+import ReactMarkdown from "react-markdown"
+import remarkGfm from "remark-gfm"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Textarea } from "@/components/ui/textarea"
@@ -117,7 +119,13 @@ export default function CoachPage() {
                     : "bg-muted"
                 )}
               >
-                <p className="whitespace-pre-wrap">{msg.content}</p>
+                {msg.role === "assistant" ? (
+                  <div className="prose prose-sm dark:prose-invert max-w-none [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                  </div>
+                ) : (
+                  <p className="whitespace-pre-wrap">{msg.content}</p>
+                )}
                 <p
                   className={cn(
                     "text-xs mt-1 opacity-60",
@@ -137,10 +145,10 @@ export default function CoachPage() {
               </div>
               <div className="max-w-[80%] rounded-lg px-4 py-3 text-sm bg-muted">
                 {streamingMessage ? (
-                  <p className="whitespace-pre-wrap">
-                    {streamingMessage}
+                  <div className="prose prose-sm dark:prose-invert max-w-none [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{streamingMessage}</ReactMarkdown>
                     {isStreaming && <span className="animate-pulse">▋</span>}
-                  </p>
+                  </div>
                 ) : (
                   <div className="flex gap-1 items-center h-5">
                     <span className="animate-bounce delay-0 w-1.5 h-1.5 bg-muted-foreground rounded-full" />

@@ -1,8 +1,9 @@
-import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto"
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto"
 import { env } from "../env.js"
 
 const ALGORITHM = "aes-256-gcm"
-const KEY = Buffer.from(env.API_KEY_ENCRYPTION_KEY, "utf8")
+// SHA-256 the raw key string → always exactly 32 bytes, accepts any input format
+const KEY = createHash("sha256").update(env.API_KEY_ENCRYPTION_KEY).digest()
 
 export function encrypt(plaintext: string): string {
   const iv = randomBytes(12)

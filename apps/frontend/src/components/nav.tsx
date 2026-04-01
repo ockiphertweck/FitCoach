@@ -13,8 +13,12 @@ const links = [
   { href: "/settings", icon: Settings, label: "Settings" },
 ]
 
+const AUTH_PATHS = ["/login", "/setup"]
+
 export function Nav() {
   const pathname = usePathname()
+
+  if (AUTH_PATHS.some((p) => pathname.startsWith(p))) return null
 
   return (
     <nav className="fixed left-0 top-0 flex h-screen w-16 flex-col items-center border-r bg-card py-4 gap-1">

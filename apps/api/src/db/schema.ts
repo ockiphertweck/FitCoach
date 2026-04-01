@@ -32,17 +32,21 @@ export const apiKeys = pgTable(
   (table) => [unique().on(table.userId, table.provider)]
 )
 
-export const stravaTokens = pgTable("strava_tokens", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  userId: uuid("user_id")
-    .references(() => users.id, { onDelete: "cascade" })
-    .notNull(),
-  accessToken: text("access_token").notNull(),
-  refreshToken: text("refresh_token").notNull(),
-  expiresAt: timestamp("expires_at").notNull(),
-  athleteId: bigint("athlete_id", { mode: "number" }).notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-})
+export const stravaTokens = pgTable(
+  "strava_tokens",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    accessToken: text("access_token").notNull(),
+    refreshToken: text("refresh_token").notNull(),
+    expiresAt: timestamp("expires_at").notNull(),
+    athleteId: bigint("athlete_id", { mode: "number" }).notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [unique().on(table.userId)]
+)
 
 export const activities = pgTable(
   "activities",

@@ -5,7 +5,7 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
     credentials: "include",
     headers: {
-      "Content-Type": "application/json",
+      ...(init?.body !== undefined && { "Content-Type": "application/json" }),
       ...init?.headers,
     },
   })
@@ -21,7 +21,7 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
 export const api = {
   get: <T>(path: string) => apiFetch<T>(path),
   post: <T>(path: string, body?: unknown) =>
-    apiFetch<T>(path, { method: "POST", body: JSON.stringify(body) }),
+    apiFetch<T>(path, { method: "POST", body: body !== undefined ? JSON.stringify(body) : undefined }),
   delete: <T>(path: string) => apiFetch<T>(path, { method: "DELETE" }),
 }
 
