@@ -1,5 +1,7 @@
 # FitCoach
 
+> **The open-source, self-hosted alternative to RestOrTrain** — your training data stays on your machine, your AI key is yours, and nothing is behind a paywall.
+
 A self-hosted, open-source AI training coach. Connects to Strava via OAuth 2.0 and real-time webhooks, stores all athlete data locally in PostgreSQL, and uses the Anthropic Claude API (bring-your-own-key) to deliver personalised rest/train recommendations, an interactive coaching chat, and weekly training trend reports — all rendered as streaming markdown in the browser.
 
 ---
