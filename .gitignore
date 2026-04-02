@@ -9,3 +9,4 @@ docker-compose.override.yml
 *.log
 .pnpm-store
 drizzle/meta
+coverage
