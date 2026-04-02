@@ -1,7 +1,7 @@
 import type { MessageParam } from "@anthropic-ai/sdk/resources/messages.js"
 import { and, desc, eq, gte } from "drizzle-orm"
 import type { DB } from "../db/index.js"
-import { activities, chatHistory } from "../db/schema.js"
+import { activities, chatHistory, userProfiles } from "../db/schema.js"
 import { calculateTrainingLoad } from "./atl-ctl.js"
 
 function formatDuration(seconds: number): string {
@@ -27,7 +27,7 @@ export async function buildRecommendationContext(userId: string, db: DB): Promis
   const fortyTwoDaysAgo = new Date()
   fortyTwoDaysAgo.setDate(fortyTwoDaysAgo.getDate() - 42)
 
-  const [recentActivities, allActivities, recentChat] = await Promise.all([
+  const [recentActivities, allActivities, recentChat, profileRows] = await Promise.all([
     db
       .select()
       .from(activities)
@@ -45,22 +45,37 @@ export async function buildRecommendationContext(userId: string, db: DB): Promis
       .where(eq(chatHistory.userId, userId))
       .orderBy(desc(chatHistory.createdAt))
       .limit(3),
+    db.select().from(userProfiles).where(eq(userProfiles.userId, userId)).limit(1),
   ])
 
   const load = calculateTrainingLoad(allActivities)
+  const profile = profileRows[0] ?? null
 
   const lines: string[] = [
     "# Athlete Training Context",
     "",
     `**Date**: ${new Date().toISOString().slice(0, 10)}`,
     "",
+  ]
+
+  if (profile) {
+    lines.push("## Athlete Profile")
+    if (profile.sex) lines.push(`- Sex: ${profile.sex}`)
+    if (profile.weightKg) lines.push(`- Weight: ${profile.weightKg} kg`)
+    if (profile.heightCm) lines.push(`- Height: ${profile.heightCm} cm`)
+    if (profile.maxHeartRate) lines.push(`- Max Heart Rate: ${profile.maxHeartRate} bpm`)
+    if (profile.ftpWatts) lines.push(`- FTP: ${profile.ftpWatts} W`)
+    lines.push("")
+  }
+
+  lines.push(
     "## Training Load (TRIMP-based)",
     `- ATL (Acute / 7-day): ${load.atl}`,
     `- CTL (Chronic / 42-day): ${load.ctl}`,
     `- TSB (Form = CTL - ATL): ${load.tsb} ${load.tsb > 5 ? "(fresh)" : load.tsb < -10 ? "(fatigued)" : "(moderate)"}`,
     "",
-    "## Last 14 Days Activities",
-  ]
+    "## Last 14 Days Activities"
+  )
 
   if (recentActivities.length === 0) {
     lines.push("No activities recorded in the last 14 days.")

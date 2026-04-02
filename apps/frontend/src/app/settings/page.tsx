@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { CheckCircle, Key, Link2, Link2Off, LogOut, User } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -28,15 +28,50 @@ interface StravaStatus {
   lastSynced: string | null
 }
 
+interface Profile {
+  sex: "male" | "female" | "other" | null
+  weightKg: number | null
+  heightCm: number | null
+  maxHeartRate: number | null
+  ftpWatts: number | null
+}
+
 export default function SettingsPage() {
   const router = useRouter()
   const qc = useQueryClient()
   const [claudeKey, setClaudeKey] = useState("")
   const [keySaved, setKeySaved] = useState(false)
 
+  const [profileForm, setProfileForm] = useState<Profile>({
+    sex: null,
+    weightKg: null,
+    heightCm: null,
+    maxHeartRate: null,
+    ftpWatts: null,
+  })
+  const [profileSaved, setProfileSaved] = useState(false)
+
   const { data: user } = useQuery<User>({
     queryKey: ["me"],
     queryFn: () => api.get("/auth/me"),
+  })
+
+  const { data: profile } = useQuery<Profile>({
+    queryKey: ["profile"],
+    queryFn: () => api.get("/settings/profile"),
+  })
+
+  useEffect(() => {
+    if (profile) setProfileForm(profile)
+  }, [profile])
+
+  const saveProfileMutation = useMutation({
+    mutationFn: () => api.put("/settings/profile", profileForm),
+    onSuccess: () => {
+      setProfileSaved(true)
+      qc.invalidateQueries({ queryKey: ["profile"] })
+      setTimeout(() => setProfileSaved(false), 3000)
+    },
   })
 
   const { data: apiKeyStatus } = useQuery<ApiKeyStatus>({
@@ -82,6 +117,98 @@ export default function SettingsPage() {
         <h1 className="text-2xl font-bold">Settings</h1>
         <p className="text-muted-foreground">Manage your FitCoach configuration</p>
       </div>
+
+      {/* Athlete Profile */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <User className="h-4 w-4" /> Athlete Profile
+          </CardTitle>
+          <CardDescription>
+            Personal stats help the AI tailor recommendations to your physiology.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <Label htmlFor="sex">Sex</Label>
+              <select
+                id="sex"
+                value={profileForm.sex ?? ""}
+                onChange={(e) => setProfileForm((p) => ({ ...p, sex: (e.target.value || null) as Profile["sex"] }))}
+                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
+              >
+                <option value="">Prefer not to say</option>
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="weight">Weight (kg)</Label>
+              <Input
+                id="weight"
+                type="number"
+                step="0.1"
+                min="30"
+                max="300"
+                placeholder="70"
+                value={profileForm.weightKg ?? ""}
+                onChange={(e) => setProfileForm((p) => ({ ...p, weightKg: e.target.value ? Number(e.target.value) : null }))}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="height">Height (cm)</Label>
+              <Input
+                id="height"
+                type="number"
+                step="1"
+                min="100"
+                max="250"
+                placeholder="175"
+                value={profileForm.heightCm ?? ""}
+                onChange={(e) => setProfileForm((p) => ({ ...p, heightCm: e.target.value ? Number(e.target.value) : null }))}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="maxhr">Max Heart Rate (bpm)</Label>
+              <Input
+                id="maxhr"
+                type="number"
+                step="1"
+                min="100"
+                max="250"
+                placeholder="185"
+                value={profileForm.maxHeartRate ?? ""}
+                onChange={(e) => setProfileForm((p) => ({ ...p, maxHeartRate: e.target.value ? Number(e.target.value) : null }))}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="ftp">FTP (watts)</Label>
+              <Input
+                id="ftp"
+                type="number"
+                step="1"
+                min="50"
+                max="600"
+                placeholder="250"
+                value={profileForm.ftpWatts ?? ""}
+                onChange={(e) => setProfileForm((p) => ({ ...p, ftpWatts: e.target.value ? Number(e.target.value) : null }))}
+              />
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <Button onClick={() => saveProfileMutation.mutate()} disabled={saveProfileMutation.isPending}>
+              {saveProfileMutation.isPending ? "Saving…" : "Save profile"}
+            </Button>
+            {profileSaved && (
+              <span className="text-sm text-green-600 flex items-center gap-1">
+                <CheckCircle className="h-3 w-3" /> Saved
+              </span>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Claude API Key */}
       <Card>

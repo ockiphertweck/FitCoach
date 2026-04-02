@@ -75,6 +75,18 @@ export const activities = pgTable(
   (table) => [unique().on(table.userId, table.externalId, table.source)]
 )
 
+export const userProfiles = pgTable("user_profiles", {
+  userId: uuid("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  sex: text("sex"),
+  weightKg: real("weight_kg"),
+  heightCm: real("height_cm"),
+  maxHeartRate: integer("max_heart_rate"),
+  ftpWatts: integer("ftp_watts"),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+})
+
 export const chatHistory = pgTable("chat_history", {
   id: uuid("id").primaryKey().defaultRandom(),
   userId: uuid("user_id")
@@ -101,6 +113,7 @@ export const weeklyReports = pgTable(
   (table) => [unique().on(table.userId, table.weekStart)]
 )
 
+export type UserProfile = typeof userProfiles.$inferSelect
 export type User = typeof users.$inferSelect
 export type NewUser = typeof users.$inferInsert
 export type ApiKey = typeof apiKeys.$inferSelect

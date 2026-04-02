@@ -2,7 +2,7 @@ import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod"
 import { and, eq } from "drizzle-orm"
 import { z } from "zod"
 import { db } from "../db/index.js"
-import { apiKeys } from "../db/schema.js"
+import { apiKeys, userProfiles } from "../db/schema.js"
 import { authMiddleware } from "../middleware/auth.js"
 import { encrypt } from "../services/encryption.js"
 
@@ -52,6 +52,53 @@ const settingsRoutes: FastifyPluginAsyncZod = async (fastify) => {
         .onConflictDoUpdate({
           target: [apiKeys.userId, apiKeys.provider],
           set: { encryptedKey },
+        })
+
+      return { ok: true }
+    }
+  )
+
+  const profileSchema = z.object({
+    sex: z.enum(["male", "female", "other"]).nullable(),
+    weightKg: z.number().positive().nullable(),
+    heightCm: z.number().positive().nullable(),
+    maxHeartRate: z.number().int().positive().nullable(),
+    ftpWatts: z.number().int().positive().nullable(),
+  })
+
+  fastify.get(
+    "/settings/profile",
+    { schema: { response: { 200: profileSchema } } },
+    async (request) => {
+      const [profile] = await db
+        .select()
+        .from(userProfiles)
+        .where(eq(userProfiles.userId, request.user.sub))
+        .limit(1)
+
+      return {
+        sex: (profile?.sex as "male" | "female" | "other" | null) ?? null,
+        weightKg: profile?.weightKg ?? null,
+        heightCm: profile?.heightCm ?? null,
+        maxHeartRate: profile?.maxHeartRate ?? null,
+        ftpWatts: profile?.ftpWatts ?? null,
+      }
+    }
+  )
+
+  fastify.put(
+    "/settings/profile",
+    { schema: { body: profileSchema, response: { 200: z.object({ ok: z.boolean() }) } } },
+    async (request) => {
+      const userId = request.user.sub
+      const values = { userId, ...request.body, updatedAt: new Date() }
+
+      await db
+        .insert(userProfiles)
+        .values(values)
+        .onConflictDoUpdate({
+          target: userProfiles.userId,
+          set: { ...request.body, updatedAt: new Date() },
         })
 
       return { ok: true }

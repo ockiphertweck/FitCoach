@@ -15,6 +15,13 @@
       "when": 1775077677790,
       "tag": "0001_cooing_triathlon",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1775115568452,
+      "tag": "0002_conscious_kulan_gath",
+      "breakpoints": true
     }
   ]
 }
