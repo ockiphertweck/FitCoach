@@ -2,6 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { Activity, RefreshCw, TrendingDown, TrendingUp, Zap } from "lucide-react"
+import Link from "next/link"
 import { Markdown } from "@/components/markdown"
 import { useState } from "react"
 import { Badge } from "@/components/ui/badge"
@@ -207,9 +208,10 @@ export default function Dashboard() {
           ) : (
             <div className="space-y-3">
               {recentData.items.map((a) => (
-                <div
+                <Link
                   key={a.id}
-                  className="flex items-center justify-between py-2 border-b last:border-0"
+                  href={`/activities/${a.id}`}
+                  className="flex items-center justify-between py-2 border-b last:border-0 hover:bg-muted/50 -mx-4 px-4 rounded transition-colors"
                 >
                   <div className="flex items-center gap-3">
                     <SportBadge sport={a.sportType} />
@@ -229,7 +231,7 @@ export default function Dashboard() {
                       <span className="ml-2">{a.averageHeartRate} bpm</span>
                     )}
                   </div>
-                </div>
+                </Link>
               ))}
             </div>
           )}

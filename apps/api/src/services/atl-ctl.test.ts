@@ -21,6 +21,8 @@ function makeActivity(overrides: Partial<Activity> = {}): Activity {
     perceivedExertion: null,
     calories: null,
     rawData: null,
+    rawDataHash: null,
+    aiInsight: null,
     createdAt: new Date(),
     ...overrides,
   }

@@ -8,6 +8,7 @@ import { activities, apiKeys, chatHistory, weeklyReports } from "../db/schema.js
 import { env } from "../env.js"
 import { authMiddleware } from "../middleware/auth.js"
 import { buildChatContext, buildRecommendationContext, SYSTEM_PROMPT } from "../services/ai-context.js"
+import { computeInsightHash, generateActivityInsight } from "../services/activity-insight.js"
 import { calculateTrainingLoad } from "../services/atl-ctl.js"
 import { decrypt } from "../services/encryption.js"
 
@@ -239,6 +240,39 @@ const aiRoutes: FastifyPluginAsyncZod = async (fastify) => {
     async (request) => {
       await db.delete(chatHistory).where(eq(chatHistory.userId, request.user.sub))
       return { ok: true }
+    }
+  )
+
+  fastify.post(
+    "/ai/activity-insight",
+    {
+      schema: {
+        body: z.object({ activityId: z.string().uuid() }),
+        response: { 200: z.object({ insight: z.string() }) },
+      },
+    },
+    async (request, reply) => {
+      const userId = request.user.sub
+      const { activityId } = request.body
+      const anthropic = await getAnthropicClient(userId)
+
+      const [activity] = await db
+        .select()
+        .from(activities)
+        .where(and(eq(activities.id, activityId), eq(activities.userId, userId)))
+        .limit(1)
+
+      if (!activity) return reply.code(404).send({ error: "Activity not found" } as never)
+
+      const insight = await generateActivityInsight(anthropic, activity)
+      const newHash = computeInsightHash(activity)
+
+      await db
+        .update(activities)
+        .set({ aiInsight: insight, rawDataHash: newHash })
+        .where(eq(activities.id, activityId))
+
+      return { insight }
     }
   )
 

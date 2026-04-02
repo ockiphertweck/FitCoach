@@ -1,10 +1,12 @@
+import Anthropic from "@anthropic-ai/sdk"
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod"
 import { and, desc, eq } from "drizzle-orm"
 import { z } from "zod"
 import { db } from "../db/index.js"
-import { activities, stravaTokens } from "../db/schema.js"
+import { activities, apiKeys, stravaTokens } from "../db/schema.js"
 import { env } from "../env.js"
 import { authMiddleware } from "../middleware/auth.js"
+import { computeInsightHash, generateActivityInsight } from "../services/activity-insight.js"
 import { decrypt, encrypt } from "../services/encryption.js"
 import {
   getFreshAccessToken,
@@ -12,6 +14,47 @@ import {
   getActivities,
   stravaActivityToDbFields,
 } from "../services/strava-client.js"
+
+async function getAnthropicClientForUser(userId: string): Promise<Anthropic | null> {
+  const [keyRow] = await db
+    .select()
+    .from(apiKeys)
+    .where(and(eq(apiKeys.userId, userId), eq(apiKeys.provider, "anthropic")))
+    .limit(1)
+  const apiKey = keyRow ? decrypt(keyRow.encryptedKey) : env.CLAUDE_API_KEY
+  if (!apiKey) return null
+  return new Anthropic({ apiKey })
+}
+
+async function maybeGenerateInsight(
+  userId: string,
+  activityId: string,
+  log: { error: (obj: unknown, msg: string) => void }
+): Promise<void> {
+  const [activity] = await db
+    .select()
+    .from(activities)
+    .where(and(eq(activities.id, activityId), eq(activities.userId, userId)))
+    .limit(1)
+
+  if (!activity) return
+
+  const newHash = computeInsightHash(activity)
+  if (activity.rawDataHash === newHash && activity.aiInsight) return
+
+  const anthropic = await getAnthropicClientForUser(userId)
+  if (!anthropic) return
+
+  try {
+    const insight = await generateActivityInsight(anthropic, activity)
+    await db
+      .update(activities)
+      .set({ aiInsight: insight, rawDataHash: newHash })
+      .where(eq(activities.id, activityId))
+  } catch (err) {
+    log.error({ err }, "Failed to generate activity insight")
+  }
+}
 
 const STRAVA_SCOPES = "read,activity:read_all"
 
@@ -83,13 +126,18 @@ const stravaRoutes: FastifyPluginAsyncZod = async (fastify) => {
         const stravaActivity = await getActivity(accessToken, String(object_id))
         const fields = stravaActivityToDbFields(stravaActivity, token.userId)
 
-        await db
+        const [upserted] = await db
           .insert(activities)
           .values(fields)
           .onConflictDoUpdate({
             target: [activities.userId, activities.externalId, activities.source],
             set: fields,
           })
+          .returning({ id: activities.id })
+
+        if (upserted) {
+          maybeGenerateInsight(token.userId, upserted.id, fastify.log).catch(() => {})
+        }
       } catch (err) {
         fastify.log.error({ err }, "Strava webhook processing failed")
       }
@@ -209,17 +257,29 @@ const stravaRoutes: FastifyPluginAsyncZod = async (fastify) => {
         const stravaActivities = await getActivities(accessToken, after)
 
         let synced = 0
+        const insightPromises: Promise<void>[] = []
+
         for (const sa of stravaActivities) {
           const fields = stravaActivityToDbFields(sa, userId)
-          await db
+          const [upserted] = await db
             .insert(activities)
             .values(fields)
             .onConflictDoUpdate({
               target: [activities.userId, activities.externalId, activities.source],
               set: fields,
             })
+            .returning({ id: activities.id })
+
+          if (upserted) {
+            insightPromises.push(
+              maybeGenerateInsight(userId, upserted.id, request.log).catch(() => {})
+            )
+          }
           synced++
         }
+
+        // Fire-and-forget — don't block the sync response
+        Promise.allSettled(insightPromises).catch(() => {})
 
         return { synced }
       }

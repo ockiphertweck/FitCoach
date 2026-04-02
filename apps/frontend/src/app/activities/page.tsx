@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query"
 import { ChevronLeft, ChevronRight } from "lucide-react"
+import Link from "next/link"
 import { useState } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -115,16 +116,19 @@ export default function ActivitiesPage() {
           ) : (
             <div className="divide-y">
               {data.items.map((a) => (
-                <div
+                <Link
                   key={a.id}
-                  className="py-3 flex items-center justify-between gap-4"
+                  href={`/activities/${a.id}`}
+                  className="py-3 flex items-center justify-between gap-4 hover:bg-muted/50 -mx-4 px-4 rounded transition-colors"
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <Badge variant="outline" className="capitalize shrink-0">
-                      {a.sportType}
-                    </Badge>
                     <div className="min-w-0">
-                      <p className="text-sm font-medium truncate">{a.name ?? a.sportType}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium truncate">{a.name ?? a.sportType}</p>
+                        <Badge variant="outline" className="capitalize shrink-0 text-xs">
+                          {a.sportType}
+                        </Badge>
+                      </div>
                       <p className="text-xs text-muted-foreground">
                         {new Date(a.startDate).toLocaleDateString("en-GB", {
                           weekday: "short",
@@ -148,7 +152,7 @@ export default function ActivitiesPage() {
                       <span className="font-medium">RPE {a.perceivedExertion}</span>
                     )}
                   </div>
-                </div>
+                </Link>
               ))}
             </div>
           )}

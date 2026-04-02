@@ -70,6 +70,8 @@ export const activities = pgTable(
     perceivedExertion: integer("perceived_exertion"),
     calories: integer("calories"),
     rawData: jsonb("raw_data"),
+    rawDataHash: text("raw_data_hash"),
+    aiInsight: text("ai_insight"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (table) => [unique().on(table.userId, table.externalId, table.source)]
