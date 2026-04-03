@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { api, streamPost } from "@/lib/api"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { Activity, RefreshCw, TrendingDown, TrendingUp, Zap } from "lucide-react"
+import { Activity, HelpCircle, RefreshCw, TrendingDown, TrendingUp, Zap } from "lucide-react"
 import Link from "next/link"
 import { useState } from "react"
 
@@ -49,6 +49,17 @@ function SportBadge({ sport }: { sport: string }) {
       className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium capitalize ${colors[sport] ?? "bg-slate-100 text-slate-700"}`}
     >
       {sport}
+    </span>
+  )
+}
+
+function MetricHint({ text }: { text: string }) {
+  return (
+    <span className="relative group inline-flex items-center">
+      <HelpCircle className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+      <span className="pointer-events-none absolute top-full left-1/2 -translate-x-1/2 mt-2 w-72 rounded-md bg-gray-900 text-gray-50 text-sm px-4 py-3 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-50 leading-relaxed">
+        {text}
+      </span>
     </span>
   )
 }
@@ -105,7 +116,10 @@ export default function Dashboard() {
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription>Acute Load (ATL)</CardDescription>
+            <CardDescription className="flex items-center gap-1">
+              Acute Load (ATL)
+              <MetricHint text="Short-term fatigue (7-day EWMA). Rises quickly with hard training, drops fast with rest. Low <20 · Moderate 20–60 · High >60. High ATL means accumulated fatigue — watch for signs of overreaching." />
+            </CardDescription>
             <CardTitle className="text-3xl">{stats?.atl ?? "—"}</CardTitle>
           </CardHeader>
           <CardContent>
@@ -115,7 +129,10 @@ export default function Dashboard() {
 
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription>Chronic Load (CTL)</CardDescription>
+            <CardDescription className="flex items-center gap-1">
+              Chronic Load (CTL)
+              <MetricHint text="Long-term fitness base (42-day EWMA). Builds slowly with consistent training. Beginner <30 · Recreational 30–70 · Competitive >70. Higher CTL = bigger aerobic engine, but takes weeks to move." />
+            </CardDescription>
             <CardTitle className="text-3xl">{stats?.ctl ?? "—"}</CardTitle>
           </CardHeader>
           <CardContent>
@@ -127,6 +144,7 @@ export default function Dashboard() {
           <CardHeader className="pb-2">
             <CardDescription className="flex items-center gap-1">
               Form (TSB)
+              <MetricHint text="Form = CTL − ATL. Typical range: −30 to +25. Very fresh >+10 · Fresh +5 to +10 · Neutral −5 to +5 · Tired −10 to −5 · Fatigued <−10. Aim for +5 to +15 on race/peak day." />
               {tsb > 5 ? (
                 <TrendingUp className="h-3 w-3 text-green-600" />
               ) : tsb < -10 ? (

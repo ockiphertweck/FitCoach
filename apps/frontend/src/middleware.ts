@@ -1,29 +1,27 @@
-import { jwtVerify } from "jose"
 import { type NextRequest, NextResponse } from "next/server"
 
 const PUBLIC_PATHS = ["/login", "/setup"]
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000"
 
-async function isValidToken(token: string): Promise<boolean> {
+async function isAuthenticated(request: NextRequest): Promise<boolean> {
   try {
-    const secret = new TextEncoder().encode(process.env.JWT_SECRET)
-    await jwtVerify(token, secret)
-    return true
+    const res = await fetch(`${API_URL}/auth/me`, {
+      headers: { cookie: request.headers.get("cookie") ?? "" },
+    })
+    return res.ok
   } catch {
     return false
   }
 }
 
 export async function middleware(request: NextRequest) {
-  const tokenCookie = request.cookies.get("fitcoach_token")
   const { pathname } = request.nextUrl
   const isPublic = PUBLIC_PATHS.some((p) => pathname.startsWith(p))
 
-  const valid = tokenCookie ? await isValidToken(tokenCookie.value) : false
+  const valid = await isAuthenticated(request)
 
   if (!valid && !isPublic) {
-    const response = NextResponse.redirect(new URL("/login", request.url))
-    if (tokenCookie) response.cookies.delete("fitcoach_token")
-    return response
+    return NextResponse.redirect(new URL("/login", request.url))
   }
 
   if (valid && isPublic) {

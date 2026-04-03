@@ -7,7 +7,7 @@
     "node": ">=22.0.0"
   },
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "NODE_OPTIONS=--no-deprecation tsx watch src/index.ts",
     "build": "tsup src/index.ts --format esm --out-dir dist",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
