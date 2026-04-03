@@ -1,0 +1,16 @@
+#!/bin/sh
+# Run full checks only when pushing directly to main
+PUSH_TO_MAIN=0
+while read local_ref local_sha remote_ref remote_sha; do
+  if [ "$remote_ref" = "refs/heads/main" ]; then
+    PUSH_TO_MAIN=1
+  fi
+done
+
+if [ "$PUSH_TO_MAIN" = "1" ]; then
+  echo "Pushing to main — running lint, unit tests and e2e tests..."
+  ROOT="$(git rev-parse --show-toplevel)"
+  pnpm --dir "$ROOT" lint || exit 1
+  pnpm --dir "$ROOT" test || exit 1
+  pnpm --dir "$ROOT" test:e2e || exit 1
+fi
