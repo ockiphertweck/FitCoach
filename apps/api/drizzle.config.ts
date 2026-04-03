@@ -1,5 +1,5 @@
-import { config } from "dotenv"
 import { join } from "node:path"
+import { config } from "dotenv"
 import { defineConfig } from "drizzle-kit"
 
 config({ path: join(process.cwd(), "../../.env"), override: true })
@@ -12,6 +12,7 @@ export default defineConfig({
   out: "./drizzle",
   dialect: "postgresql",
   dbCredentials: {
+    // biome-ignore lint/style/noNonNullAssertion: DATABASE_URL is validated at runtime by env.ts
     url: process.env.DATABASE_URL!,
   },
 })

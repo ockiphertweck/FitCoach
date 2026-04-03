@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
-import { calculateTrainingLoad } from "./atl-ctl.js"
 import type { Activity } from "../db/schema.js"
+import { calculateTrainingLoad } from "./atl-ctl.js"
 
 function makeActivity(overrides: Partial<Activity> = {}): Activity {
   return {

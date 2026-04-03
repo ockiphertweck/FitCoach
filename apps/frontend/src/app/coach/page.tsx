@@ -1,14 +1,14 @@
 "use client"
 
-import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { Bot, Send, Trash2, User } from "lucide-react"
-import { useEffect, useRef, useState } from "react"
 import { Markdown } from "@/components/markdown"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Textarea } from "@/components/ui/textarea"
 import { api, streamPost } from "@/lib/api"
 import { cn } from "@/lib/utils"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { Bot, Send, Trash2, User } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
 
 interface Message {
   id: string
@@ -31,6 +31,7 @@ export default function CoachPage() {
 
   const messages = historyData?.messages ?? []
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: bottomRef.current is a DOM ref, intentionally excluded
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages, streamingMessage])
@@ -104,18 +105,12 @@ export default function CoachPage() {
                   msg.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted"
                 )}
               >
-                {msg.role === "user" ? (
-                  <User className="h-4 w-4" />
-                ) : (
-                  <Bot className="h-4 w-4" />
-                )}
+                {msg.role === "user" ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
               </div>
               <div
                 className={cn(
                   "max-w-[80%] rounded-lg px-4 py-3 text-sm",
-                  msg.role === "user"
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted"
+                  msg.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted"
                 )}
               >
                 {msg.role === "assistant" ? (
@@ -124,10 +119,7 @@ export default function CoachPage() {
                   <p className="whitespace-pre-wrap">{msg.content}</p>
                 )}
                 <p
-                  className={cn(
-                    "text-xs mt-1 opacity-60",
-                    msg.role === "user" ? "text-right" : ""
-                  )}
+                  className={cn("text-xs mt-1 opacity-60", msg.role === "user" ? "text-right" : "")}
                 >
                   {new Date(msg.createdAt).toLocaleTimeString()}
                 </p>
@@ -171,7 +163,12 @@ export default function CoachPage() {
             className="min-h-[56px] max-h-[200px] resize-none"
             disabled={isStreaming}
           />
-          <Button onClick={handleSend} disabled={!input.trim() || isStreaming} size="icon" className="h-14 w-14">
+          <Button
+            onClick={handleSend}
+            disabled={!input.trim() || isStreaming}
+            size="icon"
+            className="h-14 w-14"
+          >
             <Send className="h-4 w-4" />
           </Button>
         </div>

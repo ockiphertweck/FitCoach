@@ -30,6 +30,15 @@
     }
   },
   "files": {
-    "ignore": ["node_modules", "dist", ".next", "out", "drizzle"]
+    "ignore": [
+      "node_modules",
+      "dist",
+      ".next",
+      "out",
+      "drizzle",
+      "coverage",
+      "playwright-report",
+      "test-results"
+    ]
   }
 }

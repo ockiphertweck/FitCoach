@@ -1,5 +1,5 @@
-import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod"
 import { and, eq } from "drizzle-orm"
+import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod"
 import { z } from "zod"
 import { db } from "../db/index.js"
 import { apiKeys, userProfiles } from "../db/schema.js"
@@ -119,10 +119,7 @@ const settingsRoutes: FastifyPluginAsyncZod = async (fastify) => {
       await db
         .delete(apiKeys)
         .where(
-          and(
-            eq(apiKeys.userId, request.user.sub),
-            eq(apiKeys.provider, request.params.provider)
-          )
+          and(eq(apiKeys.userId, request.user.sub), eq(apiKeys.provider, request.params.provider))
         )
 
       return { ok: true }

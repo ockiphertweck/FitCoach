@@ -1,5 +1,5 @@
-import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod"
 import { and, asc, count, desc, eq, gte, lte } from "drizzle-orm"
+import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod"
 import { z } from "zod"
 import { db } from "../db/index.js"
 import { activities } from "../db/schema.js"
@@ -51,7 +51,11 @@ const activitiesRoutes: FastifyPluginAsyncZod = async (fastify) => {
 
   fastify.get(
     "/activities/stats",
-    { schema: { response: { 200: z.object({ atl: z.number(), ctl: z.number(), tsb: z.number() }) } } },
+    {
+      schema: {
+        response: { 200: z.object({ atl: z.number(), ctl: z.number(), tsb: z.number() }) },
+      },
+    },
     async (request) => {
       const userId = request.user.sub
       const fortyTwoDaysAgo = new Date()
@@ -78,9 +82,7 @@ const activitiesRoutes: FastifyPluginAsyncZod = async (fastify) => {
       const [activity] = await db
         .select()
         .from(activities)
-        .where(
-          and(eq(activities.id, request.params.id), eq(activities.userId, request.user.sub))
-        )
+        .where(and(eq(activities.id, request.params.id), eq(activities.userId, request.user.sub)))
         .limit(1)
 
       if (!activity) {

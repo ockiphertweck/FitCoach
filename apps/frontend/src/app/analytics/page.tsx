@@ -1,8 +1,12 @@
 "use client"
 
+import { Markdown } from "@/components/markdown"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Skeleton } from "@/components/ui/skeleton"
+import { api } from "@/lib/api"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { FileText, Loader2 } from "lucide-react"
-import { Markdown } from "@/components/markdown"
 import {
   CartesianGrid,
   Legend,
@@ -13,10 +17,6 @@ import {
   XAxis,
   YAxis,
 } from "recharts"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Skeleton } from "@/components/ui/skeleton"
-import { api } from "@/lib/api"
 
 interface Activity {
   startDate: string
@@ -41,10 +41,8 @@ interface WeeklyReport {
 }
 
 function buildWeeklyChartData(activities: Activity[]) {
-  const weeks: Map<
-    string,
-    { distance: number; duration: number; hrSum: number; hrCount: number }
-  > = new Map()
+  const weeks: Map<string, { distance: number; duration: number; hrSum: number; hrCount: number }> =
+    new Map()
 
   for (const a of activities) {
     const date = new Date(a.startDate)
@@ -84,9 +82,7 @@ export default function AnalyticsPage() {
   }>({
     queryKey: ["analytics-activities"],
     queryFn: () =>
-      api.get(
-        `/activities?limit=200&from=${eightWeeksAgo.toISOString().slice(0, 10)}`
-      ),
+      api.get(`/activities?limit=200&from=${eightWeeksAgo.toISOString().slice(0, 10)}`),
   })
 
   const reportMutation = useMutation({
@@ -197,10 +193,7 @@ export default function AnalyticsPage() {
           <CardDescription>AI-generated analysis of your current training week</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Button
-            onClick={() => reportMutation.mutate()}
-            disabled={reportMutation.isPending}
-          >
+          <Button onClick={() => reportMutation.mutate()} disabled={reportMutation.isPending}>
             {reportMutation.isPending ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -239,9 +232,7 @@ export default function AnalyticsPage() {
                 </div>
                 <div className="bg-muted rounded p-3">
                   <p className="text-muted-foreground text-xs">Avg HR</p>
-                  <p className="font-medium">
-                    {reportMutation.data.metrics.avgHR ?? "N/A"} bpm
-                  </p>
+                  <p className="font-medium">{reportMutation.data.metrics.avgHR ?? "N/A"} bpm</p>
                 </div>
                 <div className="bg-muted rounded p-3">
                   <p className="text-muted-foreground text-xs">ATL</p>

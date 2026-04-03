@@ -14,7 +14,7 @@ declare module "fastify" {
 }
 
 export const authMiddleware = async (request: FastifyRequest): Promise<void> => {
-  const token = request.cookies?.["fitcoach_token"]
+  const token = request.cookies?.fitcoach_token
 
   if (!token) {
     throw request.server.httpErrors.unauthorized("Authentication required")

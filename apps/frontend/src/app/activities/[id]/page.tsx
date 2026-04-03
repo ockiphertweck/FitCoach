@@ -1,5 +1,10 @@
 "use client"
 
+import { Markdown } from "@/components/markdown"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { api } from "@/lib/api"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import {
   Activity,
@@ -16,11 +21,6 @@ import {
 import dynamic from "next/dynamic"
 import Link from "next/link"
 import { use } from "react"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Markdown } from "@/components/markdown"
-import { api } from "@/lib/api"
 
 const ActivityMap = dynamic(() => import("@/components/activity-map"), { ssr: false })
 
@@ -155,7 +155,9 @@ export default function ActivityDetailPage({ params }: { params: Promise<{ id: s
           <div>
             <h1 className="text-2xl font-bold">{activity.name ?? activity.sportType}</h1>
             <div className="flex items-center gap-2 mt-1">
-              <Badge variant="outline" className="capitalize">{activity.sportType}</Badge>
+              <Badge variant="outline" className="capitalize">
+                {activity.sportType}
+              </Badge>
               {isIndoor && <Badge variant="secondary">Indoor</Badge>}
               {raw.commute && <Badge variant="secondary">Commute</Badge>}
               <span className="text-sm text-muted-foreground">
@@ -198,40 +200,64 @@ export default function ActivityDetailPage({ params }: { params: Promise<{ id: s
       {/* Key stats grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         {movingTime != null && (
-          <StatCard icon={Timer} label="Moving Time" value={fmt(movingTime)}
-            sub={stopTime ? `+${fmt(stopTime)} stopped` : undefined} />
+          <StatCard
+            icon={Timer}
+            label="Moving Time"
+            value={fmt(movingTime)}
+            sub={stopTime ? `+${fmt(stopTime)} stopped` : undefined}
+          />
         )}
         {activity.distanceMeters != null && (
-          <StatCard icon={Activity} label="Distance"
-            value={`${(activity.distanceMeters / 1000).toFixed(2)} km`} />
+          <StatCard
+            icon={Activity}
+            label="Distance"
+            value={`${(activity.distanceMeters / 1000).toFixed(2)} km`}
+          />
         )}
         {activity.elevationMeters != null && activity.elevationMeters > 0 && (
-          <StatCard icon={Mountain} label="Elevation Gain"
+          <StatCard
+            icon={Mountain}
+            label="Elevation Gain"
             value={`${Math.round(activity.elevationMeters)} m`}
-            sub={raw.elev_low != null && raw.elev_high != null
-              ? `${Math.round(raw.elev_low)}–${Math.round(raw.elev_high)} m`
-              : undefined} />
+            sub={
+              raw.elev_low != null && raw.elev_high != null
+                ? `${Math.round(raw.elev_low)}–${Math.round(raw.elev_high)} m`
+                : undefined
+            }
+          />
         )}
         {activity.averageHeartRate != null && (
-          <StatCard icon={Heart} label="Avg Heart Rate"
+          <StatCard
+            icon={Heart}
+            label="Avg Heart Rate"
             value={`${activity.averageHeartRate} bpm`}
-            sub={activity.maxHeartRate ? `max ${activity.maxHeartRate} bpm` : undefined} />
+            sub={activity.maxHeartRate ? `max ${activity.maxHeartRate} bpm` : undefined}
+          />
         )}
         {activity.averagePaceSecondsPerKm != null && (
-          <StatCard icon={Gauge} label="Avg Pace"
-            value={fmtPace(activity.averagePaceSecondsPerKm)} />
+          <StatCard
+            icon={Gauge}
+            label="Avg Pace"
+            value={fmtPace(activity.averagePaceSecondsPerKm)}
+          />
         )}
         {raw.max_speed != null && raw.max_speed > 0 && (
           <StatCard icon={Gauge} label="Max Speed" value={fmtSpeed(raw.max_speed)} />
         )}
         {hasPower && (
-          <StatCard icon={Zap} label="Avg Power"
-            value={`${Math.round(raw.average_watts!)} W`}
-            sub={raw.device_watts ? "power meter" : "estimated"} />
+          <StatCard
+            icon={Zap}
+            label="Avg Power"
+            value={`${Math.round(raw.average_watts ?? 0)} W`}
+            sub={raw.device_watts ? "power meter" : "estimated"}
+          />
         )}
         {raw.weighted_average_watts != null && (
-          <StatCard icon={Zap} label="Normalized Power"
-            value={`${Math.round(raw.weighted_average_watts)} W`} />
+          <StatCard
+            icon={Zap}
+            label="Normalized Power"
+            value={`${Math.round(raw.weighted_average_watts)} W`}
+          />
         )}
         {raw.kilojoules != null && (
           <StatCard icon={Bike} label="Energy" value={`${Math.round(raw.kilojoules)} kJ`} />
@@ -266,7 +292,11 @@ export default function ActivityDetailPage({ params }: { params: Promise<{ id: s
             variant="outline"
             size="sm"
           >
-            {insightsMutation.isPending ? "Analysing…" : activity.aiInsight ? "Re-analyse" : "Analyse this activity"}
+            {insightsMutation.isPending
+              ? "Analysing…"
+              : activity.aiInsight
+                ? "Re-analyse"
+                : "Analyse this activity"}
           </Button>
           {insightsMutation.isError && (
             <p className="text-sm text-destructive">{insightsMutation.error.message}</p>

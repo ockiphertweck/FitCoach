@@ -10,3 +10,5 @@ docker-compose.override.yml
 .pnpm-store
 drizzle/meta
 coverage
+playwright-report
+test-results

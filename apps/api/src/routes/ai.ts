@@ -1,16 +1,19 @@
-import Anthropic from "@anthropic-ai/sdk"
-import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod"
 import { and, asc, desc, eq, gte, lte } from "drizzle-orm"
+import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod"
 import { PostHog } from "posthog-node"
 import { z } from "zod"
 import { db } from "../db/index.js"
-import { activities, apiKeys, chatHistory, weeklyReports } from "../db/schema.js"
+import { activities, chatHistory, weeklyReports } from "../db/schema.js"
 import { env } from "../env.js"
 import { authMiddleware } from "../middleware/auth.js"
-import { buildChatContext, buildRecommendationContext, SYSTEM_PROMPT } from "../services/ai-context.js"
 import { computeInsightHash, generateActivityInsight } from "../services/activity-insight.js"
+import {
+  SYSTEM_PROMPT,
+  buildChatContext,
+  buildRecommendationContext,
+} from "../services/ai-context.js"
+import { requireAnthropicClient } from "../services/anthropic-client.js"
 import { calculateTrainingLoad } from "../services/atl-ctl.js"
-import { decrypt } from "../services/encryption.js"
 
 let posthog: PostHog | null = null
 
@@ -22,22 +25,6 @@ if (env.POSTHOG_API_KEY) {
   })
 }
 
-async function getAnthropicClient(userId: string): Promise<Anthropic> {
-  const [keyRow] = await db
-    .select()
-    .from(apiKeys)
-    .where(and(eq(apiKeys.userId, userId), eq(apiKeys.provider, "anthropic")))
-    .limit(1)
-
-  const apiKey = keyRow ? decrypt(keyRow.encryptedKey) : env.CLAUDE_API_KEY
-
-  if (!apiKey) {
-    throw new Error("No Claude API key configured. Add one in Settings.")
-  }
-
-  return new Anthropic({ apiKey })
-}
-
 const aiRoutes: FastifyPluginAsyncZod = async (fastify) => {
   fastify.addHook("preHandler", authMiddleware)
 
@@ -46,7 +33,7 @@ const aiRoutes: FastifyPluginAsyncZod = async (fastify) => {
     { schema: { body: z.object({}).optional() } },
     async (request, reply) => {
       const userId = request.user.sub
-      const anthropic = await getAnthropicClient(userId)
+      const anthropic = await requireAnthropicClient(userId)
       const context = await buildRecommendationContext(userId, db)
 
       const origin = request.headers.origin ?? env.FRONTEND_URL
@@ -77,10 +64,7 @@ const aiRoutes: FastifyPluginAsyncZod = async (fastify) => {
         })
 
         for await (const event of stream) {
-          if (
-            event.type === "content_block_delta" &&
-            event.delta.type === "text_delta"
-          ) {
+          if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
             const text = event.delta.text
             fullResponse += text
             reply.raw.write(`data: ${JSON.stringify({ text })}\n\n`)
@@ -133,7 +117,7 @@ const aiRoutes: FastifyPluginAsyncZod = async (fastify) => {
     async (request, reply) => {
       const userId = request.user.sub
       const { message } = request.body
-      const anthropic = await getAnthropicClient(userId)
+      const anthropic = await requireAnthropicClient(userId)
 
       // Get last 10 messages
       const history = await db
@@ -177,10 +161,7 @@ const aiRoutes: FastifyPluginAsyncZod = async (fastify) => {
         })
 
         for await (const event of stream) {
-          if (
-            event.type === "content_block_delta" &&
-            event.delta.type === "text_delta"
-          ) {
+          if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
             const text = event.delta.text
             fullResponse += text
             reply.raw.write(`data: ${JSON.stringify({ text })}\n\n`)
@@ -219,20 +200,16 @@ const aiRoutes: FastifyPluginAsyncZod = async (fastify) => {
     }
   )
 
-  fastify.get(
-    "/ai/chat/history",
-    { schema: { response: {} } },
-    async (request) => {
-      const messages = await db
-        .select()
-        .from(chatHistory)
-        .where(eq(chatHistory.userId, request.user.sub))
-        .orderBy(asc(chatHistory.createdAt))
-        .limit(50)
+  fastify.get("/ai/chat/history", { schema: { response: {} } }, async (request) => {
+    const messages = await db
+      .select()
+      .from(chatHistory)
+      .where(eq(chatHistory.userId, request.user.sub))
+      .orderBy(asc(chatHistory.createdAt))
+      .limit(50)
 
-      return { messages }
-    }
-  )
+    return { messages }
+  })
 
   fastify.delete(
     "/ai/chat/history",
@@ -254,7 +231,7 @@ const aiRoutes: FastifyPluginAsyncZod = async (fastify) => {
     async (request, reply) => {
       const userId = request.user.sub
       const { activityId } = request.body
-      const anthropic = await getAnthropicClient(userId)
+      const anthropic = await requireAnthropicClient(userId)
 
       const [activity] = await db
         .select()
@@ -264,8 +241,8 @@ const aiRoutes: FastifyPluginAsyncZod = async (fastify) => {
 
       if (!activity) return reply.code(404).send({ error: "Activity not found" } as never)
 
-      const insight = await generateActivityInsight(anthropic, activity)
       const newHash = computeInsightHash(activity)
+      const insight = await generateActivityInsight(anthropic, activity)
 
       await db
         .update(activities)
@@ -276,68 +253,61 @@ const aiRoutes: FastifyPluginAsyncZod = async (fastify) => {
     }
   )
 
-  fastify.post(
-    "/ai/weekly-report",
-    { schema: {} },
-    async (request, reply) => {
-      const userId = request.user.sub
-      const anthropic = await getAnthropicClient(userId)
+  fastify.post("/ai/weekly-report", { schema: {} }, async (request, _reply) => {
+    const userId = request.user.sub
+    const anthropic = await requireAnthropicClient(userId)
 
-      // Get current week start (Monday)
-      const now = new Date()
-      const dayOfWeek = now.getDay()
-      const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1
-      const weekStart = new Date(now)
-      weekStart.setDate(now.getDate() - daysToMonday)
-      weekStart.setHours(0, 0, 0, 0)
+    // Get current week start (Monday)
+    const now = new Date()
+    const dayOfWeek = now.getDay()
+    const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1
+    const weekStart = new Date(now)
+    weekStart.setDate(now.getDate() - daysToMonday)
+    weekStart.setHours(0, 0, 0, 0)
 
-      const weekEnd = new Date(weekStart)
-      weekEnd.setDate(weekStart.getDate() + 7)
+    const weekEnd = new Date(weekStart)
+    weekEnd.setDate(weekStart.getDate() + 7)
 
-      const weekActivities = await db
-        .select()
-        .from(activities)
-        .where(
-          and(
-            eq(activities.userId, userId),
-            gte(activities.startDate, weekStart),
-            lte(activities.startDate, weekEnd)
-          )
+    const weekActivities = await db
+      .select()
+      .from(activities)
+      .where(
+        and(
+          eq(activities.userId, userId),
+          gte(activities.startDate, weekStart),
+          lte(activities.startDate, weekEnd)
         )
-        .orderBy(asc(activities.startDate))
+      )
+      .orderBy(asc(activities.startDate))
 
-      // Calculate metrics
-      const totalDistance = weekActivities.reduce((s, a) => s + (a.distanceMeters ?? 0), 0)
-      const totalDuration = weekActivities.reduce((s, a) => s + (a.durationSeconds ?? 0), 0)
-      const hrValues = weekActivities.map((a) => a.averageHeartRate).filter(Boolean) as number[]
-      const avgHR = hrValues.length > 0 ? Math.round(hrValues.reduce((a, b) => a + b) / hrValues.length) : null
+    // Calculate metrics
+    const totalDistance = weekActivities.reduce((s, a) => s + (a.distanceMeters ?? 0), 0)
+    const totalDuration = weekActivities.reduce((s, a) => s + (a.durationSeconds ?? 0), 0)
+    const hrValues = weekActivities.map((a) => a.averageHeartRate).filter(Boolean) as number[]
+    const avgHR =
+      hrValues.length > 0 ? Math.round(hrValues.reduce((a, b) => a + b) / hrValues.length) : null
 
-      // Get training load
-      const allActivities = await db
-        .select()
-        .from(activities)
-        .where(eq(activities.userId, userId))
-      const load = calculateTrainingLoad(allActivities)
+    // Get training load
+    const allActivities = await db.select().from(activities).where(eq(activities.userId, userId))
+    const load = calculateTrainingLoad(allActivities)
 
-      const metrics = {
-        totalDistance,
-        totalDuration,
-        avgHR,
-        sessions: weekActivities.length,
-        atl: load.atl,
-        ctl: load.ctl,
-      }
+    const metrics = {
+      totalDistance,
+      totalDuration,
+      avgHR,
+      sessions: weekActivities.length,
+      atl: load.atl,
+      ctl: load.ctl,
+    }
 
-      const activitySummary = weekActivities
-        .map(
-          (a) =>
-            `- ${a.startDate.toISOString().slice(0, 10)}: ${a.sportType}` +
-            (a.durationSeconds ? ` ${Math.round(a.durationSeconds / 60)}min` : "") +
-            (a.distanceMeters ? ` ${(a.distanceMeters / 1000).toFixed(1)}km` : "")
-        )
-        .join("\n")
+    const activitySummary = weekActivities
+      .map(
+        (a) =>
+          `- ${a.startDate.toISOString().slice(0, 10)}: ${a.sportType}${a.durationSeconds ? ` ${Math.round(a.durationSeconds / 60)}min` : ""}${a.distanceMeters ? ` ${(a.distanceMeters / 1000).toFixed(1)}km` : ""}`
+      )
+      .join("\n")
 
-      const prompt = `Generate a weekly training summary for the week of ${weekStart.toISOString().slice(0, 10)}.
+    const prompt = `Generate a weekly training summary for the week of ${weekStart.toISOString().slice(0, 10)}.
 
 Activities this week:
 ${activitySummary || "No activities recorded."}
@@ -353,30 +323,31 @@ Metrics:
 
 Write a 3-4 paragraph coaching summary covering: what was accomplished, training load assessment, recovery recommendations, and focus for next week.`
 
-      const response = await anthropic.messages.create({
-        model: "claude-sonnet-4-6",
-        max_tokens: 1024,
-        system: SYSTEM_PROMPT,
-        messages: [{ role: "user", content: prompt }],
+    const response = await anthropic.messages.create({
+      model: "claude-sonnet-4-6",
+      max_tokens: 1024,
+      system: SYSTEM_PROMPT,
+      messages: [{ role: "user", content: prompt }],
+    })
+
+    const summary =
+      response.content[0]?.type === "text"
+        ? response.content[0].text
+        : "Unable to generate summary."
+
+    const weekStartStr = weekStart.toISOString().slice(0, 10)
+
+    const [report] = await db
+      .insert(weeklyReports)
+      .values({ userId, weekStart: weekStartStr, summary, metrics })
+      .onConflictDoUpdate({
+        target: [weeklyReports.userId, weeklyReports.weekStart],
+        set: { summary, metrics, generatedAt: new Date() },
       })
+      .returning()
 
-      const summary =
-        response.content[0]?.type === "text" ? response.content[0].text : "Unable to generate summary."
-
-      const weekStartStr = weekStart.toISOString().slice(0, 10)
-
-      const [report] = await db
-        .insert(weeklyReports)
-        .values({ userId, weekStart: weekStartStr, summary, metrics })
-        .onConflictDoUpdate({
-          target: [weeklyReports.userId, weeklyReports.weekStart],
-          set: { summary, metrics, generatedAt: new Date() },
-        })
-        .returning()
-
-      return report
-    }
-  )
+    return report
+  })
 }
 
 export default aiRoutes

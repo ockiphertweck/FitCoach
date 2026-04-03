@@ -56,18 +56,12 @@ describe("stravaActivityToDbFields", () => {
 
   it("calculates pace from average_speed", () => {
     // 3 m/s = 333 sec/km
-    const fields = stravaActivityToDbFields(
-      makeStravaActivity({ average_speed: 3 }),
-      "user-1"
-    )
+    const fields = stravaActivityToDbFields(makeStravaActivity({ average_speed: 3 }), "user-1")
     expect(fields.averagePaceSecondsPerKm).toBe(333)
   })
 
   it("sets pace to null when average_speed is 0", () => {
-    const fields = stravaActivityToDbFields(
-      makeStravaActivity({ average_speed: 0 }),
-      "user-1"
-    )
+    const fields = stravaActivityToDbFields(makeStravaActivity({ average_speed: 0 }), "user-1")
     expect(fields.averagePaceSecondsPerKm).toBeNull()
   })
 

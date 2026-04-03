@@ -1,30 +1,19 @@
-import Anthropic from "@anthropic-ai/sdk"
-import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod"
 import { and, desc, eq } from "drizzle-orm"
+import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod"
 import { z } from "zod"
 import { db } from "../db/index.js"
-import { activities, apiKeys, stravaTokens } from "../db/schema.js"
+import { activities, stravaTokens } from "../db/schema.js"
 import { env } from "../env.js"
 import { authMiddleware } from "../middleware/auth.js"
 import { computeInsightHash, generateActivityInsight } from "../services/activity-insight.js"
-import { decrypt, encrypt } from "../services/encryption.js"
+import { getAnthropicClient } from "../services/anthropic-client.js"
+import { encrypt } from "../services/encryption.js"
 import {
-  getFreshAccessToken,
-  getActivity,
   getActivities,
+  getActivity,
+  getFreshAccessToken,
   stravaActivityToDbFields,
 } from "../services/strava-client.js"
-
-async function getAnthropicClientForUser(userId: string): Promise<Anthropic | null> {
-  const [keyRow] = await db
-    .select()
-    .from(apiKeys)
-    .where(and(eq(apiKeys.userId, userId), eq(apiKeys.provider, "anthropic")))
-    .limit(1)
-  const apiKey = keyRow ? decrypt(keyRow.encryptedKey) : env.CLAUDE_API_KEY
-  if (!apiKey) return null
-  return new Anthropic({ apiKey })
-}
 
 async function maybeGenerateInsight(
   userId: string,
@@ -42,7 +31,7 @@ async function maybeGenerateInsight(
   const newHash = computeInsightHash(activity)
   if (activity.rawDataHash === newHash && activity.aiInsight) return
 
-  const anthropic = await getAnthropicClientForUser(userId)
+  const anthropic = await getAnthropicClient(userId)
   if (!anthropic) return
 
   try {
@@ -73,7 +62,9 @@ const stravaRoutes: FastifyPluginAsyncZod = async (fastify) => {
     },
     async (request, reply) => {
       if (!env.STRAVA_WEBHOOK_VERIFY_TOKEN) {
-        return reply.code(503).send({ error: "Webhooks not configured (STRAVA_WEBHOOK_VERIFY_TOKEN not set)" })
+        return reply
+          .code(503)
+          .send({ error: "Webhooks not configured (STRAVA_WEBHOOK_VERIFY_TOKEN not set)" })
       }
       const query = request.query
       if (
@@ -92,12 +83,14 @@ const stravaRoutes: FastifyPluginAsyncZod = async (fastify) => {
     "/strava/webhook",
     {
       schema: {
-        body: z.object({
-          object_type: z.string(),
-          aspect_type: z.string(),
-          object_id: z.number(),
-          owner_id: z.number(),
-        }).passthrough(),
+        body: z
+          .object({
+            object_type: z.string(),
+            aspect_type: z.string(),
+            object_id: z.number(),
+            owner_id: z.number(),
+          })
+          .passthrough(),
       },
     },
     async (request, reply) => {
@@ -148,19 +141,15 @@ const stravaRoutes: FastifyPluginAsyncZod = async (fastify) => {
   fastify.register(async (authenticated) => {
     authenticated.addHook("preHandler", authMiddleware)
 
-    authenticated.get(
-      "/strava/connect",
-      { schema: { response: {} } },
-      async (_request, reply) => {
-        const params = new URLSearchParams({
-          client_id: env.STRAVA_CLIENT_ID,
-          redirect_uri: env.STRAVA_REDIRECT_URI,
-          response_type: "code",
-          scope: STRAVA_SCOPES,
-        })
-        return reply.redirect(`https://www.strava.com/oauth/authorize?${params}`)
-      }
-    )
+    authenticated.get("/strava/connect", { schema: { response: {} } }, async (_request, reply) => {
+      const params = new URLSearchParams({
+        client_id: env.STRAVA_CLIENT_ID,
+        redirect_uri: env.STRAVA_REDIRECT_URI,
+        response_type: "code",
+        scope: STRAVA_SCOPES,
+      })
+      return reply.redirect(`https://www.strava.com/oauth/authorize?${params}`)
+    })
 
     authenticated.get(
       "/strava/callback",
@@ -312,12 +301,7 @@ const stravaRoutes: FastifyPluginAsyncZod = async (fastify) => {
         const [lastActivity] = await db
           .select()
           .from(activities)
-          .where(
-            and(
-              eq(activities.userId, request.user.sub),
-              eq(activities.source, "strava")
-            )
-          )
+          .where(and(eq(activities.userId, request.user.sub), eq(activities.source, "strava")))
           .orderBy(desc(activities.startDate))
           .limit(1)
 
@@ -333,9 +317,7 @@ const stravaRoutes: FastifyPluginAsyncZod = async (fastify) => {
       "/strava/disconnect",
       { schema: { response: { 200: z.object({ ok: z.boolean() }) } } },
       async (request) => {
-        await db
-          .delete(stravaTokens)
-          .where(eq(stravaTokens.userId, request.user.sub))
+        await db.delete(stravaTokens).where(eq(stravaTokens.userId, request.user.sub))
 
         return { ok: true }
       }

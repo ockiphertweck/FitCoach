@@ -20,12 +20,12 @@ describe("encrypt / decrypt", () => {
   it("ciphertext has the iv:tag:data format", () => {
     const parts = encrypt("test").split(":")
     expect(parts).toHaveLength(3)
-    parts.forEach((p) => expect(p.length).toBeGreaterThan(0))
+    for (const p of parts) expect(p.length).toBeGreaterThan(0)
   })
 
   it("throws on tampered ciphertext", () => {
     const encrypted = encrypt("secret")
-    const tampered = encrypted.slice(0, -4) + "XXXX"
+    const tampered = `${encrypted.slice(0, -4)}XXXX`
     expect(() => decrypt(tampered)).toThrow()
   })
 

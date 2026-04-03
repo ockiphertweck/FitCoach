@@ -1,9 +1,9 @@
-import type { Metadata } from "next"
-import { Inter } from "next/font/google"
 import { MainLayout } from "@/components/main-layout"
 import { Nav } from "@/components/nav"
 import { PostHogProvider } from "@/components/posthog-provider"
 import { QueryProvider } from "@/lib/query-client"
+import type { Metadata } from "next"
+import { Inter } from "next/font/google"
 import "./globals.css"
 
 const inter = Inter({ subsets: ["latin"] })

@@ -1,6 +1,6 @@
-import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod"
 import bcrypt from "bcryptjs"
 import { eq } from "drizzle-orm"
+import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod"
 import { SignJWT } from "jose"
 import { z } from "zod"
 import { db } from "../db/index.js"
@@ -121,11 +121,7 @@ const authRoutes: FastifyPluginAsyncZod = async (fastify) => {
       },
     },
     async (request, reply) => {
-      const [user] = await db
-        .select()
-        .from(users)
-        .where(eq(users.id, request.user.sub))
-        .limit(1)
+      const [user] = await db.select().from(users).where(eq(users.id, request.user.sub)).limit(1)
 
       if (!user) {
         return reply.code(404).send({ error: "User not found" })

@@ -115,7 +115,7 @@ export async function buildChatContext(
   const recentActivities = await db
     .select()
     .from(activities)
-    .where(gte(activities.startDate, fourteenDaysAgo))
+    .where(and(eq(activities.userId, userId), gte(activities.startDate, fourteenDaysAgo)))
     .orderBy(desc(activities.startDate))
     .limit(10)
 

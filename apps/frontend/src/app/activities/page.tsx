@@ -1,15 +1,15 @@
 "use client"
 
-import { useQuery } from "@tanstack/react-query"
-import { ChevronLeft, ChevronRight } from "lucide-react"
-import Link from "next/link"
-import { useState } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { api } from "@/lib/api"
+import { useQuery } from "@tanstack/react-query"
+import { ChevronLeft, ChevronRight } from "lucide-react"
+import Link from "next/link"
+import { useState } from "react"
 
 interface Activity {
   id: string
@@ -63,7 +63,13 @@ export default function ActivitiesPage() {
 
       {/* Filters */}
       <div className="flex flex-wrap gap-4 items-end">
-        <Tabs value={sport} onValueChange={(v) => { setSport(v); setPage(0) }}>
+        <Tabs
+          value={sport}
+          onValueChange={(v) => {
+            setSport(v)
+            setPage(0)
+          }}
+        >
           <TabsList>
             {SPORTS.map((s) => (
               <TabsTrigger key={s} value={s} className="capitalize">
@@ -77,7 +83,10 @@ export default function ActivitiesPage() {
           <Input
             type="date"
             value={from}
-            onChange={(e) => { setFrom(e.target.value); setPage(0) }}
+            onChange={(e) => {
+              setFrom(e.target.value)
+              setPage(0)
+            }}
             className="w-36 text-sm"
             placeholder="From"
           />
@@ -85,12 +94,23 @@ export default function ActivitiesPage() {
           <Input
             type="date"
             value={to}
-            onChange={(e) => { setTo(e.target.value); setPage(0) }}
+            onChange={(e) => {
+              setTo(e.target.value)
+              setPage(0)
+            }}
             className="w-36 text-sm"
             placeholder="To"
           />
           {(from || to) && (
-            <Button variant="ghost" size="sm" onClick={() => { setFrom(""); setTo(""); setPage(0) }}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setFrom("")
+                setTo("")
+                setPage(0)
+              }}
+            >
               Clear
             </Button>
           )}
@@ -142,9 +162,7 @@ export default function ActivitiesPage() {
 
                   <div className="flex gap-4 text-sm text-muted-foreground shrink-0">
                     {a.durationSeconds && <span>{formatDuration(a.durationSeconds)}</span>}
-                    {a.distanceMeters && (
-                      <span>{(a.distanceMeters / 1000).toFixed(1)} km</span>
-                    )}
+                    {a.distanceMeters && <span>{(a.distanceMeters / 1000).toFixed(1)} km</span>}
                     {a.elevationMeters && <span>{Math.round(a.elevationMeters)} m ↑</span>}
                     {a.averageHeartRate && <span>{a.averageHeartRate} bpm</span>}
                     {a.calories && <span>{a.calories} kcal</span>}

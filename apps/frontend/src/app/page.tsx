@@ -1,14 +1,14 @@
 "use client"
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { Activity, RefreshCw, TrendingDown, TrendingUp, Zap } from "lucide-react"
-import Link from "next/link"
 import { Markdown } from "@/components/markdown"
-import { useState } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { api, streamPost } from "@/lib/api"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { Activity, RefreshCw, TrendingDown, TrendingUp, Zap } from "lucide-react"
+import Link from "next/link"
+import { useState } from "react"
 
 interface TrainingLoad {
   atl: number
@@ -196,9 +196,7 @@ export default function Dashboard() {
           <CardTitle className="flex items-center gap-2">
             <Activity className="h-4 w-4" /> Recent Activities
           </CardTitle>
-          <CardDescription>
-            {recentData?.total ?? 0} total activities
-          </CardDescription>
+          <CardDescription>{recentData?.total ?? 0} total activities</CardDescription>
         </CardHeader>
         <CardContent>
           {!recentData?.items?.length ? (
@@ -227,9 +225,7 @@ export default function Dashboard() {
                     {a.distanceMeters && (
                       <span className="ml-2">{formatDistance(a.distanceMeters)}</span>
                     )}
-                    {a.averageHeartRate && (
-                      <span className="ml-2">{a.averageHeartRate} bpm</span>
-                    )}
+                    {a.averageHeartRate && <span className="ml-2">{a.averageHeartRate} bpm</span>}
                   </div>
                 </Link>
               ))}

@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm"
-import { env } from "../env.js"
 import type { DB } from "../db/index.js"
 import { stravaTokens } from "../db/schema.js"
+import { env } from "../env.js"
 import { decrypt, encrypt } from "./encryption.js"
 
 const STRAVA_API = "https://www.strava.com/api/v3"
@@ -53,10 +53,7 @@ async function ensureFreshToken(userId: string, db: DB): Promise<string> {
   return decrypt(token.accessToken)
 }
 
-export async function getActivities(
-  accessToken: string,
-  after: number
-): Promise<StravaActivity[]> {
+export async function getActivities(accessToken: string, after: number): Promise<StravaActivity[]> {
   const params = new URLSearchParams({
     after: String(after),
     per_page: "200",
@@ -73,10 +70,7 @@ export async function getActivities(
   return res.json() as Promise<StravaActivity[]>
 }
 
-export async function getActivity(
-  accessToken: string,
-  id: string
-): Promise<StravaActivity> {
+export async function getActivity(accessToken: string, id: string): Promise<StravaActivity> {
   const res = await fetch(`${STRAVA_API}/activities/${id}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   })
@@ -117,10 +111,7 @@ export async function getFreshAccessToken(userId: string, db: DB): Promise<strin
   return ensureFreshToken(userId, db)
 }
 
-export function stravaActivityToDbFields(
-  activity: StravaActivity,
-  userId: string
-) {
+export function stravaActivityToDbFields(activity: StravaActivity, userId: string) {
   const sportType = (activity.sport_type || activity.type || "other").toLowerCase()
   const distanceMeters = activity.distance || null
   const avgPace =

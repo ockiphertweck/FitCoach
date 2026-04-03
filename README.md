@@ -1,6 +1,8 @@
 # FitCoach
 
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=ockiphertweck_FitCoach&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=ockiphertweck_FitCoach)
+[![Tests](https://github.com/ockiphertweck/FitCoach/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/ockiphertweck/FitCoach/actions/workflows/test.yml)
+[![E2E Tests](https://github.com/ockiphertweck/FitCoach/actions/workflows/e2e.yml/badge.svg?branch=main)](https://github.com/ockiphertweck/FitCoach/actions/workflows/e2e.yml)
 
 **Self-hosted AI training coach powered by Strava and Claude.**
 

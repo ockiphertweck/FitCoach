@@ -1,9 +1,5 @@
 "use client"
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { CheckCircle, Key, Link2, Link2Off, LogOut, User } from "lucide-react"
-import { useRouter } from "next/navigation"
-import { useEffect, useState } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -11,8 +7,21 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { api } from "@/lib/api"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { CheckCircle, Key, Link2, Link2Off, LogOut, User } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { useCallback, useEffect, useState } from "react"
 
-interface User {
+function useFlashSaved(duration = 3000) {
+  const [saved, setSaved] = useState(false)
+  const flash = useCallback(() => {
+    setSaved(true)
+    setTimeout(() => setSaved(false), duration)
+  }, [duration])
+  return { saved, flash }
+}
+
+interface AuthUser {
   id: string
   email: string
   createdAt: string
@@ -40,7 +49,7 @@ export default function SettingsPage() {
   const router = useRouter()
   const qc = useQueryClient()
   const [claudeKey, setClaudeKey] = useState("")
-  const [keySaved, setKeySaved] = useState(false)
+  const { saved: keySaved, flash: flashKeySaved } = useFlashSaved()
 
   const [profileForm, setProfileForm] = useState<Profile>({
     sex: null,
@@ -49,9 +58,9 @@ export default function SettingsPage() {
     maxHeartRate: null,
     ftpWatts: null,
   })
-  const [profileSaved, setProfileSaved] = useState(false)
+  const { saved: profileSaved, flash: flashProfileSaved } = useFlashSaved()
 
-  const { data: user } = useQuery<User>({
+  const { data: user } = useQuery<AuthUser>({
     queryKey: ["me"],
     queryFn: () => api.get("/auth/me"),
   })
@@ -68,9 +77,8 @@ export default function SettingsPage() {
   const saveProfileMutation = useMutation({
     mutationFn: () => api.put("/settings/profile", profileForm),
     onSuccess: () => {
-      setProfileSaved(true)
+      flashProfileSaved()
       qc.invalidateQueries({ queryKey: ["profile"] })
-      setTimeout(() => setProfileSaved(false), 3000)
     },
   })
 
@@ -87,10 +95,9 @@ export default function SettingsPage() {
   const saveKeyMutation = useMutation({
     mutationFn: () => api.post("/settings/apikey", { provider: "anthropic", key: claudeKey }),
     onSuccess: () => {
-      setKeySaved(true)
+      flashKeySaved()
       setClaudeKey("")
       qc.invalidateQueries({ queryKey: ["api-key-status"] })
-      setTimeout(() => setKeySaved(false), 3000)
     },
   })
 
@@ -135,7 +142,9 @@ export default function SettingsPage() {
               <select
                 id="sex"
                 value={profileForm.sex ?? ""}
-                onChange={(e) => setProfileForm((p) => ({ ...p, sex: (e.target.value || null) as Profile["sex"] }))}
+                onChange={(e) =>
+                  setProfileForm((p) => ({ ...p, sex: (e.target.value || null) as Profile["sex"] }))
+                }
                 className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
               >
                 <option value="">Prefer not to say</option>
@@ -154,7 +163,12 @@ export default function SettingsPage() {
                 max="300"
                 placeholder="70"
                 value={profileForm.weightKg ?? ""}
-                onChange={(e) => setProfileForm((p) => ({ ...p, weightKg: e.target.value ? Number(e.target.value) : null }))}
+                onChange={(e) =>
+                  setProfileForm((p) => ({
+                    ...p,
+                    weightKg: e.target.value ? Number(e.target.value) : null,
+                  }))
+                }
               />
             </div>
             <div className="space-y-1">
@@ -167,7 +181,12 @@ export default function SettingsPage() {
                 max="250"
                 placeholder="175"
                 value={profileForm.heightCm ?? ""}
-                onChange={(e) => setProfileForm((p) => ({ ...p, heightCm: e.target.value ? Number(e.target.value) : null }))}
+                onChange={(e) =>
+                  setProfileForm((p) => ({
+                    ...p,
+                    heightCm: e.target.value ? Number(e.target.value) : null,
+                  }))
+                }
               />
             </div>
             <div className="space-y-1">
@@ -180,7 +199,12 @@ export default function SettingsPage() {
                 max="250"
                 placeholder="185"
                 value={profileForm.maxHeartRate ?? ""}
-                onChange={(e) => setProfileForm((p) => ({ ...p, maxHeartRate: e.target.value ? Number(e.target.value) : null }))}
+                onChange={(e) =>
+                  setProfileForm((p) => ({
+                    ...p,
+                    maxHeartRate: e.target.value ? Number(e.target.value) : null,
+                  }))
+                }
               />
             </div>
             <div className="space-y-1">
@@ -193,12 +217,20 @@ export default function SettingsPage() {
                 max="600"
                 placeholder="250"
                 value={profileForm.ftpWatts ?? ""}
-                onChange={(e) => setProfileForm((p) => ({ ...p, ftpWatts: e.target.value ? Number(e.target.value) : null }))}
+                onChange={(e) =>
+                  setProfileForm((p) => ({
+                    ...p,
+                    ftpWatts: e.target.value ? Number(e.target.value) : null,
+                  }))
+                }
               />
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <Button onClick={() => saveProfileMutation.mutate()} disabled={saveProfileMutation.isPending}>
+            <Button
+              onClick={() => saveProfileMutation.mutate()}
+              disabled={saveProfileMutation.isPending}
+            >
               {saveProfileMutation.isPending ? "Saving…" : "Save profile"}
             </Button>
             {profileSaved && (
