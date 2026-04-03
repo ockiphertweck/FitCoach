@@ -106,7 +106,8 @@ test.describe("Activities list", () => {
     // fill() doesn't reliably trigger React onChange for date inputs in CI — use native setter
     const setDateInput = (el: HTMLInputElement, val: string) => {
       // biome-ignore lint/style/noNonNullAssertion: descriptor and setter always exist on HTMLInputElement
-      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")!.set!
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")!
+        .set!
       setter.call(el, val)
       el.dispatchEvent(new Event("input", { bubbles: true }))
       el.dispatchEvent(new Event("change", { bubbles: true }))
