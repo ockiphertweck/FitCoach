@@ -26,8 +26,10 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
+# Drop from root to a dedicated non-root user so that a compromised process
+# cannot write to the host filesystem or escalate privileges via setuid binaries.
+RUN addgroup --system --gid 1001 nodejs \
+ && adduser --system --uid 1001 nextjs
 
 COPY --from=builder /workspace/apps/frontend/.next/standalone ./
 COPY --from=builder /workspace/apps/frontend/.next/static ./.next/static

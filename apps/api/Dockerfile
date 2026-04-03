@@ -23,10 +23,17 @@ FROM node:22-alpine AS runner
 
 WORKDIR /app
 
+# Drop from root to a dedicated non-root user so that a compromised process
+# cannot write to the host filesystem or escalate privileges via setuid binaries.
+RUN addgroup --system --gid 1001 nodejs \
+ && adduser --system --uid 1001 --ingroup nodejs nodeuser
+
 COPY --from=builder /workspace/apps/api/dist ./dist
 COPY --from=builder /workspace/apps/api/package.json ./
 
 ENV NODE_ENV=production
+
+USER nodeuser
 
 EXPOSE 3000
 

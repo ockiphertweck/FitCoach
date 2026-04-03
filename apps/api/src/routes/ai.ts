@@ -285,7 +285,7 @@ const aiRoutes: FastifyPluginAsyncZod = async (fastify) => {
     const totalDuration = weekActivities.reduce((s, a) => s + (a.durationSeconds ?? 0), 0)
     const hrValues = weekActivities.map((a) => a.averageHeartRate).filter(Boolean) as number[]
     const avgHR =
-      hrValues.length > 0 ? Math.round(hrValues.reduce((a, b) => a + b) / hrValues.length) : null
+      hrValues.length > 0 ? Math.round(hrValues.reduce((a, b) => a + b, 0) / hrValues.length) : null
 
     // Get training load
     const allActivities = await db.select().from(activities).where(eq(activities.userId, userId))

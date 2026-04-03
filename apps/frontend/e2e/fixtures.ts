@@ -13,7 +13,7 @@ export const TEST_USER_EMAIL = "test@fitcoach.dev"
 function readJwtSecret(): string {
   try {
     const env = readFileSync(join(__dirname, "../../../.env"), "utf-8")
-    const m = env.match(/^JWT_SECRET\s*=\s*(.+)$/m)
+    const m = env.match(/^JWT_SECRET\s*=\s*([^\r\n]+)/m)
     if (m) return m[1].trim().replace(/^["']|["']$/g, "")
   } catch {}
   return process.env.JWT_SECRET ?? "test-fallback-secret"
@@ -93,7 +93,7 @@ export async function mockStream(page: Page, path: string, chunks: string[]) {
 type AuthFixtures = { authedPage: Page }
 
 export const test = base.extend<AuthFixtures>({
-  authedPage: async ({ page, context }, use) => {
+  authedPage: async ({ page, context }, provide) => {
     const token = await generateTestToken()
     await context.addCookies([
       {
@@ -109,7 +109,7 @@ export const test = base.extend<AuthFixtures>({
       email: TEST_USER_EMAIL,
       createdAt: new Date().toISOString(),
     })
-    await use(page)
+    await provide(page)
   },
 })
 

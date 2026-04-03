@@ -6,7 +6,7 @@ import { defineConfig, devices } from "@playwright/test"
 try {
   const envFile = readFileSync(join(__dirname, "../../.env"), "utf-8")
   for (const line of envFile.split("\n")) {
-    const m = line.match(/^([A-Z_][A-Z0-9_]*)\s*=\s*(.+)$/)
+    const m = line.match(/^([A-Z_][A-Z0-9_]*)\s*=\s*([^\r\n]+)/)
     if (m && !process.env[m[1]]) {
       process.env[m[1]] = m[2].trim().replace(/^["']|["']$/g, "")
     }
