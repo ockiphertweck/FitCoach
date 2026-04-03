@@ -38,7 +38,11 @@ const ACTIVITY_WITH_POWER = {
 test.describe("Activities list", () => {
   test("shows empty state when no activities", async ({ authedPage }) => {
     await mockGet(authedPage, "/activities?limit=20&offset=0", { items: [], total: 0 })
-    await authedPage.goto("/activities")
+    const [response] = await Promise.all([
+      authedPage.waitForResponse((r) => r.url().includes("/activities") && r.status() === 200),
+      authedPage.goto("/activities"),
+    ])
+    await response.finished()
     await expect(authedPage.getByText("No activities found.")).toBeVisible()
     await expect(authedPage.getByText("0 total activities")).toBeVisible()
   })
