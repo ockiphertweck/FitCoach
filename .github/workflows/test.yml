@@ -36,3 +36,13 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm test
+        env:
+          # Dummy values satisfy env validation at module load time.
+          # Unit tests never connect to a real database or external service.
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+          DB_PASSWORD: ci-password
+          JWT_SECRET: ci-jwt-secret-at-least-32-characters-long
+          API_KEY_ENCRYPTION_KEY: ci-encryption-key-at-least-32-chars!
+          STRAVA_CLIENT_ID: "0"
+          STRAVA_CLIENT_SECRET: ci-strava-secret
+          STRAVA_REDIRECT_URI: http://localhost:3000/strava/callback
