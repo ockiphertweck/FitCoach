@@ -99,8 +99,9 @@ test.describe("AI Coach chat", () => {
       await authedPage.goto("/coach")
       await authedPage.getByPlaceholder(/Ask your coach/).fill("What should I do tomorrow?")
       await authedPage.locator("textarea").locator("xpath=..").locator("button").click()
+      // Text appears both as the live stream and in the re-fetched history — .first() avoids strict mode
       await expect(
-        authedPage.getByText("Based on your recent load, I recommend an easy run tomorrow.")
+        authedPage.getByText("Based on your recent load, I recommend an easy run tomorrow.").first()
       ).toBeVisible()
     })
 

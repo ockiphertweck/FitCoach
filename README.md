@@ -43,7 +43,7 @@ FitCoach connects to your Strava account, computes training load metrics (ATL/CT
 **Prerequisites:** Docker, pnpm ≥ 9, Node.js 22
 
 ```bash
-git clone https://github.com/your-username/fitcoach
+git clone https://github.com/ockiphertweck/FitCoach
 cd fitcoach
 cp .env.example .env   # fill in the required values (see below)
 docker compose up postgres -d
@@ -71,7 +71,7 @@ Open **http://localhost:3001** and create your account.
 | `CLAUDE_API_KEY` | optional | Default Claude key; can be set per-user in Settings |
 | `POSTHOG_API_KEY` | optional | Usage analytics — disabled if omitted |
 | `FRONTEND_URL` | optional | Defaults to `http://localhost:3001` |
-| `TS_AUTHTOKEN` | optional | Tailscale auth key — for local webhook dev only |
+| `TS_AUTHTOKEN` | optional | Tailscale auth key — exposes a stable public HTTPS URL via [Tailscale Funnel](https://tailscale.com/kb/1247/funnel) (no account needed on the receiving end, unlike ngrok) so Strava can deliver webhooks to your local machine |
 
 ---
 
@@ -309,4 +309,4 @@ Issues and PRs are welcome. Please open an issue before starting significant wor
 
 ## License
 
-MIT
+Apache 2.0 — see [LICENSE](LICENSE)

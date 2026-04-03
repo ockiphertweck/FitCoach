@@ -102,9 +102,18 @@ test.describe("Activities list", () => {
       })
     })
     await authedPage.goto("/activities")
-    await authedPage.locator('input[type="date"]').first().fill("2026-03-01")
-    await authedPage.locator('input[type="date"]').last().fill("2026-03-31")
-    await authedPage.waitForTimeout(100)
+
+    // fill() doesn't reliably trigger React onChange for date inputs in CI — use native setter
+    const setDateInput = (el: HTMLInputElement, val: string) => {
+      // biome-ignore lint/style/noNonNullAssertion: descriptor and setter always exist on HTMLInputElement
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")!.set!
+      setter.call(el, val)
+      el.dispatchEvent(new Event("input", { bubbles: true }))
+      el.dispatchEvent(new Event("change", { bubbles: true }))
+    }
+    await authedPage.locator('input[type="date"]').first().evaluate(setDateInput, "2026-03-01")
+    await authedPage.locator('input[type="date"]').last().evaluate(setDateInput, "2026-03-31")
+    await authedPage.waitForTimeout(150)
     expect(capturedUrl).toContain("from=2026-03-01")
     expect(capturedUrl).toContain("to=2026-03-31")
   })
