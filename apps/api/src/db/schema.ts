@@ -71,6 +71,7 @@ export const activities = pgTable(
     calories: integer("calories"),
     rawData: jsonb("raw_data"),
     rawDataHash: text("raw_data_hash"),
+    streamData: jsonb("stream_data"),
     aiInsight: text("ai_insight"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },

@@ -1,5 +1,19 @@
 import { API_BASE, MOCK_ACTIVITY, expect, mockGet, mockPost, test } from "./fixtures"
 
+const MOCK_STREAMS = {
+  points: [
+    { distanceKm: 0, heartrate: 120, speedKmh: 10.8, altitudeM: 10 },
+    { distanceKm: 1, heartrate: 140, speedKmh: 11.5, altitudeM: 12 },
+    { distanceKm: 2, heartrate: 155, speedKmh: 10.9, altitudeM: 15 },
+    { distanceKm: 3, heartrate: 160, speedKmh: 11.2, altitudeM: 14 },
+    { distanceKm: 4, heartrate: 150, speedKmh: 11.0, altitudeM: 13 },
+  ],
+  hrZones: { zone1: 10, zone2: 30, zone3: 120, zone4: 80, zone5: 20 },
+  maxHrUsed: 190,
+}
+
+const MOCK_ACTIVITY_STRAVA = { ...MOCK_ACTIVITY, source: "strava" }
+
 const ACTIVITY_WITH_INSIGHT = {
   ...MOCK_ACTIVITY,
   aiInsight: "Great steady effort. Heart rate was well controlled at 145 bpm average.",
@@ -323,6 +337,111 @@ test.describe("Activity detail page", () => {
       await authedPage.goto(`/activities/${MOCK_ACTIVITY.id}`)
       await authedPage.getByRole("button", { name: "Re-analyse" }).click()
       await expect(authedPage.getByText("Updated analysis: excellent session.")).toBeVisible()
+    })
+  })
+
+  test.describe("Energy and speed stats", () => {
+    test("shows kcal from calories field", async ({ authedPage }) => {
+      // MOCK_ACTIVITY has calories: 620
+      await authedPage.goto(`/activities/${MOCK_ACTIVITY.id}`)
+      await expect(authedPage.getByText("620 kcal")).toBeVisible()
+      await expect(authedPage.getByText("Energy")).toBeVisible()
+    })
+
+    test("shows kJ as sub-label when both calories and kilojoules present", async ({
+      authedPage,
+    }) => {
+      await authedPage.unroute(`${API_BASE}/activities/${MOCK_ACTIVITY.id}`)
+      await mockGet(authedPage, `/activities/${MOCK_ACTIVITY.id}`, {
+        ...MOCK_ACTIVITY,
+        rawData: { ...MOCK_ACTIVITY.rawData, kilojoules: 774 },
+      })
+      await authedPage.goto(`/activities/${MOCK_ACTIVITY.id}`)
+      await expect(authedPage.getByText("620 kcal")).toBeVisible()
+      await expect(authedPage.getByText("774 kJ")).toBeVisible()
+    })
+
+    test("shows kJ only when calories is null", async ({ authedPage }) => {
+      await authedPage.unroute(`${API_BASE}/activities/${MOCK_ACTIVITY.id}`)
+      await mockGet(authedPage, `/activities/${MOCK_ACTIVITY.id}`, {
+        ...MOCK_ACTIVITY,
+        calories: null,
+        rawData: { ...MOCK_ACTIVITY.rawData, kilojoules: 580 },
+      })
+      await authedPage.goto(`/activities/${MOCK_ACTIVITY.id}`)
+      await expect(authedPage.getByText("580 kJ")).toBeVisible()
+    })
+
+    test("hides Energy card when both calories and kilojoules are absent", async ({
+      authedPage,
+    }) => {
+      await authedPage.unroute(`${API_BASE}/activities/${MOCK_ACTIVITY.id}`)
+      await mockGet(authedPage, `/activities/${MOCK_ACTIVITY.id}`, {
+        ...MOCK_ACTIVITY,
+        calories: null,
+        rawData: { ...MOCK_ACTIVITY.rawData, kilojoules: undefined },
+      })
+      await authedPage.goto(`/activities/${MOCK_ACTIVITY.id}`)
+      await expect(authedPage.getByText("Energy")).not.toBeVisible()
+    })
+
+    test("shows Avg Speed in km/h", async ({ authedPage }) => {
+      // MOCK_ACTIVITY has averagePaceSecondsPerKm: 360 → 3600/360 = 10.0 km/h
+      await authedPage.goto(`/activities/${MOCK_ACTIVITY.id}`)
+      await expect(authedPage.getByText("Avg Speed")).toBeVisible()
+      await expect(authedPage.getByText("10.0 km/h")).toBeVisible()
+    })
+
+    test("shows max speed as sub-label under Avg Speed", async ({ authedPage }) => {
+      // MOCK_ACTIVITY.rawData.max_speed = 3.2 m/s → 3.2 × 3.6 = 11.5 km/h
+      await authedPage.goto(`/activities/${MOCK_ACTIVITY.id}`)
+      await expect(authedPage.getByText(/max 11\.5 km\/h/)).toBeVisible()
+    })
+  })
+
+  test.describe("Stream charts", () => {
+    test.beforeEach(async ({ authedPage }) => {
+      await authedPage.unroute(`${API_BASE}/activities/${MOCK_ACTIVITY.id}`)
+      await mockGet(authedPage, `/activities/${MOCK_ACTIVITY.id}`, MOCK_ACTIVITY_STRAVA)
+      await mockGet(authedPage, `/activities/${MOCK_ACTIVITY.id}/streams`, MOCK_STREAMS)
+    })
+
+    test("renders heart rate chart when HR data present", async ({ authedPage }) => {
+      await authedPage.goto(`/activities/${MOCK_ACTIVITY.id}`)
+      await expect(authedPage.getByText("Heart Rate")).toBeVisible()
+    })
+
+    test("renders speed chart when speed data present", async ({ authedPage }) => {
+      await authedPage.goto(`/activities/${MOCK_ACTIVITY.id}`)
+      await expect(authedPage.getByText("Speed")).toBeVisible()
+    })
+
+    test("renders elevation chart when altitude data present", async ({ authedPage }) => {
+      await authedPage.goto(`/activities/${MOCK_ACTIVITY.id}`)
+      await expect(authedPage.getByText("Elevation")).toBeVisible()
+    })
+
+    test("renders HR zone chart with all zone labels", async ({ authedPage }) => {
+      await authedPage.goto(`/activities/${MOCK_ACTIVITY.id}`)
+      await expect(authedPage.getByText("Heart Rate Zones")).toBeVisible()
+      await expect(authedPage.getByText("Z1")).toBeVisible()
+      await expect(authedPage.getByText("Z5")).toBeVisible()
+    })
+
+    test("HR zone chart shows bpm ranges when maxHrUsed provided", async ({ authedPage }) => {
+      await authedPage.goto(`/activities/${MOCK_ACTIVITY.id}`)
+      // maxHrUsed=190, Z5 lo=0.9 → > 171 bpm
+      await expect(authedPage.getByText(/> \d+ bpm/)).toBeVisible()
+    })
+
+    test("does not render stream charts when source is not strava", async ({ authedPage }) => {
+      await authedPage.unroute(`${API_BASE}/activities/${MOCK_ACTIVITY.id}`)
+      await mockGet(authedPage, `/activities/${MOCK_ACTIVITY.id}`, {
+        ...MOCK_ACTIVITY,
+        source: "manual",
+      })
+      await authedPage.goto(`/activities/${MOCK_ACTIVITY.id}`)
+      await expect(authedPage.getByText("Heart Rate Zones")).not.toBeVisible()
     })
   })
 })

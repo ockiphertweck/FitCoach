@@ -2,9 +2,10 @@ import { and, asc, count, desc, eq, gte, lte } from "drizzle-orm"
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod"
 import { z } from "zod"
 import { db } from "../db/index.js"
-import { activities } from "../db/schema.js"
+import { activities, userProfiles } from "../db/schema.js"
 import { authMiddleware } from "../middleware/auth.js"
 import { calculateTrainingLoad } from "../services/atl-ctl.js"
+import { getActivityStreams, getFreshAccessToken } from "../services/strava-client.js"
 
 const activitiesRoutes: FastifyPluginAsyncZod = async (fastify) => {
   fastify.addHook("preHandler", authMiddleware)
@@ -90,6 +91,67 @@ const activitiesRoutes: FastifyPluginAsyncZod = async (fastify) => {
       }
 
       return activity
+    }
+  )
+
+  const streamPoint = z.object({
+    distanceKm: z.number(),
+    heartrate: z.number().nullable(),
+    speedKmh: z.number().nullable(),
+    altitudeM: z.number().nullable(),
+  })
+
+  const hrZonesSchema = z.object({
+    zone1: z.number(),
+    zone2: z.number(),
+    zone3: z.number(),
+    zone4: z.number(),
+    zone5: z.number(),
+  })
+
+  fastify.get(
+    "/activities/:id/streams",
+    {
+      schema: {
+        params: z.object({ id: z.string().uuid() }),
+        response: {
+          200: z.object({
+            points: z.array(streamPoint),
+            hrZones: hrZonesSchema.nullable(),
+            maxHrUsed: z.number().nullable(),
+          }),
+          404: z.object({ error: z.string() }),
+        },
+      },
+    },
+    async (request, reply) => {
+      const userId = request.user.sub
+
+      const [activity] = await db
+        .select()
+        .from(activities)
+        .where(and(eq(activities.id, request.params.id), eq(activities.userId, userId)))
+        .limit(1)
+
+      if (!activity) return reply.code(404).send({ error: "Activity not found" })
+      if (activity.source !== "strava") {
+        return reply.code(404).send({ error: "Streams only available for Strava activities" })
+      }
+
+      // Return stored stream data if available (populated during sync)
+      if (activity.streamData) {
+        return activity.streamData
+      }
+
+      // Fall back to live Strava fetch
+      const [profile] = await db
+        .select({ maxHeartRate: userProfiles.maxHeartRate })
+        .from(userProfiles)
+        .where(eq(userProfiles.userId, userId))
+        .limit(1)
+
+      const token = await getFreshAccessToken(userId, db)
+      return await getActivityStreams(token, activity.externalId, profile?.maxHeartRate ?? null)
     }
   )
 }

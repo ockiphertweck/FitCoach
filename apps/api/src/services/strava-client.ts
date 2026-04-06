@@ -20,7 +20,9 @@ export interface StravaActivity {
   average_speed?: number
   suffer_score?: number
   kilojoules?: number
+  // Detail endpoint only:
   calories?: number
+  perceived_exertion?: number
 }
 
 async function ensureFreshToken(userId: string, db: DB): Promise<string> {
@@ -111,6 +113,87 @@ export async function getFreshAccessToken(userId: string, db: DB): Promise<strin
   return ensureFreshToken(userId, db)
 }
 
+interface StravaStream {
+  data: number[]
+}
+
+interface StravaStreamsRaw {
+  heartrate?: StravaStream
+  distance?: StravaStream
+  velocity_smooth?: StravaStream
+  altitude?: StravaStream
+}
+
+export interface StreamPoint {
+  distanceKm: number
+  heartrate: number | null
+  speedKmh: number | null
+  altitudeM: number | null
+}
+
+export interface HrZones {
+  zone1: number
+  zone2: number
+  zone3: number
+  zone4: number
+  zone5: number
+}
+
+export async function getActivityStreams(
+  accessToken: string,
+  activityId: string,
+  maxHr: number | null
+): Promise<{ points: StreamPoint[]; hrZones: HrZones | null; maxHrUsed: number | null }> {
+  const keys = "heartrate,velocity_smooth,altitude,distance"
+  const res = await fetch(
+    `${STRAVA_API}/activities/${activityId}/streams?keys=${keys}&key_by_type=true`,
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  )
+
+  if (!res.ok) throw new Error(`Strava streams error: ${res.status}`)
+
+  const raw = (await res.json()) as StravaStreamsRaw
+
+  const distArr = raw.distance?.data ?? []
+  const hrArr = raw.heartrate?.data ?? null
+  const velArr = raw.velocity_smooth?.data ?? null
+  const altArr = raw.altitude?.data ?? null
+
+  if (distArr.length === 0) return { points: [], hrZones: null, maxHrUsed: null }
+
+  // Compute HR zones from full resolution before downsampling
+  let hrZones: HrZones | null = null
+  let maxHrUsed: number | null = null
+
+  if (hrArr && hrArr.length > 0) {
+    const effectiveMaxHr = maxHr ?? Math.round(Math.max(...hrArr) / 0.95)
+    maxHrUsed = effectiveMaxHr
+    const zones: HrZones = { zone1: 0, zone2: 0, zone3: 0, zone4: 0, zone5: 0 }
+    for (const hr of hrArr) {
+      const pct = hr / effectiveMaxHr
+      if (pct < 0.6) zones.zone1++
+      else if (pct < 0.7) zones.zone2++
+      else if (pct < 0.8) zones.zone3++
+      else if (pct < 0.9) zones.zone4++
+      else zones.zone5++
+    }
+    hrZones = zones
+  }
+
+  // Build full points array then downsample to max 500
+  const full: StreamPoint[] = distArr.map((d, i) => ({
+    distanceKm: Math.round(d / 10) / 100,
+    heartrate: hrArr ? (hrArr[i] ?? null) : null,
+    speedKmh: velArr ? (velArr[i] != null ? Math.round(velArr[i] * 3.6 * 10) / 10 : null) : null,
+    altitudeM: altArr ? (altArr[i] ?? null) : null,
+  }))
+
+  const step = Math.max(1, Math.floor(full.length / 500))
+  const points = full.filter((_, i) => i % step === 0)
+
+  return { points, hrZones, maxHrUsed }
+}
+
 const SPORT_TYPE_MAP: Record<string, string> = {
   weighttraining: "workout",
   workout: "workout",
@@ -172,7 +255,7 @@ export function stravaActivityToDbFields(activity: StravaActivity, userId: strin
     maxHeartRate: activity.max_heartrate ? Math.round(activity.max_heartrate) : null,
     averagePaceSecondsPerKm: avgPace,
     sufferScore: activity.suffer_score || null,
-    perceivedExertion: null,
+    perceivedExertion: activity.perceived_exertion ?? null,
     calories: activity.calories || null,
     rawData: activity as unknown as Record<string, unknown>,
   }

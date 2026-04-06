@@ -2,11 +2,12 @@
 
 import { Markdown } from "@/components/markdown"
 import { Button } from "@/components/ui/button"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { Textarea } from "@/components/ui/textarea"
 import { api, streamPost } from "@/lib/api"
 import { cn } from "@/lib/utils"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { Bot, Menu, MessageSquarePlus, Send, Trash2, User, X } from "lucide-react"
+import { Bot, Menu, MessageSquarePlus, RefreshCw, Send, Trash2, User, X } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 
 interface Message {
@@ -30,6 +31,7 @@ export default function CoachPage() {
   const [input, setInput] = useState("")
   const [streamingMessage, setStreamingMessage] = useState("")
   const [isStreaming, setIsStreaming] = useState(false)
+  const [failedMessage, setFailedMessage] = useState<string | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   const { data: sessionsData } = useQuery<{ sessions: ChatSession[] }>({
@@ -102,27 +104,30 @@ export default function CoachPage() {
     setSidebarOpen(false)
   }
 
-  const handleSend = async () => {
-    if (!input.trim() || isStreaming || !activeSessionId) return
-    const message = input.trim()
-    setInput("")
+  const handleSend = async (override?: string) => {
+    const message = override ?? input.trim()
+    if (!message || isStreaming || !activeSessionId) return
+    if (!override) setInput("")
     setStreamingMessage("")
+    setFailedMessage(null)
     setIsStreaming(true)
 
-    qc.setQueryData(
-      ["chat-history", activeSessionId],
-      (old: { messages: Message[] } | undefined) => ({
-        messages: [
-          ...(old?.messages ?? []),
-          {
-            id: `pending-${Date.now()}`,
-            role: "user" as const,
-            content: message,
-            createdAt: new Date().toISOString(),
-          },
-        ],
-      })
-    )
+    if (!override) {
+      qc.setQueryData(
+        ["chat-history", activeSessionId],
+        (old: { messages: Message[] } | undefined) => ({
+          messages: [
+            ...(old?.messages ?? []),
+            {
+              id: `pending-${Date.now()}`,
+              role: "user" as const,
+              content: message,
+              createdAt: new Date().toISOString(),
+            },
+          ],
+        })
+      )
+    }
 
     try {
       await streamPost("/ai/chat", { message, sessionId: activeSessionId }, (text) => {
@@ -131,6 +136,8 @@ export default function CoachPage() {
       await qc.invalidateQueries({ queryKey: ["chat-history", activeSessionId] })
       await qc.invalidateQueries({ queryKey: ["chat-sessions"] })
       setStreamingMessage("")
+    } catch {
+      setFailedMessage(message)
     } finally {
       setIsStreaming(false)
     }
@@ -262,7 +269,7 @@ export default function CoachPage() {
               </div>
             )}
 
-            {messages.map((msg) => (
+            {messages.map((msg, i) => (
               <div
                 key={msg.id}
                 className={cn("flex gap-3", msg.role === "user" && "flex-row-reverse")}
@@ -292,14 +299,28 @@ export default function CoachPage() {
                   ) : (
                     <p className="whitespace-pre-wrap">{msg.content}</p>
                   )}
-                  <p
-                    className={cn(
-                      "text-xs mt-1.5 opacity-40",
-                      msg.role === "user" ? "text-right" : ""
-                    )}
-                  >
-                    {new Date(msg.createdAt).toLocaleTimeString()}
-                  </p>
+                  {/* Retry button on last user message when request failed */}
+                  {msg.role === "user" && failedMessage && i === messages.length - 1 ? (
+                    <div className="flex items-center justify-end gap-2 mt-2">
+                      <span className="text-xs text-white/60">Failed to send</span>
+                      <button
+                        type="button"
+                        onClick={() => handleSend(failedMessage)}
+                        className="flex items-center gap-1 text-xs text-white/80 hover:text-white bg-white/15 hover:bg-white/25 rounded-lg px-2 py-1 transition-colors"
+                      >
+                        <RefreshCw className="h-3 w-3" /> Retry
+                      </button>
+                    </div>
+                  ) : (
+                    <p
+                      className={cn(
+                        "text-xs mt-1.5 opacity-40",
+                        msg.role === "user" ? "text-right" : ""
+                      )}
+                    >
+                      {new Date(msg.createdAt).toLocaleTimeString()}
+                    </p>
+                  )}
                 </div>
               </div>
             ))}
@@ -353,7 +374,7 @@ export default function CoachPage() {
               disabled={isStreaming || !activeSessionId}
             />
             <Button
-              onClick={handleSend}
+              onClick={() => handleSend()}
               disabled={!input.trim() || isStreaming || !activeSessionId}
               size="icon"
               className="h-[52px] w-[52px] rounded-2xl shrink-0"

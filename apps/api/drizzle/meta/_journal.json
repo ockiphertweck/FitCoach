@@ -57,6 +57,13 @@
       "when": 1775506291066,
       "tag": "0007_ambitious_archangel",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1775509911078,
+      "tag": "0008_amused_imperial_guard",
+      "breakpoints": true
     }
   ]
 }

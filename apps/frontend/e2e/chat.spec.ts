@@ -209,3 +209,104 @@ test.describe("AI Coach chat", () => {
     })
   })
 })
+
+// ---------------------------------------------------------------------------
+// Session-aware coach tests (uses /ai/chat/sessions + /ai/chat/history?sessionId=)
+// ---------------------------------------------------------------------------
+
+const MOCK_SESSION = {
+  id: "sess-0001-0000-0000-000000000001",
+  title: "New chat",
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+}
+
+async function setupSession(authedPage: import("@playwright/test").Page) {
+  await mockGet(authedPage, "/ai/chat/sessions", { sessions: [MOCK_SESSION] })
+  // regex to match /ai/chat/history?sessionId=<any>
+  await mockGet(authedPage, /\/ai\/chat\/history\?sessionId=/, { messages: [] })
+}
+
+test.describe("AI Coach — retry on failure", () => {
+  test("keeps user message visible and shows retry button when stream fails", async ({
+    authedPage,
+  }) => {
+    await setupSession(authedPage)
+
+    // Make the chat stream return an error
+    await authedPage.route(`${API_BASE}/ai/chat`, (route) => {
+      route.fulfill({ status: 500, body: "Internal Server Error" })
+    })
+
+    await authedPage.goto("/coach")
+    await authedPage.getByPlaceholder(/Ask your coach/).fill("Will I overtrain?")
+    await authedPage.locator("textarea").locator("xpath=..").locator("button").click()
+
+    // Optimistic user message stays visible
+    await expect(authedPage.getByText("Will I overtrain?")).toBeVisible()
+    // Retry button appears in the user bubble
+    await expect(authedPage.getByRole("button", { name: /Retry/i })).toBeVisible()
+    // "Failed to send" label appears
+    await expect(authedPage.getByText("Failed to send")).toBeVisible()
+  })
+
+  test("retry button resends the original message", async ({ authedPage }) => {
+    await setupSession(authedPage)
+
+    let chatCallCount = 0
+    await authedPage.route(`${API_BASE}/ai/chat`, (route) => {
+      chatCallCount++
+      if (chatCallCount === 1) {
+        route.fulfill({ status: 500, body: "error" })
+      } else {
+        const sseBody = 'data: {"text":"You are recovered!"}\n\ndata: [DONE]\n\n'
+        route.fulfill({
+          status: 200,
+          contentType: "text/event-stream",
+          body: sseBody,
+        })
+      }
+    })
+
+    await authedPage.goto("/coach")
+    await authedPage.getByPlaceholder(/Ask your coach/).fill("Am I recovered?")
+    await authedPage.locator("textarea").locator("xpath=..").locator("button").click()
+
+    // Wait for retry button to appear
+    await expect(authedPage.getByRole("button", { name: /Retry/i })).toBeVisible()
+    await authedPage.getByRole("button", { name: /Retry/i }).click()
+
+    // Streamed response should appear
+    await expect(authedPage.getByText("You are recovered!")).toBeVisible()
+    expect(chatCallCount).toBe(2)
+  })
+
+  test("retry button disappears after successful retry", async ({ authedPage }) => {
+    await setupSession(authedPage)
+
+    let chatCallCount = 0
+    await authedPage.route(`${API_BASE}/ai/chat`, (route) => {
+      chatCallCount++
+      if (chatCallCount === 1) {
+        route.fulfill({ status: 500, body: "error" })
+      } else {
+        route.fulfill({
+          status: 200,
+          contentType: "text/event-stream",
+          body: 'data: {"text":"All good!"}\n\ndata: [DONE]\n\n',
+        })
+      }
+    })
+
+    await authedPage.goto("/coach")
+    await authedPage.getByPlaceholder(/Ask your coach/).fill("Check form")
+    await authedPage.locator("textarea").locator("xpath=..").locator("button").click()
+
+    await expect(authedPage.getByRole("button", { name: /Retry/i })).toBeVisible()
+    await authedPage.getByRole("button", { name: /Retry/i }).click()
+
+    // After successful retry, "Failed to send" and retry button are gone
+    await expect(authedPage.getByText("Failed to send")).not.toBeVisible()
+    await expect(authedPage.getByRole("button", { name: /Retry/i })).not.toBeVisible()
+  })
+})

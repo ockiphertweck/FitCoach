@@ -2,7 +2,7 @@ import { and, desc, eq } from "drizzle-orm"
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod"
 import { z } from "zod"
 import { db } from "../db/index.js"
-import { activities, stravaTokens } from "../db/schema.js"
+import { activities, stravaTokens, userProfiles } from "../db/schema.js"
 import { env } from "../env.js"
 import { authMiddleware } from "../middleware/auth.js"
 import { computeInsightHash, generateActivityInsight } from "../services/activity-insight.js"
@@ -11,6 +11,7 @@ import { encrypt } from "../services/encryption.js"
 import {
   getActivities,
   getActivity,
+  getActivityStreams,
   getFreshAccessToken,
   stravaActivityToDbFields,
 } from "../services/strava-client.js"
@@ -230,32 +231,50 @@ const stravaRoutes: FastifyPluginAsyncZod = async (fastify) => {
           return reply.code(400).send({ error: "Strava not connected" } as never)
         }
 
-        // Determine "after" timestamp — last activity or 30 days ago
-        const [lastActivity] = await db
-          .select()
-          .from(activities)
-          .where(and(eq(activities.userId, userId), eq(activities.source, "strava")))
-          .orderBy(desc(activities.startDate))
-          .limit(1)
-
-        const after = lastActivity
-          ? Math.floor(lastActivity.startDate.getTime() / 1000)
-          : Math.floor(Date.now() / 1000) - 30 * 24 * 60 * 60
+        // Always sync last 30 days so upsert backfills calories/RPE on existing activities
+        const after = Math.floor(Date.now() / 1000) - 30 * 24 * 60 * 60
 
         const accessToken = await getFreshAccessToken(userId, db)
         const stravaActivities = await getActivities(accessToken, after)
+
+        // Fetch user's max HR once for zone calculation
+        const [profile] = await db
+          .select({ maxHeartRate: userProfiles.maxHeartRate })
+          .from(userProfiles)
+          .where(eq(userProfiles.userId, userId))
+          .limit(1)
+        const maxHr = profile?.maxHeartRate ?? null
 
         let synced = 0
         const insightPromises: Promise<void>[] = []
 
         for (const sa of stravaActivities) {
-          const fields = stravaActivityToDbFields(sa, userId)
+          // Fetch detail for calories + perceived_exertion (not in list endpoint)
+          let detail = sa
+          try {
+            detail = await getActivity(accessToken, String(sa.id))
+          } catch {
+            // non-fatal — fall back to list data
+          }
+          const fields = stravaActivityToDbFields(detail, userId)
+
+          // Fetch streams and embed in upsert
+          let streamData: Record<string, unknown> | null = null
+          try {
+            const streams = await getActivityStreams(accessToken, String(sa.id), maxHr)
+            if (streams.points.length > 0) {
+              streamData = streams as unknown as Record<string, unknown>
+            }
+          } catch {
+            // streams not available for all activity types
+          }
+
           const [upserted] = await db
             .insert(activities)
-            .values(fields)
+            .values({ ...fields, streamData })
             .onConflictDoUpdate({
               target: [activities.userId, activities.externalId, activities.source],
-              set: fields,
+              set: { ...fields, streamData },
             })
             .returning({ id: activities.id })
 
