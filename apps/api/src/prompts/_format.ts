@@ -33,7 +33,9 @@ export function formatProfileSection(profile: UserProfile | null): string[] {
   lines.push(`- Sex: ${profile.sex ?? "not set"}`)
   lines.push(`- Weight: ${profile.weightKg ? `${profile.weightKg} kg` : "not set"}`)
   lines.push(`- Height: ${profile.heightCm ? `${profile.heightCm} cm` : "not set"}`)
-  lines.push(`- Max Heart Rate: ${profile.maxHeartRate ? `${profile.maxHeartRate} bpm` : "not set"}`)
+  lines.push(
+    `- Max Heart Rate: ${profile.maxHeartRate ? `${profile.maxHeartRate} bpm` : "not set"}`
+  )
   lines.push(`- FTP: ${profile.ftpWatts ? `${profile.ftpWatts} W` : "not set"}`)
   lines.push(`- VO2Max: ${profile.vo2max ? `${profile.vo2max} ml/kg/min` : "not set"}`)
   lines.push(`- Goals: ${profile.goals ?? "not set"}`)

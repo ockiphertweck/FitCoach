@@ -151,7 +151,6 @@ const aiRoutes: FastifyPluginAsyncZod = async (fastify) => {
         "Access-Control-Allow-Credentials": "true",
       })
 
-      let fullResponse = ""
       let inputTokens = 0
       let outputTokens = 0
 
@@ -166,7 +165,6 @@ const aiRoutes: FastifyPluginAsyncZod = async (fastify) => {
         for await (const event of stream) {
           if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
             const text = event.delta.text
-            fullResponse += text
             reply.raw.write(`data: ${JSON.stringify({ text })}\n\n`)
           }
           if (event.type === "message_delta" && event.usage) {
@@ -203,7 +201,10 @@ const aiRoutes: FastifyPluginAsyncZod = async (fastify) => {
     async (request, reply) => {
       const userId = request.user.sub
       const { message, sessionId } = request.body
-      fastify.log.info({ userId, sessionId, messageLength: message.length }, "chat: building prompt")
+      fastify.log.info(
+        { userId, sessionId, messageLength: message.length },
+        "chat: building prompt"
+      )
 
       const [session] = await db
         .select()
@@ -224,7 +225,9 @@ const aiRoutes: FastifyPluginAsyncZod = async (fastify) => {
       const [systemPrompt, messages] = await Promise.all([
         buildChatSystemPrompt(userId, db),
         Promise.resolve(
-          buildChatMessages([...history].reverse().map((m) => ({ role: m.role, content: m.content })))
+          buildChatMessages(
+            [...history].reverse().map((m) => ({ role: m.role, content: m.content }))
+          )
         ),
       ])
 
@@ -298,7 +301,8 @@ const aiRoutes: FastifyPluginAsyncZod = async (fastify) => {
                   },
                 ],
               })
-              const generated = titleRes.content[0]?.type === "text" ? titleRes.content[0].text.trim() : null
+              const generated =
+                titleRes.content[0]?.type === "text" ? titleRes.content[0].text.trim() : null
               if (generated) updates.title = generated.slice(0, 80)
             } catch {
               updates.title = message.slice(0, 60).trim()
@@ -329,12 +333,7 @@ const aiRoutes: FastifyPluginAsyncZod = async (fastify) => {
       const messages = await db
         .select()
         .from(chatHistory)
-        .where(
-          and(
-            eq(chatHistory.userId, request.user.sub),
-            eq(chatHistory.sessionId, sessionId)
-          )
-        )
+        .where(and(eq(chatHistory.userId, request.user.sub), eq(chatHistory.sessionId, sessionId)))
         .orderBy(asc(chatHistory.createdAt))
         .limit(100)
 

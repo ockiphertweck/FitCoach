@@ -28,9 +28,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={`${sora.variable} ${dmSans.variable}`}>
       <body>
         <PostHogProvider>
-          <QueryProvider>
-            {children}
-          </QueryProvider>
+          <QueryProvider>{children}</QueryProvider>
         </PostHogProvider>
       </body>
     </html>

@@ -22,10 +22,7 @@ export function buildWeeklyReportPrompt(p: WeeklyReportParams): string {
       : p.weekActivities
           .map(
             (a) =>
-              `- ${a.startDate.toISOString().slice(0, 10)}: ${a.sportType}` +
-              (a.durationSeconds ? ` ${Math.round(a.durationSeconds / 60)}min` : "") +
-              (a.distanceMeters ? ` ${(a.distanceMeters / 1000).toFixed(1)}km` : "") +
-              (a.averageHeartRate ? ` avg HR: ${a.averageHeartRate} bpm` : "")
+              `- ${a.startDate.toISOString().slice(0, 10)}: ${a.sportType}${a.durationSeconds ? ` ${Math.round(a.durationSeconds / 60)}min` : ""}${a.distanceMeters ? ` ${(a.distanceMeters / 1000).toFixed(1)}km` : ""}${a.averageHeartRate ? ` avg HR: ${a.averageHeartRate} bpm` : ""}`
           )
           .join("\n")
 

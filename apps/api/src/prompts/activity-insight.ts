@@ -2,7 +2,10 @@ import type { Activity, UserProfile } from "../db/schema.js"
 
 type RawData = Record<string, unknown>
 
-export function buildActivityInsightPrompt(activity: Activity, profile: UserProfile | null): string {
+export function buildActivityInsightPrompt(
+  activity: Activity,
+  profile: UserProfile | null
+): string {
   const raw = (activity.rawData as RawData) ?? {}
 
   const lines = [

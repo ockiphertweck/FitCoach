@@ -46,7 +46,10 @@ function formatDistance(meters: number): string {
 }
 
 function buildWeeklyChartData(activities: ActivityItem[]) {
-  const weeks = new Map<string, { distance: number; duration: number; hrSum: number; hrCount: number }>()
+  const weeks = new Map<
+    string,
+    { distance: number; duration: number; hrSum: number; hrCount: number }
+  >()
 
   for (const a of activities) {
     const date = new Date(a.startDate)
@@ -135,7 +138,8 @@ export default function Dashboard() {
 
   const { data: chartActivities } = useQuery<{ items: ActivityItem[] }>({
     queryKey: ["chart-activities"],
-    queryFn: () => api.get(`/activities?limit=200&from=${eightWeeksAgo.toISOString().slice(0, 10)}`),
+    queryFn: () =>
+      api.get(`/activities?limit=200&from=${eightWeeksAgo.toISOString().slice(0, 10)}`),
   })
 
   const syncMutation = useMutation({
@@ -163,11 +167,12 @@ export default function Dashboard() {
   const tsb = stats?.tsb ?? 0
   const tsbLabel = tsb > 5 ? "Fresh" : tsb < -10 ? "Fatigued" : "Moderate"
   const tsbColor = tsb > 5 ? "text-emerald-600" : tsb < -10 ? "text-red-500" : "text-amber-600"
-  const tsbBadgeClass = tsb > 5
-    ? "border-emerald-400/40 bg-emerald-50 text-emerald-700"
-    : tsb < -10
-      ? "border-red-400/40 bg-red-50 text-red-700"
-      : "border-amber-400/40 bg-amber-50 text-amber-700"
+  const tsbBadgeClass =
+    tsb > 5
+      ? "border-emerald-400/40 bg-emerald-50 text-emerald-700"
+      : tsb < -10
+        ? "border-red-400/40 bg-red-50 text-red-700"
+        : "border-amber-400/40 bg-amber-50 text-amber-700"
 
   const weeklyData = chartActivities ? buildWeeklyChartData(chartActivities.items) : []
 
@@ -197,9 +202,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {syncResult && (
-        <p className="text-sm text-emerald-600">{syncResult}</p>
-      )}
+      {syncResult && <p className="text-sm text-emerald-600">{syncResult}</p>}
 
       {/* Training Load — 3 cols */}
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-3">
@@ -263,7 +266,9 @@ export default function Dashboard() {
                 <TrendingDown className="h-3 w-3 text-red-400" />
               ) : null}
             </CardDescription>
-            <CardTitle className={`text-5xl font-semibold tabular-nums leading-none mt-1 ${tsbColor}`}>
+            <CardTitle
+              className={`text-5xl font-semibold tabular-nums leading-none mt-1 ${tsbColor}`}
+            >
               {stats ? (tsb >= 0 ? `+${tsb}` : tsb) : "—"}
             </CardTitle>
           </CardHeader>
@@ -280,14 +285,16 @@ export default function Dashboard() {
         {/* Distance */}
         <Card>
           <CardHeader className="pb-1 pt-5 px-5">
-            <CardTitle className="text-sm font-medium text-foreground/70">Weekly Distance</CardTitle>
+            <CardTitle className="text-sm font-medium text-foreground/70">
+              Weekly Distance
+            </CardTitle>
           </CardHeader>
           <CardContent className="px-3 pb-4">
             <ResponsiveContainer width="100%" height={160}>
               <AreaChart data={weeklyData} margin={{ top: 4, right: 4, left: -28, bottom: 0 }}>
                 <defs>
                   <linearGradient id="gradDist" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%"  stopColor="hsl(var(--primary))" stopOpacity={0.35} />
+                    <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.35} />
                     <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
                   </linearGradient>
                 </defs>
@@ -312,14 +319,16 @@ export default function Dashboard() {
         {/* Duration */}
         <Card>
           <CardHeader className="pb-1 pt-5 px-5">
-            <CardTitle className="text-sm font-medium text-foreground/70">Weekly Duration</CardTitle>
+            <CardTitle className="text-sm font-medium text-foreground/70">
+              Weekly Duration
+            </CardTitle>
           </CardHeader>
           <CardContent className="px-3 pb-4">
             <ResponsiveContainer width="100%" height={160}>
               <AreaChart data={weeklyData} margin={{ top: 4, right: 4, left: -28, bottom: 0 }}>
                 <defs>
                   <linearGradient id="gradDur" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%"  stopColor="#10b981" stopOpacity={0.35} />
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.35} />
                     <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
                   </linearGradient>
                 </defs>
@@ -354,13 +363,18 @@ export default function Dashboard() {
               >
                 <defs>
                   <linearGradient id="gradHR" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%"  stopColor="#f97316" stopOpacity={0.35} />
+                    <stop offset="5%" stopColor="#f97316" stopOpacity={0.35} />
                     <stop offset="95%" stopColor="#f97316" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" vertical={false} />
                 <XAxis dataKey="week" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} domain={["auto", "auto"]} />
+                <YAxis
+                  tick={{ fontSize: 10 }}
+                  axisLine={false}
+                  tickLine={false}
+                  domain={["auto", "auto"]}
+                />
                 <Tooltip contentStyle={chartTooltipStyle} />
                 <Area
                   type="monotone"
@@ -437,9 +451,7 @@ export default function Dashboard() {
                     {a.distanceMeters && (
                       <span className="ml-3">{formatDistance(a.distanceMeters)}</span>
                     )}
-                    {a.averageHeartRate && (
-                      <span className="ml-3">{a.averageHeartRate} bpm</span>
-                    )}
+                    {a.averageHeartRate && <span className="ml-3">{a.averageHeartRate} bpm</span>}
                   </div>
                 </Link>
               ))}

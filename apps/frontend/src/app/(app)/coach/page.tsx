@@ -49,13 +49,13 @@ export default function CoachPage() {
     },
   })
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: only re-run when sessions load, not on every mutation state change
   useEffect(() => {
     if (sessionsData && sessions.length === 0 && !createSessionMutation.isPending) {
       createSessionMutation.mutate()
     } else if (sessionsData && sessions.length > 0 && !activeSessionId) {
       setActiveSessionId(sessions[0].id)
     }
-  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional
   }, [sessionsData])
 
   const { data: historyData } = useQuery<{ messages: Message[] }>({
@@ -110,12 +110,20 @@ export default function CoachPage() {
     setStreamingMessage("")
     setIsStreaming(true)
 
-    qc.setQueryData(["chat-history", activeSessionId], (old: { messages: Message[] } | undefined) => ({
-      messages: [
-        ...(old?.messages ?? []),
-        { id: `pending-${Date.now()}`, role: "user" as const, content: message, createdAt: new Date().toISOString() },
-      ],
-    }))
+    qc.setQueryData(
+      ["chat-history", activeSessionId],
+      (old: { messages: Message[] } | undefined) => ({
+        messages: [
+          ...(old?.messages ?? []),
+          {
+            id: `pending-${Date.now()}`,
+            role: "user" as const,
+            content: message,
+            createdAt: new Date().toISOString(),
+          },
+        ],
+      })
+    )
 
     try {
       await streamPost("/ai/chat", { message, sessionId: activeSessionId }, (text) => {
@@ -152,24 +160,26 @@ export default function CoachPage() {
       <ScrollArea className="flex-1">
         <div className="space-y-1 pr-1">
           {sessions.map((session) => (
-            <div
-              key={session.id}
-              className={cn(
-                "group flex items-center gap-1 rounded-xl px-3 py-2 text-sm cursor-pointer transition-all min-w-0 overflow-hidden",
-                activeSessionId === session.id
-                  ? "bg-primary/10 text-primary border border-primary/18"
-                  : "text-foreground/60 hover:bg-white/30 hover:text-foreground"
-              )}
-              onClick={() => handleSelectSession(session.id)}
-            >
-              <span className="min-w-0 flex-1 truncate leading-snug">{session.title}</span>
+            <div key={session.id} className="group flex min-w-0 overflow-hidden">
+              <button
+                type="button"
+                className={cn(
+                  "flex flex-1 items-center gap-1 rounded-xl px-3 py-2 text-sm cursor-pointer transition-all min-w-0 overflow-hidden text-left",
+                  activeSessionId === session.id
+                    ? "bg-primary/10 text-primary border border-primary/18"
+                    : "text-foreground/60 hover:bg-white/30 hover:text-foreground"
+                )}
+                onClick={() => handleSelectSession(session.id)}
+              >
+                <span className="min-w-0 flex-1 truncate leading-snug">{session.title}</span>
+              </button>
               <button
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation()
                   deleteSessionMutation.mutate(session.id)
                 }}
-                className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:text-destructive shrink-0"
+                className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:text-destructive shrink-0 self-center mr-1"
                 aria-label="Delete chat"
               >
                 <Trash2 className="h-3 w-3" />
@@ -188,6 +198,8 @@ export default function CoachPage() {
         <div
           className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm md:hidden"
           onClick={() => setSidebarOpen(false)}
+          onKeyDown={(e) => e.key === "Escape" && setSidebarOpen(false)}
+          role="presentation"
         />
       )}
 
@@ -281,7 +293,12 @@ export default function CoachPage() {
                   ) : (
                     <p className="whitespace-pre-wrap">{msg.content}</p>
                   )}
-                  <p className={cn("text-xs mt-1.5 opacity-40", msg.role === "user" ? "text-right" : "")}>
+                  <p
+                    className={cn(
+                      "text-xs mt-1.5 opacity-40",
+                      msg.role === "user" ? "text-right" : ""
+                    )}
+                  >
                     {new Date(msg.createdAt).toLocaleTimeString()}
                   </p>
                 </div>
@@ -303,9 +320,18 @@ export default function CoachPage() {
                     </div>
                   ) : (
                     <div className="flex gap-1.5 items-center h-5">
-                      <span className="animate-bounce w-1.5 h-1.5 bg-primary rounded-full" style={{ animationDelay: "0ms" }} />
-                      <span className="animate-bounce w-1.5 h-1.5 bg-primary rounded-full" style={{ animationDelay: "150ms" }} />
-                      <span className="animate-bounce w-1.5 h-1.5 bg-primary rounded-full" style={{ animationDelay: "300ms" }} />
+                      <span
+                        className="animate-bounce w-1.5 h-1.5 bg-primary rounded-full"
+                        style={{ animationDelay: "0ms" }}
+                      />
+                      <span
+                        className="animate-bounce w-1.5 h-1.5 bg-primary rounded-full"
+                        style={{ animationDelay: "150ms" }}
+                      />
+                      <span
+                        className="animate-bounce w-1.5 h-1.5 bg-primary rounded-full"
+                        style={{ animationDelay: "300ms" }}
+                      />
                     </div>
                   )}
                 </div>
