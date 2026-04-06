@@ -1,12 +1,22 @@
-import { MainLayout } from "@/components/main-layout"
-import { Nav } from "@/components/nav"
 import { PostHogProvider } from "@/components/posthog-provider"
 import { QueryProvider } from "@/lib/query-client"
 import type { Metadata } from "next"
-import { Inter } from "next/font/google"
+import { DM_Sans, Sora } from "next/font/google"
 import "./globals.css"
 
-const inter = Inter({ subsets: ["latin"] })
+const sora = Sora({
+  subsets: ["latin"],
+  variable: "--font-sora",
+  weight: ["300", "400", "500", "600", "700"],
+  display: "swap",
+})
+
+const dmSans = DM_Sans({
+  subsets: ["latin"],
+  variable: "--font-dm-sans",
+  weight: ["300", "400", "500", "600"],
+  display: "swap",
+})
 
 export const metadata: Metadata = {
   title: "FitCoach",
@@ -15,14 +25,11 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body className={inter.className}>
+    <html lang="en" className={`${sora.variable} ${dmSans.variable}`}>
+      <body>
         <PostHogProvider>
           <QueryProvider>
-            <div className="flex min-h-screen">
-              <Nav />
-              <MainLayout>{children}</MainLayout>
-            </div>
+            {children}
           </QueryProvider>
         </PostHogProvider>
       </body>

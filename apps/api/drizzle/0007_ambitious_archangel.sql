@@ -1,0 +1,1 @@
+DROP TABLE "garmin_credentials" CASCADE;

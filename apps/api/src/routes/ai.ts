@@ -3,15 +3,14 @@ import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod"
 import { PostHog } from "posthog-node"
 import { z } from "zod"
 import { db } from "../db/index.js"
-import { activities, chatHistory, weeklyReports } from "../db/schema.js"
+import { activities, chatHistory, chatSessions, userProfiles, weeklyReports } from "../db/schema.js"
 import { env } from "../env.js"
 import { authMiddleware } from "../middleware/auth.js"
+import { buildChatMessages, buildChatSystemPrompt } from "../prompts/chat.js"
+import { buildRecommendationPrompt } from "../prompts/recommendation.js"
+import { SYSTEM_PROMPT } from "../prompts/system.js"
+import { buildWeeklyReportPrompt } from "../prompts/weekly-report.js"
 import { computeInsightHash, generateActivityInsight } from "../services/activity-insight.js"
-import {
-  SYSTEM_PROMPT,
-  buildChatContext,
-  buildRecommendationContext,
-} from "../services/ai-context.js"
 import { requireAnthropicClient } from "../services/anthropic-client.js"
 import { calculateTrainingLoad } from "../services/atl-ctl.js"
 
@@ -25,8 +24,113 @@ if (env.POSTHOG_API_KEY) {
   })
 }
 
+const notFound = z.object({ error: z.string() })
+
 const aiRoutes: FastifyPluginAsyncZod = async (fastify) => {
   fastify.addHook("preHandler", authMiddleware)
+
+  // ─── Chat Sessions ────────────────────────────────────────────────────────
+
+  fastify.get(
+    "/ai/chat/sessions",
+    {
+      schema: {
+        response: {
+          200: z.object({
+            sessions: z.array(
+              z.object({
+                id: z.string(),
+                title: z.string(),
+                createdAt: z.coerce.date(),
+                updatedAt: z.coerce.date(),
+              })
+            ),
+          }),
+        },
+      },
+    },
+    async (request) => {
+      const sessions = await db
+        .select()
+        .from(chatSessions)
+        .where(eq(chatSessions.userId, request.user.sub))
+        .orderBy(desc(chatSessions.updatedAt))
+      return { sessions }
+    }
+  )
+
+  fastify.post(
+    "/ai/chat/sessions",
+    {
+      schema: {
+        response: {
+          200: z.object({
+            id: z.string(),
+            title: z.string(),
+            createdAt: z.coerce.date(),
+            updatedAt: z.coerce.date(),
+          }),
+        },
+      },
+    },
+    async (request) => {
+      const [session] = await db
+        .insert(chatSessions)
+        .values({ userId: request.user.sub, title: "New chat" })
+        .returning()
+      return session
+    }
+  )
+
+  fastify.patch(
+    "/ai/chat/sessions/:sessionId",
+    {
+      schema: {
+        params: z.object({ sessionId: z.string().uuid() }),
+        body: z.object({ title: z.string().min(1).max(200) }),
+        response: { 200: z.object({ ok: z.boolean() }), 404: notFound },
+      },
+    },
+    async (request, reply) => {
+      const { sessionId } = request.params
+      const userId = request.user.sub
+      const [session] = await db
+        .select()
+        .from(chatSessions)
+        .where(and(eq(chatSessions.id, sessionId), eq(chatSessions.userId, userId)))
+        .limit(1)
+      if (!session) return reply.code(404).send({ error: "Session not found" })
+      await db
+        .update(chatSessions)
+        .set({ title: request.body.title, updatedAt: new Date() })
+        .where(eq(chatSessions.id, sessionId))
+      return { ok: true }
+    }
+  )
+
+  fastify.delete(
+    "/ai/chat/sessions/:sessionId",
+    {
+      schema: {
+        params: z.object({ sessionId: z.string().uuid() }),
+        response: { 200: z.object({ ok: z.boolean() }), 404: notFound },
+      },
+    },
+    async (request, reply) => {
+      const { sessionId } = request.params
+      const userId = request.user.sub
+      const [session] = await db
+        .select()
+        .from(chatSessions)
+        .where(and(eq(chatSessions.id, sessionId), eq(chatSessions.userId, userId)))
+        .limit(1)
+      if (!session) return reply.code(404).send({ error: "Session not found" })
+      await db.delete(chatSessions).where(eq(chatSessions.id, sessionId))
+      return { ok: true }
+    }
+  )
+
+  // ─── Recommendation ───────────────────────────────────────────────────────
 
   fastify.post(
     "/ai/recommendation",
@@ -34,7 +138,8 @@ const aiRoutes: FastifyPluginAsyncZod = async (fastify) => {
     async (request, reply) => {
       const userId = request.user.sub
       const anthropic = await requireAnthropicClient(userId)
-      const context = await buildRecommendationContext(userId, db)
+      fastify.log.info({ userId }, "recommendation: building prompt")
+      const userMessage = await buildRecommendationPrompt(userId, db)
 
       const origin = request.headers.origin ?? env.FRONTEND_URL
       reply.raw.writeHead(200, {
@@ -55,12 +160,7 @@ const aiRoutes: FastifyPluginAsyncZod = async (fastify) => {
           model: "claude-sonnet-4-6",
           max_tokens: 1024,
           system: SYSTEM_PROMPT,
-          messages: [
-            {
-              role: "user",
-              content: `${context}\n\nBased on my current training load and recent activities, what should I do today? Should I train or rest? If train, what type of workout?`,
-            },
-          ],
+          messages: [{ role: "user", content: userMessage }],
         })
 
         for await (const event of stream) {
@@ -82,60 +182,52 @@ const aiRoutes: FastifyPluginAsyncZod = async (fastify) => {
         reply.raw.end()
       }
 
-      // Save to chat history (fire-and-forget)
-      db.insert(chatHistory)
-        .values([
-          { userId, role: "user", content: "Give me today's recommendation" },
-          {
-            userId,
-            role: "assistant",
-            content: fullResponse,
-            tokensUsed: inputTokens + outputTokens,
-          },
-        ])
-        .catch((err) => fastify.log.error(err, "Failed to save recommendation to chat history"))
-
       posthog?.capture({
         distinctId: userId,
         event: "ai_recommendation",
-        properties: {
-          inputTokens,
-          outputTokens,
-          model: "claude-sonnet-4-6",
-        },
+        properties: { inputTokens, outputTokens, model: "claude-sonnet-4-6" },
       })
     }
   )
+
+  // ─── Chat ─────────────────────────────────────────────────────────────────
 
   fastify.post(
     "/ai/chat",
     {
       schema: {
-        body: z.object({ message: z.string().min(1).max(4000) }),
+        body: z.object({ message: z.string().min(1).max(4000), sessionId: z.string().uuid() }),
+        response: { 404: notFound },
       },
     },
     async (request, reply) => {
       const userId = request.user.sub
-      const { message } = request.body
+      const { message, sessionId } = request.body
+      fastify.log.info({ userId, sessionId, messageLength: message.length }, "chat: building prompt")
+
+      const [session] = await db
+        .select()
+        .from(chatSessions)
+        .where(and(eq(chatSessions.id, sessionId), eq(chatSessions.userId, userId)))
+        .limit(1)
+      if (!session) return reply.code(404).send({ error: "Session not found" })
+
       const anthropic = await requireAnthropicClient(userId)
 
-      // Get last 10 messages
       const history = await db
         .select()
         .from(chatHistory)
-        .where(eq(chatHistory.userId, userId))
+        .where(and(eq(chatHistory.userId, userId), eq(chatHistory.sessionId, sessionId)))
         .orderBy(desc(chatHistory.createdAt))
-        .limit(10)
+        .limit(20)
 
-      const reversedHistory = [...history].reverse()
+      const [systemPrompt, messages] = await Promise.all([
+        buildChatSystemPrompt(userId, db),
+        Promise.resolve(
+          buildChatMessages([...history].reverse().map((m) => ({ role: m.role, content: m.content })))
+        ),
+      ])
 
-      const messages = await buildChatContext(
-        userId,
-        reversedHistory.map((m) => ({ role: m.role, content: m.content })),
-        db
-      )
-
-      // Append the new user message
       messages.push({ role: "user", content: message })
 
       const origin = request.headers.origin ?? env.FRONTEND_URL
@@ -156,7 +248,7 @@ const aiRoutes: FastifyPluginAsyncZod = async (fastify) => {
         const stream = anthropic.messages.stream({
           model: "claude-sonnet-4-6",
           max_tokens: 2048,
-          system: SYSTEM_PROMPT,
+          system: systemPrompt,
           messages,
         })
 
@@ -179,17 +271,41 @@ const aiRoutes: FastifyPluginAsyncZod = async (fastify) => {
         reply.raw.end()
       }
 
-      // Save both turns
+      const isFirstMessage = history.length === 0
+
       db.insert(chatHistory)
         .values([
-          { userId, role: "user", content: message },
+          { userId, sessionId, role: "user", content: message },
           {
             userId,
+            sessionId,
             role: "assistant",
             content: fullResponse,
             tokensUsed: inputTokens + outputTokens,
           },
         ])
+        .then(async () => {
+          const updates: Record<string, unknown> = { updatedAt: new Date() }
+          if (isFirstMessage) {
+            try {
+              const titleRes = await anthropic.messages.create({
+                model: "claude-haiku-4-5-20251001",
+                max_tokens: 20,
+                messages: [
+                  {
+                    role: "user",
+                    content: `User asked: "${message.slice(0, 300)}"\n\nReply in 3–5 words max with a short chat title. No punctuation. No quotes. Examples: "Zone 2 training plan", "Race week recovery", "Improve FTP cycling"`,
+                  },
+                ],
+              })
+              const generated = titleRes.content[0]?.type === "text" ? titleRes.content[0].text.trim() : null
+              if (generated) updates.title = generated.slice(0, 80)
+            } catch {
+              updates.title = message.slice(0, 60).trim()
+            }
+          }
+          await db.update(chatSessions).set(updates).where(eq(chatSessions.id, sessionId))
+        })
         .catch((err) => fastify.log.error(err, "Failed to save chat to history"))
 
       posthog?.capture({
@@ -200,32 +316,68 @@ const aiRoutes: FastifyPluginAsyncZod = async (fastify) => {
     }
   )
 
-  fastify.get("/ai/chat/history", { schema: { response: {} } }, async (request) => {
-    const messages = await db
-      .select()
-      .from(chatHistory)
-      .where(eq(chatHistory.userId, request.user.sub))
-      .orderBy(asc(chatHistory.createdAt))
-      .limit(50)
+  fastify.get(
+    "/ai/chat/history",
+    {
+      schema: {
+        querystring: z.object({ sessionId: z.string().uuid() }),
+        response: {},
+      },
+    },
+    async (request) => {
+      const { sessionId } = request.query
+      const messages = await db
+        .select()
+        .from(chatHistory)
+        .where(
+          and(
+            eq(chatHistory.userId, request.user.sub),
+            eq(chatHistory.sessionId, sessionId)
+          )
+        )
+        .orderBy(asc(chatHistory.createdAt))
+        .limit(100)
 
-    return { messages }
-  })
+      return { messages }
+    }
+  )
 
   fastify.delete(
-    "/ai/chat/history",
-    { schema: { response: { 200: z.object({ ok: z.boolean() }) } } },
-    async (request) => {
-      await db.delete(chatHistory).where(eq(chatHistory.userId, request.user.sub))
+    "/ai/chat/sessions/:sessionId/history",
+    {
+      schema: {
+        params: z.object({ sessionId: z.string().uuid() }),
+        response: { 200: z.object({ ok: z.boolean() }), 404: notFound },
+      },
+    },
+    async (request, reply) => {
+      const { sessionId } = request.params
+      const userId = request.user.sub
+      const [session] = await db
+        .select()
+        .from(chatSessions)
+        .where(and(eq(chatSessions.id, sessionId), eq(chatSessions.userId, userId)))
+        .limit(1)
+      if (!session) return reply.code(404).send({ error: "Session not found" })
+      await db
+        .delete(chatHistory)
+        .where(and(eq(chatHistory.userId, userId), eq(chatHistory.sessionId, sessionId)))
+      await db
+        .update(chatSessions)
+        .set({ title: "New chat", updatedAt: new Date() })
+        .where(eq(chatSessions.id, sessionId))
       return { ok: true }
     }
   )
+
+  // ─── Activity Insight ─────────────────────────────────────────────────────
 
   fastify.post(
     "/ai/activity-insight",
     {
       schema: {
         body: z.object({ activityId: z.string().uuid() }),
-        response: { 200: z.object({ insight: z.string() }) },
+        response: { 200: z.object({ insight: z.string() }), 404: notFound },
       },
     },
     async (request, reply) => {
@@ -233,16 +385,30 @@ const aiRoutes: FastifyPluginAsyncZod = async (fastify) => {
       const { activityId } = request.body
       const anthropic = await requireAnthropicClient(userId)
 
-      const [activity] = await db
-        .select()
-        .from(activities)
-        .where(and(eq(activities.id, activityId), eq(activities.userId, userId)))
-        .limit(1)
+      const [[activity], profileRows] = await Promise.all([
+        db
+          .select()
+          .from(activities)
+          .where(and(eq(activities.id, activityId), eq(activities.userId, userId)))
+          .limit(1),
+        db.select().from(userProfiles).where(eq(userProfiles.userId, userId)).limit(1),
+      ])
 
-      if (!activity) return reply.code(404).send({ error: "Activity not found" } as never)
+      if (!activity) return reply.code(404).send({ error: "Activity not found" })
 
+      const profile = profileRows[0] ?? null
+      fastify.log.info(
+        {
+          userId,
+          activityId,
+          hasProfile: !!profile,
+          hasMaxHR: !!profile?.maxHeartRate,
+          hasFTP: !!profile?.ftpWatts,
+        },
+        "activity-insight: generating"
+      )
       const newHash = computeInsightHash(activity)
-      const insight = await generateActivityInsight(anthropic, activity)
+      const insight = await generateActivityInsight(anthropic, activity, profile)
 
       await db
         .update(activities)
@@ -253,14 +419,14 @@ const aiRoutes: FastifyPluginAsyncZod = async (fastify) => {
     }
   )
 
+  // ─── Weekly Report ────────────────────────────────────────────────────────
+
   fastify.post("/ai/weekly-report", { schema: {} }, async (request, _reply) => {
     const userId = request.user.sub
     const anthropic = await requireAnthropicClient(userId)
 
-    // Get current week start (Monday)
     const now = new Date()
-    const dayOfWeek = now.getDay()
-    const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1
+    const daysToMonday = now.getDay() === 0 ? 6 : now.getDay() - 1
     const weekStart = new Date(now)
     weekStart.setDate(now.getDate() - daysToMonday)
     weekStart.setHours(0, 0, 0, 0)
@@ -268,28 +434,30 @@ const aiRoutes: FastifyPluginAsyncZod = async (fastify) => {
     const weekEnd = new Date(weekStart)
     weekEnd.setDate(weekStart.getDate() + 7)
 
-    const weekActivities = await db
-      .select()
-      .from(activities)
-      .where(
-        and(
-          eq(activities.userId, userId),
-          gte(activities.startDate, weekStart),
-          lte(activities.startDate, weekEnd)
+    const [weekActivities, allActivities, profileRows] = await Promise.all([
+      db
+        .select()
+        .from(activities)
+        .where(
+          and(
+            eq(activities.userId, userId),
+            gte(activities.startDate, weekStart),
+            lte(activities.startDate, weekEnd)
+          )
         )
-      )
-      .orderBy(asc(activities.startDate))
+        .orderBy(asc(activities.startDate)),
+      db.select().from(activities).where(eq(activities.userId, userId)),
+      db.select().from(userProfiles).where(eq(userProfiles.userId, userId)).limit(1),
+    ])
 
-    // Calculate metrics
     const totalDistance = weekActivities.reduce((s, a) => s + (a.distanceMeters ?? 0), 0)
     const totalDuration = weekActivities.reduce((s, a) => s + (a.durationSeconds ?? 0), 0)
     const hrValues = weekActivities.map((a) => a.averageHeartRate).filter(Boolean) as number[]
     const avgHR =
       hrValues.length > 0 ? Math.round(hrValues.reduce((a, b) => a + b, 0) / hrValues.length) : null
 
-    // Get training load
-    const allActivities = await db.select().from(activities).where(eq(activities.userId, userId))
     const load = calculateTrainingLoad(allActivities)
+    const profile = profileRows[0] ?? null
 
     const metrics = {
       totalDistance,
@@ -300,28 +468,17 @@ const aiRoutes: FastifyPluginAsyncZod = async (fastify) => {
       ctl: load.ctl,
     }
 
-    const activitySummary = weekActivities
-      .map(
-        (a) =>
-          `- ${a.startDate.toISOString().slice(0, 10)}: ${a.sportType}${a.durationSeconds ? ` ${Math.round(a.durationSeconds / 60)}min` : ""}${a.distanceMeters ? ` ${(a.distanceMeters / 1000).toFixed(1)}km` : ""}`
-      )
-      .join("\n")
-
-    const prompt = `Generate a weekly training summary for the week of ${weekStart.toISOString().slice(0, 10)}.
-
-Activities this week:
-${activitySummary || "No activities recorded."}
-
-Metrics:
-- Total distance: ${(totalDistance / 1000).toFixed(1)} km
-- Total duration: ${Math.round(totalDuration / 60)} minutes
-- Sessions: ${weekActivities.length}
-- Avg HR: ${avgHR ?? "N/A"} bpm
-- ATL (acute load): ${load.atl}
-- CTL (chronic load): ${load.ctl}
-- TSB (form): ${load.tsb}
-
-Write a 3-4 paragraph coaching summary covering: what was accomplished, training load assessment, recovery recommendations, and focus for next week.`
+    const prompt = buildWeeklyReportPrompt({
+      weekStart,
+      weekActivities,
+      totalDistance,
+      totalDuration,
+      avgHR,
+      atl: load.atl,
+      ctl: load.ctl,
+      tsb: load.tsb,
+      profile,
+    })
 
     const response = await anthropic.messages.create({
       model: "claude-sonnet-4-6",

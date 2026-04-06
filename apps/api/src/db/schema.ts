@@ -86,6 +86,19 @@ export const userProfiles = pgTable("user_profiles", {
   heightCm: real("height_cm"),
   maxHeartRate: integer("max_heart_rate"),
   ftpWatts: integer("ftp_watts"),
+  vo2max: real("vo2max"),
+  goals: text("goals"),
+  preferences: text("preferences"),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+})
+
+export const chatSessions = pgTable("chat_sessions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id")
+    .references(() => users.id, { onDelete: "cascade" })
+    .notNull(),
+  title: text("title").notNull().default("New chat"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 })
 
@@ -94,6 +107,7 @@ export const chatHistory = pgTable("chat_history", {
   userId: uuid("user_id")
     .references(() => users.id, { onDelete: "cascade" })
     .notNull(),
+  sessionId: uuid("session_id").references(() => chatSessions.id, { onDelete: "cascade" }),
   role: text("role").notNull(),
   content: text("content").notNull(),
   tokensUsed: integer("tokens_used"),
@@ -122,5 +136,6 @@ export type ApiKey = typeof apiKeys.$inferSelect
 export type StravaToken = typeof stravaTokens.$inferSelect
 export type Activity = typeof activities.$inferSelect
 export type NewActivity = typeof activities.$inferInsert
+export type ChatSession = typeof chatSessions.$inferSelect
 export type ChatHistoryEntry = typeof chatHistory.$inferSelect
 export type WeeklyReport = typeof weeklyReports.$inferSelect

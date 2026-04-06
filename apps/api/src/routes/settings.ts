@@ -64,6 +64,9 @@ const settingsRoutes: FastifyPluginAsyncZod = async (fastify) => {
     heightCm: z.number().positive().nullable(),
     maxHeartRate: z.number().int().positive().nullable(),
     ftpWatts: z.number().int().positive().nullable(),
+    vo2max: z.number().positive().nullable(),
+    goals: z.string().max(1000).nullable(),
+    preferences: z.string().max(1000).nullable(),
   })
 
   fastify.get(
@@ -82,6 +85,9 @@ const settingsRoutes: FastifyPluginAsyncZod = async (fastify) => {
         heightCm: profile?.heightCm ?? null,
         maxHeartRate: profile?.maxHeartRate ?? null,
         ftpWatts: profile?.ftpWatts ?? null,
+        vo2max: profile?.vo2max ?? null,
+        goals: profile?.goals ?? null,
+        preferences: profile?.preferences ?? null,
       }
     }
   )

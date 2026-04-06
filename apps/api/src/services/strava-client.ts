@@ -111,8 +111,47 @@ export async function getFreshAccessToken(userId: string, db: DB): Promise<strin
   return ensureFreshToken(userId, db)
 }
 
+const SPORT_TYPE_MAP: Record<string, string> = {
+  weighttraining: "workout",
+  workout: "workout",
+  crossfit: "crossfit",
+  yoga: "yoga",
+  pilates: "workout",
+  hiit: "workout",
+  coreandflexibility: "workout",
+  elliptical: "workout",
+  stairstepper: "workout",
+  rowing: "workout",
+  virtualrow: "workout",
+  inlineskate: "other",
+  iceskate: "other",
+  alpineski: "other",
+  backcountryski: "other",
+  nordicski: "other",
+  snowboard: "other",
+  snowshoe: "hike",
+  surfing: "other",
+  windsurf: "other",
+  kitesurf: "other",
+  stand_up_paddling: "other",
+  kayaking: "other",
+  canoeing: "other",
+  virtualride: "ride",
+  ebikeride: "ride",
+  handcycle: "ride",
+  velomobile: "ride",
+  virtualrun: "run",
+  trailrun: "run",
+  walk: "walk",
+  hike: "hike",
+  run: "run",
+  ride: "ride",
+  swim: "swim",
+}
+
 export function stravaActivityToDbFields(activity: StravaActivity, userId: string) {
-  const sportType = (activity.sport_type || activity.type || "other").toLowerCase()
+  const raw = (activity.sport_type || activity.type || "other").toLowerCase().replace(/\s+/g, "")
+  const sportType = SPORT_TYPE_MAP[raw] ?? raw
   const distanceMeters = activity.distance || null
   const avgPace =
     activity.average_speed && activity.average_speed > 0
