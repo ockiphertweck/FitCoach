@@ -2,7 +2,6 @@
 
 import { Markdown } from "@/components/markdown"
 import { Button } from "@/components/ui/button"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { Textarea } from "@/components/ui/textarea"
 import { api, streamPost } from "@/lib/api"
 import { cn } from "@/lib/utils"
@@ -251,7 +250,7 @@ export default function CoachPage() {
         </div>
 
         {/* Messages */}
-        <ScrollArea className="flex-1 py-2">
+        <div className="flex-1 py-2 overflow-y-auto">
           <div className="space-y-4 max-w-3xl mx-auto">
             {messages.length === 0 && !isStreaming && (
               <div className="text-center text-muted-foreground py-16">
@@ -340,7 +339,7 @@ export default function CoachPage() {
 
             <div ref={bottomRef} />
           </div>
-        </ScrollArea>
+        </div>
 
         {/* Input */}
         <div className="pt-3 border-t border-black/8">
