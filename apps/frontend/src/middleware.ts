@@ -1,14 +1,18 @@
+import { jwtVerify } from "jose"
 import { type NextRequest, NextResponse } from "next/server"
 
 const PUBLIC_PATHS = ["/login", "/setup"]
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000"
+
+const JWT_SECRET = new TextEncoder().encode(
+  process.env.JWT_SECRET ?? "fallback-secret-for-build-only"
+)
 
 async function isAuthenticated(request: NextRequest): Promise<boolean> {
+  const token = request.cookies.get("fitcoach_token")?.value
+  if (!token) return false
   try {
-    const res = await fetch(`${API_URL}/auth/me`, {
-      headers: { cookie: request.headers.get("cookie") ?? "" },
-    })
-    return res.ok
+    await jwtVerify(token, JWT_SECRET)
+    return true
   } catch {
     return false
   }

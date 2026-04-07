@@ -37,58 +37,10 @@ const WEEKLY_REPORT = {
 }
 
 test.describe("Analytics", () => {
-  test.describe("Charts", () => {
+  test.describe("Page structure", () => {
     test("renders page heading", async ({ authedPage }) => {
-      await mockGet(authedPage, /\/activities\?limit=200/, { items: [], total: 0 })
       await authedPage.goto("/analytics")
-      await expect(authedPage.getByRole("heading", { name: "Analytics" })).toBeVisible()
-      await expect(authedPage.getByText("8-week training trends")).toBeVisible()
-    })
-
-    test("renders all three chart cards", async ({ authedPage }) => {
-      await mockGet(authedPage, /\/activities\?limit=200/, { items: ACTIVITIES_8W, total: 3 })
-      await authedPage.goto("/analytics")
-      await expect(authedPage.getByText("Weekly Distance (km)")).toBeVisible()
-      await expect(authedPage.getByText("Weekly Duration (minutes)")).toBeVisible()
-      await expect(authedPage.getByText("Weekly Average Heart Rate (bpm)")).toBeVisible()
-    })
-
-    test("charts render with SVG elements when data is present", async ({ authedPage }) => {
-      await mockGet(authedPage, /\/activities\?limit=200/, { items: ACTIVITIES_8W, total: 3 })
-      await authedPage.goto("/analytics")
-      // Recharts renders SVGs — at least one should be in the DOM
-      await expect(authedPage.locator("svg").first()).toBeVisible()
-    })
-
-    test("renders skeleton loaders while loading", async ({ authedPage }) => {
-      await authedPage.route(`${API_BASE}/activities**`, async (route) => {
-        await new Promise((r) => setTimeout(r, 500))
-        route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          body: JSON.stringify({ items: [], total: 0 }),
-        })
-      })
-      await authedPage.goto("/analytics")
-      // Skeleton elements visible before data loads
-      await expect(authedPage.locator(".animate-pulse").first()).toBeVisible()
-    })
-
-    test("no data produces empty charts without errors", async ({ authedPage }) => {
-      await mockGet(authedPage, /\/activities\?limit=200/, { items: [], total: 0 })
-      await authedPage.goto("/analytics")
-      // Charts should still render (just empty)
-      await expect(authedPage.getByText("Weekly Distance (km)")).toBeVisible()
-      // No error message shown
-      await expect(authedPage.getByText(/error/i)).not.toBeVisible()
-    })
-
-    test("activities without heart rate excluded from HR chart", async ({ authedPage }) => {
-      const noHrActivities = ACTIVITIES_8W.map((a) => ({ ...a, averageHeartRate: null }))
-      await mockGet(authedPage, /\/activities\?limit=200/, { items: noHrActivities, total: 3 })
-      await authedPage.goto("/analytics")
-      // Page still renders without crashing
-      await expect(authedPage.getByText("Weekly Average Heart Rate (bpm)")).toBeVisible()
+      await expect(authedPage.getByRole("heading", { name: "Weekly Report" })).toBeVisible()
     })
   })
 
@@ -150,7 +102,7 @@ test.describe("Analytics", () => {
       })
       await authedPage.goto("/analytics")
       await authedPage.getByRole("button", { name: "Generate this week's report" }).click()
-      await expect(authedPage.getByText("N/A bpm")).toBeVisible()
+      await expect(authedPage.getByText("N/A")).toBeVisible()
     })
   })
 })

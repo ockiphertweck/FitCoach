@@ -8,6 +8,8 @@ const STATS_ZERO = { atl: 0, ctl: 0, tsb: 0 }
 test.describe("Dashboard", () => {
   test.beforeEach(async ({ authedPage }) => {
     await mockGet(authedPage, "/activities?limit=5", { items: [], total: 0 })
+    // Chart data (8-week trend) — return empty to avoid real API calls for the test user
+    await mockGet(authedPage, /\/activities\?limit=200/, { items: [], total: 0 })
   })
 
   test.describe("Training load cards", () => {
@@ -22,17 +24,15 @@ test.describe("Dashboard", () => {
     test("TSB > 5 shows green Fresh badge", async ({ authedPage }) => {
       await mockGet(authedPage, "/activities/stats", STATS_FRESH)
       await authedPage.goto("/")
-      const badge = authedPage
-        .getByRole("button", { name: /Fresh/ })
-        .or(authedPage.getByText("Fresh"))
+      const badge = authedPage.getByText("Fresh", { exact: true })
       await expect(badge).toBeVisible()
-      await expect(badge).toHaveClass(/green/)
+      await expect(badge).toHaveClass(/emerald/)
     })
 
     test("TSB < -10 shows red Fatigued badge", async ({ authedPage }) => {
       await mockGet(authedPage, "/activities/stats", STATS_FATIGUED)
       await authedPage.goto("/")
-      const badge = authedPage.getByText("Fatigued")
+      const badge = authedPage.getByText("Fatigued", { exact: true })
       await expect(badge).toBeVisible()
       await expect(badge).toHaveClass(/red/)
     })
@@ -40,9 +40,9 @@ test.describe("Dashboard", () => {
     test("TSB between -10 and 5 shows yellow Moderate badge", async ({ authedPage }) => {
       await mockGet(authedPage, "/activities/stats", STATS_MODERATE)
       await authedPage.goto("/")
-      const badge = authedPage.getByText("Moderate")
+      const badge = authedPage.getByText("Moderate", { exact: true })
       await expect(badge).toBeVisible()
-      await expect(badge).toHaveClass(/yellow/)
+      await expect(badge).toHaveClass(/amber/)
     })
 
     test("shows — when stats not yet loaded", async ({ authedPage }) => {
@@ -144,7 +144,7 @@ test.describe("Dashboard", () => {
         "an easy recovery run.",
       ])
       await authedPage.goto("/")
-      await authedPage.getByRole("button", { name: "Get today's recommendation" }).click()
+      await authedPage.getByRole("button", { name: "Get recommendation" }).click()
       await expect(
         authedPage.getByText("Today you should take an easy recovery run.")
       ).toBeVisible()
@@ -161,7 +161,7 @@ test.describe("Dashboard", () => {
         })
       })
       await authedPage.goto("/")
-      await authedPage.getByRole("button", { name: "Get today's recommendation" }).click()
+      await authedPage.getByRole("button", { name: "Get recommendation" }).click()
       await expect(
         authedPage.getByRole("button", { name: "Getting recommendation…" })
       ).toBeVisible()
