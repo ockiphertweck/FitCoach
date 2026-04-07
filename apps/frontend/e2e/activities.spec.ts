@@ -408,17 +408,18 @@ test.describe("Activity detail page", () => {
 
     test("renders heart rate chart when HR data present", async ({ authedPage }) => {
       await authedPage.goto(`/activities/${MOCK_ACTIVITY.id}`)
-      await expect(authedPage.getByText("Heart Rate")).toBeVisible()
+      // Chart title is "Heart Rate bpm" — match with first() to avoid strict-mode violation
+      await expect(authedPage.getByText("Heart Rate").first()).toBeVisible()
     })
 
     test("renders speed chart when speed data present", async ({ authedPage }) => {
       await authedPage.goto(`/activities/${MOCK_ACTIVITY.id}`)
-      await expect(authedPage.getByText("Speed")).toBeVisible()
+      await expect(authedPage.getByText("Speed").first()).toBeVisible()
     })
 
     test("renders elevation chart when altitude data present", async ({ authedPage }) => {
       await authedPage.goto(`/activities/${MOCK_ACTIVITY.id}`)
-      await expect(authedPage.getByText("Elevation")).toBeVisible()
+      await expect(authedPage.getByText("Elevation").first()).toBeVisible()
     })
 
     test("renders HR zone chart with all zone labels", async ({ authedPage }) => {

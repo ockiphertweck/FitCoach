@@ -1,5 +1,3 @@
-import { readFileSync } from "node:fs"
-import { join } from "node:path"
 import { type Page, type Route, test as base, expect } from "@playwright/test"
 import { SignJWT } from "jose"
 
@@ -11,12 +9,10 @@ export const TEST_USER_ID = "00000000-0000-0000-0000-000000000001"
 export const TEST_USER_EMAIL = "test@fitcoach.dev"
 
 function readJwtSecret(): string {
-  try {
-    const env = readFileSync(join(__dirname, "../../../.env"), "utf-8")
-    const m = env.match(/^JWT_SECRET\s*=\s*([^\r\n]+)/m)
-    if (m) return m[1].trim().replace(/^["']|["']$/g, "")
-  } catch {}
-  return process.env.JWT_SECRET ?? "test-fallback-secret"
+  // process.env.JWT_SECRET is set by playwright.config.ts which reads the root .env file.
+  // When the dev server runs without Playwright (manually), neither the server nor the
+  // fixture has JWT_SECRET in process.env, so both fall back to the same constant.
+  return process.env.JWT_SECRET ?? "fallback-secret-for-build-only"
 }
 
 const JWT_SECRET = readJwtSecret()

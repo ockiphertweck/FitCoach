@@ -199,6 +199,9 @@ test.describe("Settings", () => {
     test("sex selector accepts male, female, other", async ({ authedPage }) => {
       await authedPage.goto("/settings")
       const sexField = authedPage.locator("#sex")
+      // PROFILE_EMPTY has sex: null — wait for the useEffect to initialise the form
+      // so the profile data doesn't race and reset the field after selectOption.
+      await expect(sexField).toHaveValue("")
       await sexField.selectOption("female")
       await expect(sexField).toHaveValue("female")
     })
