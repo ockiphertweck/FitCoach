@@ -30,6 +30,7 @@ export default function CoachPage() {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [input, setInput] = useState("")
   const [streamingMessage, setStreamingMessage] = useState("")
+  const streamingRef = useRef("")
   const [isStreaming, setIsStreaming] = useState(false)
   const [failedMessage, setFailedMessage] = useState<string | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -109,6 +110,7 @@ export default function CoachPage() {
     if (!message || isStreaming || !activeSessionId) return
     if (!override) setInput("")
     setStreamingMessage("")
+    streamingRef.current = ""
     setFailedMessage(null)
     setIsStreaming(true)
 
@@ -131,11 +133,30 @@ export default function CoachPage() {
 
     try {
       await streamPost("/ai/chat", { message, sessionId: activeSessionId }, (text) => {
+        streamingRef.current += text
         setStreamingMessage((prev) => prev + text)
       })
-      await qc.invalidateQueries({ queryKey: ["chat-history", activeSessionId] })
-      await qc.invalidateQueries({ queryKey: ["chat-sessions"] })
+      // Optimistically add the assistant reply to the cache so the message is
+      // visible immediately — the server persists it fire-and-forget, so a plain
+      // invalidate would refetch before the DB write completes.
+      qc.setQueryData(
+        ["chat-history", activeSessionId],
+        (old: { messages: Message[] } | undefined) => ({
+          messages: [
+            ...(old?.messages ?? []),
+            {
+              id: `optimistic-${Date.now()}`,
+              role: "assistant" as const,
+              content: streamingRef.current,
+              createdAt: new Date().toISOString(),
+            },
+          ],
+        })
+      )
       setStreamingMessage("")
+      // Background refetch to swap the optimistic entry for the persisted one
+      qc.invalidateQueries({ queryKey: ["chat-history", activeSessionId] })
+      qc.invalidateQueries({ queryKey: ["chat-sessions"] })
     } catch {
       setFailedMessage(message)
     } finally {
