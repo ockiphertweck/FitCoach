@@ -12,3 +12,5 @@ drizzle/meta
 coverage
 playwright-report
 test-results
+.claude
+.agents
