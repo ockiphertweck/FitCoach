@@ -120,20 +120,6 @@ After that, data is pulled whenever you open Home (or return to the tab), **at m
 
 ---
 
-## Upgrading from Strava (optional)
-
-Strava closed its API to free accounts, so FitCoach now uses Garmin. After pulling this version run `pnpm --filter api db:migrate`. That is all you need: Strava activities stay, and when Garmin imports a workout with the same start time (±2 minutes) the Strava copy is replaced automatically.
-
-If you want a clean slate instead, you can optionally run:
-
-```bash
-pnpm --filter api purge-legacy-data   # asks for "yes"; add --yes to skip the prompt
-```
-
-It deletes all Strava activities, chat history and sessions, daily recaps and weekly reports. Your account, saved API keys and athlete profile are kept.
-
----
-
 ## Architecture
 
 ```
@@ -342,7 +328,7 @@ pnpm --filter api test:coverage # coverage report → apps/api/coverage/index.ht
 FitCoach is **fully self-hosted** — all activity data, wellness data, chat history, and credentials live in your local PostgreSQL database. The only external calls are:
 
 - **Anthropic Claude API** — recent activities, sleep, HRV, Body Battery, stress and resting heart rate, plus chat messages, are sent to generate coaching responses. [Anthropic privacy policy](https://www.anthropic.com/privacy).
-- **Garmin** — the data source: activities and daily wellness are fetched and stored locally (Strava is no longer used).
+- **Garmin** — the data source: activities and daily wellness are fetched and stored locally.
 - **PostHog** (optional) — usage analytics and LLM metrics only. Privacy mode is forced on every Claude call, so PostHog receives no prompt or response content. EU instance by default.
 
 **To delete all data:** `docker compose down -v`
@@ -357,4 +343,4 @@ Issues and PRs are welcome. Please open an issue before starting significant wor
 
 ## License
 
-Apache 2.0 — see [LICENSE](LICENSE)
+MIT — see [LICENSE](LICENSE)
