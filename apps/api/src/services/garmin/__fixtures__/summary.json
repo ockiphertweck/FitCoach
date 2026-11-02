@@ -1,0 +1,7 @@
+{
+  "calendarDate": "2026-11-01",
+  "calories": { "burnedResting": 1800, "burnedActive": 900, "burnedTotal": 2700 },
+  "heartRate": { "minValue": 44, "maxValue": 170, "restingValue": 48 },
+  "stress": { "avgLevel": 29 },
+  "bodyBattery": { "chargedValue": 66, "latestValue": 70 }
+}
