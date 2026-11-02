@@ -19,6 +19,14 @@ const ICONS = {
   swim: Waves,
 } as const
 
+const TINTS: Record<string, string> = {
+  ride: "bg-orange-500/15 text-orange-600 dark:text-orange-400",
+  run: "bg-green-500/15 text-green-600 dark:text-green-400",
+  swim: "bg-sky-500/15 text-sky-600 dark:text-sky-400",
+  weighttraining: "bg-purple-500/15 text-purple-600 dark:text-purple-400",
+  virtualride: "bg-indigo-500/15 text-indigo-600 dark:text-indigo-400",
+}
+
 function formatDuration(seconds: number): string {
   const h = Math.floor(seconds / 3600)
   const m = String(Math.floor((seconds % 3600) / 60)).padStart(2, "0")
@@ -26,11 +34,13 @@ function formatDuration(seconds: number): string {
 }
 
 export function ActivityRow({ activity: a }: { activity: ActivityItem }) {
-  const Icon = ICONS[a.sportType.toLowerCase() as keyof typeof ICONS] ?? Activity
+  const sport = a.sportType.toLowerCase()
+  const Icon = ICONS[sport as keyof typeof ICONS] ?? Activity
+  const tint = TINTS[sport] ?? "bg-muted text-muted-foreground"
   const date = new Date(a.startDate).toLocaleDateString("en-GB", { day: "numeric", month: "short" })
   return (
     <Link href={`/activities/${a.id}`} className="flex items-center gap-3 py-2.5">
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+      <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${tint}`}>
         <Icon className="h-5 w-5" />
       </span>
       <span className="min-w-0 flex-1">

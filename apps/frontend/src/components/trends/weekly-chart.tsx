@@ -1,6 +1,7 @@
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { localDate } from "@/lib/utils"
 import {
   Area,
   AreaChart,
@@ -30,7 +31,7 @@ function mondayKey(date: Date): string {
   const diff = date.getDay() === 0 ? -6 : 1 - date.getDay()
   const monday = new Date(date)
   monday.setDate(date.getDate() + diff)
-  return monday.toISOString().slice(0, 10)
+  return localDate(monday)
 }
 
 export function buildWeeklyChartData(activities: ChartActivity[]): WeeklyPoint[] {
@@ -56,7 +57,10 @@ export function buildWeeklyChartData(activities: ChartActivity[]): WeeklyPoint[]
     .sort(([a], [b]) => a.localeCompare(b))
     .slice(-8)
     .map(([week, data]) => ({
-      week: new Date(week).toLocaleDateString("en-GB", { month: "short", day: "numeric" }),
+      week: new Date(`${week}T00:00:00`).toLocaleDateString("en-GB", {
+        month: "short",
+        day: "numeric",
+      }),
       weekStart: week,
       distance: Math.round(data.distance * 10) / 10,
       duration: Math.round(data.duration),

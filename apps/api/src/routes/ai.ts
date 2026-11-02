@@ -10,7 +10,7 @@ import { buildRecommendationPrompt } from "../prompts/recommendation.js"
 import { SYSTEM_PROMPT } from "../prompts/system.js"
 import { buildWeeklyReportPrompt } from "../prompts/weekly-report.js"
 import { computeInsightHash, generateActivityInsight } from "../services/activity-insight.js"
-import { getAnthropicClient, requireAnthropicClient } from "../services/anthropic-client.js"
+import { hasAnthropicKey, requireAnthropicClient } from "../services/anthropic-client.js"
 import { calculateTrainingLoad } from "../services/atl-ctl.js"
 import {
   computeRecapHash,
@@ -135,8 +135,8 @@ const aiRoutes: FastifyPluginAsyncZod = async (fastify) => {
     async (request) => {
       const userId = request.user.sub
       const { date } = request.query
-      const [client, stored, inputs] = await Promise.all([
-        getAnthropicClient(userId),
+      const [hasKey, stored, inputs] = await Promise.all([
+        hasAnthropicKey(userId),
         getStoredRecap(db, userId, date),
         loadRecapInputs(db, userId, date),
       ])
@@ -147,7 +147,7 @@ const aiRoutes: FastifyPluginAsyncZod = async (fastify) => {
             stale: stored.inputHash !== computeRecapHash({ date, ...inputs }),
           }
         : null
-      return { hasKey: client !== null, recap }
+      return { hasKey, recap }
     }
   )
 

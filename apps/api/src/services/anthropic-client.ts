@@ -19,6 +19,17 @@ export async function getAnthropicClient(userId: string): Promise<Anthropic | nu
   return new Anthropic({ apiKey, posthog })
 }
 
+/** Cheap key-presence check (no decrypt, no client construction). */
+export async function hasAnthropicKey(userId: string): Promise<boolean> {
+  if (env.CLAUDE_API_KEY) return true
+  const [row] = await db
+    .select({ id: apiKeys.id })
+    .from(apiKeys)
+    .where(and(eq(apiKeys.userId, userId), eq(apiKeys.provider, "anthropic")))
+    .limit(1)
+  return !!row
+}
+
 /** Like getAnthropicClient, but throws if no key is configured. */
 export async function requireAnthropicClient(userId: string): Promise<Anthropic> {
   const client = await getAnthropicClient(userId)

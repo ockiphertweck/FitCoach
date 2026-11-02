@@ -97,6 +97,7 @@ export default function SettingsPage() {
     onSuccess: () => {
       flashProfileSaved()
       qc.invalidateQueries({ queryKey: ["profile"] })
+      qc.invalidateQueries({ queryKey: ["recap"] })
     },
   })
 
@@ -106,12 +107,16 @@ export default function SettingsPage() {
       flashKeySaved()
       setClaudeKey("")
       qc.invalidateQueries({ queryKey: ["api-key-status"] })
+      qc.invalidateQueries({ queryKey: ["recap"] })
     },
   })
 
   const deleteKeyMutation = useMutation({
     mutationFn: () => api.delete("/settings/apikey/anthropic"),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["api-key-status"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["api-key-status"] })
+      qc.invalidateQueries({ queryKey: ["recap"] })
+    },
   })
 
   const disconnectStravaMutation = useMutation({

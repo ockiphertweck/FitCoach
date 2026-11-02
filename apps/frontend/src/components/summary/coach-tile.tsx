@@ -30,27 +30,33 @@ export function CoachTile() {
   const [streamed, setStreamed] = useState("")
   const [streaming, setStreaming] = useState(false)
   const [failed, setFailed] = useState(false)
+  const streamedRef = useRef("")
 
-  const { data, isFetching } = useQuery<RecapResponse>({
+  const { data, isFetching, isError, refetch } = useQuery<RecapResponse>({
     queryKey: ["recap", date],
     queryFn: () => api.get(`/ai/recommendation?date=${date}`),
   })
 
   const generate = useCallback(async () => {
     setStreamed("")
+    streamedRef.current = ""
     setFailed(false)
     setStreaming(true)
     // Reuse a stream already running for this date (e.g. after navigating away and back).
     let run = inflight.get(date)
     if (!run) {
-      run = streamPost("/ai/recommendation", { date }, (t) => setStreamed((p) => p + t)).finally(
-        () => inflight.delete(date)
-      )
+      run = streamPost("/ai/recommendation", { date }, (t) => {
+        streamedRef.current += t
+        setStreamed((p) => p + t)
+      }).finally(() => inflight.delete(date))
       inflight.set(date, run)
     }
     try {
       await run
       await qc.invalidateQueries({ queryKey: ["recap", date] })
+      // Blank stream and nothing saved server-side: don't spin on "Writing your recap…" forever.
+      if (!streamedRef.current.trim() && !qc.getQueryData<RecapResponse>(["recap", date])?.recap)
+        setFailed(true)
     } catch {
       setFailed(true)
     } finally {
@@ -111,6 +117,13 @@ export function CoachTile() {
             <Link href="/settings" className="font-medium underline">
               Settings
             </Link>
+          </p>
+        ) : isError && !data ? (
+          <p className="text-destructive">
+            Couldn't load your recap.{" "}
+            <button type="button" className="underline" onClick={() => void refetch()}>
+              Retry
+            </button>
           </p>
         ) : failed ? (
           <p className="text-destructive">Recap generation failed. Try refreshing.</p>

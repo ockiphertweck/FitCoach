@@ -234,6 +234,23 @@ test.describe("Summary", () => {
       pwExpect(posts).toHaveLength(0)
     })
 
+    test("failed GET shows error with retry and does not POST", async ({ authedPage }) => {
+      const posts = trackPosts(authedPage)
+      await mockGet(authedPage, /\/ai\/recommendation\?date=/, { error: "boom" }, 500)
+      await authedPage.goto("/")
+      await expect(authedPage.getByText(/Couldn't load your recap/)).toBeVisible()
+      await expect(authedPage.getByRole("button", { name: "Retry" })).toBeVisible()
+      pwExpect(posts).toHaveLength(0)
+    })
+
+    test("whitespace-only stream shows failure instead of spinner text", async ({ authedPage }) => {
+      await mockGet(authedPage, /\/ai\/recommendation\?date=/, { hasKey: true, recap: null })
+      await mockStream(authedPage, "/ai/recommendation", ["  \n"])
+      await authedPage.goto("/")
+      await expect(authedPage.getByText(/Recap generation failed/)).toBeVisible()
+      await expect(authedPage.getByText("Writing your recap…")).toHaveCount(0)
+    })
+
     for (const [name, body] of [
       ["error event", 'data: {"text":"Partial"}\n\ndata: {"error":"Recap generation failed"}\n\n'],
       ["end without [DONE]", 'data: {"text":"Partial"}\n\n'],
