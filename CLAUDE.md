@@ -87,7 +87,7 @@ Antipatterns to always flag:
 ### GDPR
 
 - Never log PII — no emails, activity content, or chat messages in logs
-- Strava tokens and API keys are always stored encrypted — never plaintext even temporarily
+- Garmin and Claude API keys are always stored encrypted — never plaintext even temporarily
 - Do not send `rawData` jsonb to the Claude API — extract only the fields needed for context
 - If a new flow sends user data somewhere external, flag it before implementing
 

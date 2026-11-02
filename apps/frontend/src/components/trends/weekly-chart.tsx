@@ -104,7 +104,7 @@ export function WeeklyChart({
   const gid = `grad-${dataKey}`
 
   return (
-    <Card>
+    <Card data-testid="weekly-chart">
       <CardHeader>
         <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
         <div className="flex items-baseline gap-2">

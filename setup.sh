@@ -22,26 +22,16 @@ if ! docker info &> /dev/null; then
   exit 1
 fi
 
-# Check pnpm
-if ! command -v pnpm &> /dev/null; then
-  echo -e "${RED}Error: pnpm is not installed.${NC}"
-  echo "Install pnpm with: npm install -g pnpm"
-  exit 1
-fi
-
 # Check .env
 if [ ! -f ".env" ]; then
   echo -e "${YELLOW}No .env file found. Creating from .env.example...${NC}"
   cp .env.example .env
   echo ""
   echo -e "${YELLOW}Please fill in the required values in .env:${NC}"
-  echo "  JWT_SECRET         — run: openssl rand -base64 32"
-  echo "  API_KEY_ENCRYPTION_KEY — run: openssl rand -base64 24 | head -c 32"
-  echo "  DB_PASSWORD        — any secure password"
-  echo "  STRAVA_CLIENT_ID   — from strava.com/settings/api"
-  echo "  STRAVA_CLIENT_SECRET — from strava.com/settings/api"
-  echo "  STRAVA_WEBHOOK_VERIFY_TOKEN — any random string"
-  echo "  POSTHOG_API_KEY    — from posthog.com (optional)"
+  echo "  JWT_SECRET             — run: openssl rand -base64 32"
+  echo "  API_KEY_ENCRYPTION_KEY — run: openssl rand -base64 32"
+  echo "  DB_PASSWORD            — run: openssl rand -hex 16 (also put it into DATABASE_URL)"
+  echo "  POSTHOG_API_KEY        — from posthog.com (optional)"
   echo ""
   echo "Then re-run: ./setup.sh"
   exit 0
@@ -66,20 +56,11 @@ until docker compose exec postgres pg_isready -U fitcoach &> /dev/null; do
 done
 echo -e " ${GREEN}ready${NC}"
 
-# Install dependencies
-echo -e "${GREEN}Installing dependencies...${NC}"
-pnpm install
-
-# Run migrations
-echo -e "${GREEN}Running database migrations...${NC}"
-pnpm --filter api db:migrate
-
+# The api container applies database migrations on start (see apps/api/Dockerfile)
 echo ""
 echo -e "${GREEN}FitCoach is running!${NC}"
 echo "================================"
 echo -e "  App:    ${GREEN}http://localhost:3001${NC}"
 echo -e "  API:    ${GREEN}http://localhost:3000${NC}"
 echo ""
-echo "For pgAdmin + Tailscale Funnel (local dev):"
-echo "  docker compose -f docker-compose.yml -f docker-compose.override.yml up -d"
-echo "  Your public webhook URL: https://fitcoach-dev.<tailnet>.ts.net/strava/webhook"
+echo "Logs: docker compose logs -f api"

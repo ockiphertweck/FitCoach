@@ -1,4 +1,5 @@
 import type { UserProfile } from "../db/schema.js"
+import type { RecapWellness } from "../services/wellness.js"
 
 export function formatDuration(seconds: number): string {
   const h = Math.floor(seconds / 3600)
@@ -47,5 +48,34 @@ export function formatProfileSection(profile: UserProfile | null): string[] {
   lines.push(`- Goals: ${profile.goals ?? "not set"}`)
   lines.push(`- Preferences: ${profile.preferences ?? "not set"}`)
   lines.push("")
+  return lines
+}
+
+const val = (v: number | string | null | undefined, unit = "") =>
+  v == null ? "n/a" : `${v}${unit}`
+
+/** Markdown lines with last night's recovery (only if `date` has a row), yesterday's stress/RHR and a dated trend; [] without data. */
+export function formatRecoverySection(w: RecapWellness[], date: string): string[] {
+  if (w.length === 0) return []
+  const d = new Date(`${date}T00:00:00Z`)
+  d.setUTCDate(d.getUTCDate() - 1)
+  const today = w.find((r) => r.date === date)
+  const prev = w.find((r) => r.date === d.toISOString().slice(0, 10))
+  const dur = (sec: number | null) => (sec ? formatDuration(sec) : "n/a")
+  const lines = ["## Recovery (Garmin)"]
+  if (today) {
+    lines.push(
+      `- Last night: sleep score ${val(today.sleepScore)}, ${dur(today.sleepSeconds)} (deep ${dur(today.deepSleepSeconds)}, REM ${dur(today.remSleepSeconds)}, light ${dur(today.lightSleepSeconds)}, awake ${dur(today.awakeSeconds)})`,
+      `- HRV: last night ${val(today.hrvLastNight, " ms")}, weekly avg ${val(today.hrvWeeklyAvg, " ms")}, status ${val(today.hrvStatus)}`,
+      `- Body Battery: ${val(today.bodyBatteryAtWake)} at wake (charged +${val(today.bodyBatteryCharged)})`
+    )
+  }
+  if (prev) {
+    lines.push(
+      `- Yesterday: avg stress ${val(prev.stressAvg)}, resting HR ${val(prev.restingHeartRate, " bpm")}`
+    )
+  }
+  const trend = w.map((r) => `${r.date.slice(5)} ${val(r.sleepScore)}/${val(r.hrvLastNight)}`)
+  lines.push(`- Trend (date sleep score/HRV): ${trend.join(", ")}`, "")
   return lines
 }

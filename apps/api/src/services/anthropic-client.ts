@@ -16,7 +16,16 @@ export async function getAnthropicClient(userId: string): Promise<Anthropic | nu
 
   const apiKey = keyRow ? decrypt(keyRow.encryptedKey) : env.CLAUDE_API_KEY
   if (!apiKey) return null
-  return new Anthropic({ apiKey, posthog })
+  const client = new Anthropic({ apiKey, posthog })
+  // @posthog/ai 7.13 has no client-level option, only per-call `posthogPrivacyMode`;
+  // force it here so no call site can leak prompt/response content (health data) to PostHog.
+  const create = client.messages.create.bind(client.messages)
+  client.messages.create = ((params: object, options?: object) =>
+    create(
+      { ...params, posthogPrivacyMode: true } as never,
+      options
+    )) as typeof client.messages.create
+  return client
 }
 
 /** Cheap key-presence check (no decrypt, no client construction). */

@@ -112,6 +112,7 @@ export const test = base.extend<AuthFixtures>({
 // Convenience: shared activity mock data
 export const MOCK_ACTIVITY = {
   id: "aaaaaaaa-0000-0000-0000-000000000001",
+  source: "garmin",
   name: "Morning Run",
   sportType: "run",
   startDate: "2026-03-31T07:00:00.000Z",
@@ -134,7 +135,6 @@ export const MOCK_ACTIVITY = {
     trainer: false,
     commute: false,
     device_name: "Garmin Forerunner 265",
-    map: { summary_polyline: "wkxuHkiiv@A?" },
   },
   aiInsight: null,
 }

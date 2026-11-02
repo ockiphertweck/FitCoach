@@ -10,11 +10,40 @@ import { Segmented } from "@/components/ui/segmented"
 import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
 import { api } from "@/lib/api"
+import {
+  GARMIN_NOT_CONNECTED,
+  type GarminStatus,
+  STATUS_KEY,
+  refreshData,
+  syncNow,
+} from "@/lib/garmin"
 import { type Theme, parseTheme, setThemeCookie } from "@/lib/theme"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { CheckCircle, Key, Link2, Link2Off, LogOut, Palette, User } from "lucide-react"
+import { Activity, CheckCircle, Key, LogOut, Palette, User } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useCallback, useEffect, useState } from "react"
+
+const GARMIN_ERRORS: Record<string, string> = {
+  key_invalid: "Key invalid",
+  rate_limited: "Garmin is busy, try again later",
+  garmin_unavailable: "Garmin unavailable, try again later",
+}
+
+function garminLine(s: GarminStatus) {
+  if (s.status === "importing") return "Importing…"
+  if (s.lastError === "key_invalid") return "Key invalid or expired"
+  if (!s.lastSyncedAt) return "Connected"
+  const mins = Math.round((Date.now() - new Date(s.lastSyncedAt).getTime()) / 60_000)
+  const [n, unit] = relativeUnit(mins)
+  const rel = new Intl.RelativeTimeFormat("en", { numeric: "auto" }).format(-n, unit)
+  return `Connected · Last sync ${rel}`
+}
+
+function relativeUnit(mins: number): [number, Intl.RelativeTimeFormatUnit] {
+  if (mins < 60) return [mins, "minute"]
+  if (mins < 1440) return [Math.round(mins / 60), "hour"]
+  return [Math.round(mins / 1440), "day"]
+}
 
 function useFlashSaved(duration = 3000) {
   const [saved, setSaved] = useState(false)
@@ -32,11 +61,6 @@ interface AuthUser {
 }
 interface ApiKeyStatus {
   providers: string[]
-}
-interface StravaStatus {
-  connected: boolean
-  athleteId: number | null
-  lastSynced: string | null
 }
 
 interface Profile {
@@ -83,10 +107,6 @@ export default function SettingsPage() {
     queryKey: ["api-key-status"],
     queryFn: () => api.get("/settings/apikey"),
   })
-  const { data: stravaStatus } = useQuery<StravaStatus>({
-    queryKey: ["strava-status"],
-    queryFn: () => api.get("/strava/status"),
-  })
 
   useEffect(() => {
     if (profile) setProfileForm(profile)
@@ -119,10 +139,55 @@ export default function SettingsPage() {
     },
   })
 
-  const disconnectStravaMutation = useMutation({
-    mutationFn: () => api.delete("/strava/disconnect"),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["strava-status"] }),
+  const [garminKey, setGarminKey] = useState("")
+  const { data: garmin } = useQuery<GarminStatus>({
+    queryKey: STATUS_KEY,
+    queryFn: () => api.get("/garmin/status"),
+    refetchInterval: (q) => (q.state.data?.status === "importing" ? 5000 : false),
   })
+  // Seed the cache so the Summary (staleTime 60 s) sees the change and doesn't recap mid-import.
+  const setGarmin = (s: GarminStatus) => {
+    qc.setQueryData(STATUS_KEY, s)
+    refreshData(qc)
+  }
+  const connectGarmin = useMutation({
+    mutationFn: () => api.post<GarminStatus>("/garmin/connect", { key: garminKey.trim() }),
+    onSuccess: (s) => {
+      setGarminKey("")
+      setGarmin(s)
+    },
+  })
+  const removeGarmin = useMutation({
+    mutationFn: () => api.delete("/garmin/key"),
+    onSuccess: () => setGarmin(GARMIN_NOT_CONNECTED),
+  })
+  const syncGarmin = useMutation({ mutationFn: () => syncNow(qc) })
+  const garminKeyForm = (
+    <div className="space-y-3">
+      <div className="space-y-1">
+        <Label htmlFor="garmin-key">Garmin key</Label>
+        <Input
+          id="garmin-key"
+          type="password"
+          autoComplete="off"
+          value={garminKey}
+          onChange={(e) => setGarminKey(e.target.value)}
+        />
+      </div>
+      <Button
+        size="sm"
+        onClick={() => connectGarmin.mutate()}
+        disabled={!garminKey.trim() || connectGarmin.isPending}
+      >
+        {connectGarmin.isPending ? "Connecting…" : "Connect"}
+      </Button>
+      {connectGarmin.error && (
+        <p className="text-sm text-destructive">
+          {GARMIN_ERRORS[connectGarmin.error.message] ?? "Connection failed"}
+        </p>
+      )}
+    </div>
+  )
 
   const logoutMutation = useMutation({
     mutationFn: () => api.post("/auth/logout"),
@@ -132,7 +197,7 @@ export default function SettingsPage() {
   const hasAnthropicKey = apiKeyStatus?.providers.includes("anthropic")
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 lg:mx-auto lg:w-full lg:max-w-[640px]">
       <PageHeader title="Settings" subtitle="MANAGE YOUR FITCOACH CONFIGURATION" />
 
       {/* Appearance */}
@@ -320,6 +385,61 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
+      {/* Garmin */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base font-medium">
+            <Activity className="h-4 w-4 text-primary" /> Garmin
+          </CardTitle>
+          <CardDescription>
+            Create a{" "}
+            <a
+              href="https://connect.garmin.com/app/settings/personalApiToken"
+              target="_blank"
+              rel="noreferrer"
+              className="underline"
+            >
+              personal API token
+            </a>{" "}
+            in Garmin Connect and paste it here.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {garmin?.connected ? (
+            <div className="space-y-3">
+              <p className="text-sm">{garminLine(garmin)}</p>
+              {garmin.keyExpiresAt && (
+                <p className="text-xs text-muted-foreground">
+                  Key expires {new Date(garmin.keyExpiresAt).toLocaleDateString()}
+                </p>
+              )}
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => syncGarmin.mutate()}
+                  disabled={syncGarmin.isPending || garmin.status === "importing"}
+                >
+                  {syncGarmin.isPending ? "Syncing…" : "Sync now"}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  aria-label="Remove Garmin key"
+                  onClick={() => removeGarmin.mutate()}
+                  disabled={removeGarmin.isPending}
+                >
+                  Remove key
+                </Button>
+              </div>
+              {/* Expired/revoked key: paste a new one (connect upserts it). */}
+              {garmin.lastError === "key_invalid" && garminKeyForm}
+            </div>
+          ) : (
+            garminKeyForm
+          )}
+        </CardContent>
+      </Card>
+
       {/* Claude API Key */}
       <Card>
         <CardHeader>
@@ -376,51 +496,6 @@ export default function SettingsPage() {
                 </p>
               )}
             </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Strava */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base font-medium">
-            <Link2 className="h-4 w-4 text-primary" /> Strava
-          </CardTitle>
-          <CardDescription>
-            Connect Strava to import activities automatically via OAuth.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {stravaStatus?.connected ? (
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Badge
-                  variant="outline"
-                  className="border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                >
-                  <CheckCircle className="h-3 w-3 mr-1" /> Connected
-                </Badge>
-                {stravaStatus.athleteId && (
-                  <span className="text-sm text-muted-foreground">
-                    Athlete #{stravaStatus.athleteId}
-                  </span>
-                )}
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => disconnectStravaMutation.mutate()}
-                disabled={disconnectStravaMutation.isPending}
-              >
-                <Link2Off className="h-4 w-4" /> Disconnect
-              </Button>
-            </div>
-          ) : (
-            <Button asChild size="sm">
-              <a href={`${process.env.NEXT_PUBLIC_API_URL}/strava/connect`}>
-                <Link2 className="h-4 w-4" /> Connect Strava
-              </a>
-            </Button>
           )}
         </CardContent>
       </Card>

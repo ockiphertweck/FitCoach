@@ -19,6 +19,8 @@ interface Activity {
   durationSeconds: number | null
   distanceMeters: number | null
   averageHeartRate: number | null
+  elevationMeters: number | null
+  averagePaceSecondsPerKm: number | null
 }
 
 const SPORTS = ["all", "run", "ride", "swim", "walk", "hike", "workout"].map((s) => ({
@@ -134,7 +136,7 @@ export default function ActivitiesPage() {
             </h2>
             <Card className="divide-y divide-border py-2">
               {items.map((a) => (
-                <ActivityRow key={a.id} activity={a} />
+                <ActivityRow key={a.id} activity={a} wide />
               ))}
             </Card>
           </section>

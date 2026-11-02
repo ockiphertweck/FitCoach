@@ -44,18 +44,14 @@ function claimAutoStream(date: string, key: string): boolean {
   return true
 }
 
-export function CoachTile() {
+// Streamed recap text for `date`. `key` = (date, generatedAt) of the stored recap; a new key
+// drops the streamed copy so the newly stored content shows instead.
+function useRecapStream(date: string, key: string | null) {
   const qc = useQueryClient()
-  const date = localDate()
   const [streamed, setStreamed] = useState("")
   const [streaming, setStreaming] = useState(false)
   const [failed, setFailed] = useState(false)
   const streamedRef = useRef("")
-
-  const { data, isFetching, isError, refetch } = useQuery<RecapResponse>({
-    queryKey: ["recap", date],
-    queryFn: () => api.get(`/ai/recommendation?date=${date}`),
-  })
 
   const generate = useCallback(async () => {
     setStreamed("")
@@ -79,8 +75,6 @@ export function CoachTile() {
     }
   }, [date, qc])
 
-  // A new generatedAt means new stored content: show it instead of the streamed copy.
-  const key = data ? `${date}:${data.recap?.generatedAt ?? "none"}` : null
   const lastKey = useRef<string | null>(null)
   useEffect(() => {
     if (key === null || key === lastKey.current) return
@@ -94,18 +88,34 @@ export function CoachTile() {
     if (inflight.has(date)) void generate()
   }, [date, generate])
 
+  return { streamed, streaming, failed, generate }
+}
+
+export function CoachTile({
+  enabled,
+  importing = false,
+}: Readonly<{ enabled: boolean; importing?: boolean }>) {
+  const date = localDate()
+  const { data, isFetching, isError, refetch } = useQuery<RecapResponse>({
+    queryKey: ["recap", date],
+    queryFn: () => api.get(`/ai/recommendation?date=${date}`),
+    enabled,
+  })
+  const key = data ? `${date}:${data.recap?.generatedAt ?? "none"}` : null
+  const { streamed, streaming, failed, generate } = useRecapStream(date, key)
+
   const needsStream = !!data?.hasKey && (!data.recap || data.recap.stale)
   useEffect(() => {
     // Guard per (date, generatedAt): no loop if a save fails, one retry per new stale recap,
     // and no double stream under StrictMode or remount. Decide only on settled data.
-    if (!needsStream || key === null || isFetching) return
+    if (!enabled || !needsStream || key === null || isFetching) return
     if (claimAutoStream(date, key)) void generate()
-  }, [needsStream, key, isFetching, date, generate])
+  }, [enabled, needsStream, key, isFetching, date, generate])
 
   return (
-    <Card>
+    <Card data-testid="coach-tile">
       <div className="flex items-center justify-between">
-        <MetricLabel color="coach">Coach</MetricLabel>
+        <MetricLabel color="coach">Coach · Today</MetricLabel>
         {data?.hasKey && (
           <button
             type="button"
@@ -121,6 +131,8 @@ export function CoachTile() {
       <div className="mt-2 text-sm">
         <RecapBody
           data={data}
+          enabled={enabled}
+          importing={importing}
           isError={isError}
           failed={failed}
           streaming={streaming}
@@ -132,8 +144,16 @@ export function CoachTile() {
   )
 }
 
+// Placeholder while there is no recap text yet: sync/import gate first, then fetch/generation.
+function pendingText(enabled: boolean, importing: boolean, hasData: boolean): string {
+  if (!enabled) return importing ? "Waiting for Garmin import…" : "Syncing…"
+  return hasData ? "Writing your recap…" : "Loading…"
+}
+
 function RecapBody({
   data,
+  enabled,
+  importing,
   isError,
   failed,
   streaming,
@@ -141,6 +161,8 @@ function RecapBody({
   onRetry,
 }: Readonly<{
   data: RecapResponse | undefined
+  enabled: boolean
+  importing: boolean
   isError: boolean
   failed: boolean
   streaming: boolean
@@ -170,12 +192,14 @@ function RecapBody({
   if (failed) return <p className="text-destructive">Recap generation failed. Try refreshing.</p>
   const shown = streamed || data?.recap?.content
   if (!shown) {
-    return <p className="text-muted-foreground">{data ? "Writing your recap…" : "Loading…"}</p>
+    return <p className="text-muted-foreground">{pendingText(enabled, importing, !!data)}</p>
   }
   const updating = streaming && !streamed
   return (
-    <div className={updating ? "opacity-50" : undefined}>
-      <Markdown>{shown}</Markdown>
+    <div
+      className={`[&_h3]:text-lg [&_h3]:font-extrabold [&_h3]:tracking-tight [&_h3]:text-foreground ${updating ? "opacity-50" : ""}`}
+    >
+      <Markdown>{shown.replace(/^(→ .+)$/m, "**$1**")}</Markdown>
       {updating && <p className="mt-2 text-xs text-muted-foreground">Updating…</p>}
     </div>
   )

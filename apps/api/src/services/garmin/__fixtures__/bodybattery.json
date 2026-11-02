@@ -1,0 +1,16 @@
+{
+  "date": "2026-11-01",
+  "charged": 64,
+  "drained": 50,
+  "bodyBatteryValuesArray": [
+    [1793570000000, 20],
+    [1793580000000, 35],
+    [1793601000000, 88],
+    [1793610000000, null],
+    [1793620000000, 71]
+  ],
+  "bodyBatteryValueDescriptorDTOList": [
+    { "bodyBatteryValueDescriptorIndex": 0, "bodyBatteryValueDescriptorKey": "timestamp" },
+    { "bodyBatteryValueDescriptorIndex": 1, "bodyBatteryValueDescriptorKey": "bodyBatteryLevel" }
+  ]
+}

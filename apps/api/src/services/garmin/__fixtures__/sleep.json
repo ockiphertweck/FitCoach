@@ -1,0 +1,11 @@
+{
+  "calendarDate": "2026-11-01",
+  "sleepTimeSeconds": 27000,
+  "sleepStartTimestampGMT": 1793574000000,
+  "sleepEndTimestampGMT": 1793601000000,
+  "deepSleepSeconds": 5400,
+  "lightSleepSeconds": 14400,
+  "remSleepSeconds": 5400,
+  "awakeSleepSeconds": 1800,
+  "sleepScores": { "overall": { "value": 82, "qualifierKey": "GOOD" } }
+}

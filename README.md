@@ -4,9 +4,9 @@
 [![Tests](https://github.com/ockiphertweck/FitCoach/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/ockiphertweck/FitCoach/actions/workflows/test.yml)
 [![E2E Tests](https://github.com/ockiphertweck/FitCoach/actions/workflows/e2e.yml/badge.svg?branch=main)](https://github.com/ockiphertweck/FitCoach/actions/workflows/e2e.yml)
 
-**Self-hosted AI training coach powered by Strava and Claude.**
+**Self-hosted AI training coach powered by Garmin and Claude.**
 
-FitCoach connects to your Strava account, computes training load metrics (ATL/CTL/TSB), and uses the Anthropic Claude API to deliver personalised coaching — a daily recap, an interactive chat, and weekly reports. Everything runs on your own hardware. Your data never leaves your server.
+FitCoach connects to your Garmin account, computes training load metrics (ATL/CTL/TSB), and uses the Anthropic Claude API to deliver personalised coaching — a daily recap, an interactive chat, and weekly reports. Everything runs on your own hardware: your data is stored in your own database, and only the context needed for a coaching answer is sent to the Claude API (see [Data Privacy](#data-privacy)).
 
 > A self-hosted alternative to TrainingPeaks AI features — no subscription, no vendor lock-in, bring your own Claude API key.
 
@@ -14,12 +14,12 @@ FitCoach connects to your Strava account, computes training load metrics (ATL/CT
 
 ## Features
 
-- **Daily recap** — a "train or rest today?" recap that loads automatically on the Summary screen, streamed from Claude, and refreshes when your training data changes (new activity, profile edit)
+- **Daily recap** — a "train or rest today?" recap that loads automatically on the Home screen, streamed from Claude, and refreshes when your training data changes (new activity, profile edit)
 - **AI Coach chat** — persistent multi-turn conversation with Claude, aware of your activity history and athlete profile
 - **Weekly reports** — AI-generated summary with distance, duration, HR, ATL/CTL, and coaching notes
 - **Trends** — interactive weekly trend charts for distance, duration, and heart rate
 - **Training load** — ATL / CTL / TSB computed from TRIMP (same methodology as TrainingPeaks)
-- **Strava sync** — manual sync + real-time webhook updates when you save an activity
+- **Garmin data source** — activities, sleep, HRV, Body Battery, stress and calories via the Garmin Personal API, pulled automatically when you open Home
 - **Athlete profile** — weight, height, max HR, FTP, sex — passed to Claude for personalised advice
 - **BYOK** — Claude API key stored AES-256-GCM encrypted; set it in Settings without redeploying
 - **Appearance** — light, dark or system theme
@@ -29,31 +29,66 @@ FitCoach connects to your Strava account, computes training load metrics (ATL/CT
 
 ## Screenshots
 
-| Dashboard | Coach |
+| Home | Coach |
 |---|---|
-| ![Dashboard](screenshots/dashboard.png) | ![Coach](screenshots/coach.png) |
+| ![Home](screenshots/home.png) | ![Coach](screenshots/coach.png) |
 
 | Trends | Settings |
 |---|---|
-| ![Trends](screenshots/analytics.png) | ![Settings](screenshots/settings.png) |
+| ![Trends](screenshots/trends.png) | ![Settings](screenshots/settings.png) |
 
 ---
 
-## Quick Start
+## Getting Started
 
-**Prerequisites:** Docker, pnpm ≥ 9, Node.js 22
+**Prerequisites:** Git and Docker with Compose v2 for both options. For local development also Node.js ≥ 22 and pnpm ≥ 10 (`corepack enable` gives you the pinned pnpm version).
+
+### 1. Clone and configure
 
 ```bash
-git clone https://github.com/ockiphertweck/FitCoach
-cd fitcoach
-cp .env.example .env   # fill in the required values (see below)
-docker compose up postgres -d
-pnpm install
-pnpm --filter api db:migrate
-pnpm dev
+git clone https://github.com/ockiphertweck/FitCoach.git
+cd FitCoach
+cp .env.example .env
 ```
 
-Open **http://localhost:3001** and create your account.
+Fill in three values in `.env` (everything else can stay as it is):
+
+```bash
+openssl rand -base64 32   # → JWT_SECRET
+openssl rand -base64 32   # → API_KEY_ENCRYPTION_KEY
+openssl rand -hex 16      # → DB_PASSWORD, and put the same value in place of "changeme" in DATABASE_URL
+```
+
+`DB_PASSWORD` is embedded in a URL, so stick to letters and digits. Postgres applies it only when its volume is first created; changing it later needs `docker compose down -v`, which wipes the data.
+
+### 2a. Local development (hot reload)
+
+```bash
+docker compose up postgres -d    # Postgres on 127.0.0.1:5432
+pnpm install
+pnpm --filter api db:migrate
+pnpm dev                         # API on :3000, frontend on :3001
+```
+
+`pnpm dev` builds `packages/shared` first, then starts both apps. If port 5432 is already used by another Postgres, stop that one or change the published port in `docker-compose.yml` and `DATABASE_URL`.
+
+### 2b. Full Docker stack
+
+```bash
+docker compose up -d --build     # or ./setup.sh, which checks Docker and .env first
+```
+
+The API container applies pending database migrations on every start (`docker compose logs api` shows "Migrations applied"). Postgres is published on `127.0.0.1` only.
+
+The browser calls the API at `NEXT_PUBLIC_API_URL`, which is **baked into the frontend at build time** and defaults to `http://localhost:3000`. To use FitCoach from another machine or under a domain, set `NEXT_PUBLIC_API_URL` (e.g. `https://fitcoach-api.example.com`) and `FRONTEND_URL` (e.g. `https://fitcoach.example.com`, used for CORS) in `.env`, then rebuild with `docker compose up -d --build`. The Docker API runs with `NODE_ENV=production`, so the session cookie is `Secure`: anything other than `localhost` must be served over HTTPS.
+
+### 3. First run
+
+1. Open **http://localhost:3001**. You are sent to **/setup** to create your account. The first account locks the instance: FitCoach is single-user and refuses further sign-ups.
+2. **Settings → Claude API Key**: paste your Anthropic key (stored encrypted). Alternatively set `CLAUDE_API_KEY` in `.env` as an instance-wide fallback.
+3. **Settings → Garmin**: connect your account (see [Connecting Garmin](#connecting-garmin)).
+4. **Settings → Athlete Profile**: fill in weight, height, max HR, FTP and sex so Claude can personalise its advice.
+5. Open **Home**: once the Garmin import has finished, the daily recap appears.
 
 ---
 
@@ -61,27 +96,27 @@ Open **http://localhost:3001** and create your account.
 
 | Variable | Required | Description |
 |---|---|---|
-| `JWT_SECRET` | ✅ | JWT signing secret — `openssl rand -base64 32` |
+| `JWT_SECRET` | ✅ | JWT signing secret (≥ 32 chars) — `openssl rand -base64 32` |
 | `API_KEY_ENCRYPTION_KEY` | ✅ | AES-256-GCM key (≥ 32 chars) — `openssl rand -base64 32` |
-| `DB_PASSWORD` | ✅ | PostgreSQL password |
-| `DATABASE_URL` | ✅ | Full postgres connection string |
-| `STRAVA_CLIENT_ID` | ✅ | From [strava.com/settings/api](https://www.strava.com/settings/api) |
-| `STRAVA_CLIENT_SECRET` | ✅ | From [strava.com/settings/api](https://www.strava.com/settings/api) |
-| `STRAVA_REDIRECT_URI` | ✅ | e.g. `http://localhost:3000/strava/callback` |
-| `STRAVA_WEBHOOK_VERIFY_TOKEN` | optional | Required to register Strava webhooks |
-| `CLAUDE_API_KEY` | optional | Default Claude key; can be set per-user in Settings |
+| `DB_PASSWORD` | ✅ | PostgreSQL password — letters and digits only, e.g. `openssl rand -hex 16` |
+| `DATABASE_URL` | ✅ | Postgres connection string for `pnpm dev` / `db:migrate` on the host (`localhost:5432`). The Docker API container overrides it to reach the `postgres` service. |
+| `CLAUDE_API_KEY` | optional | Instance-wide fallback Claude key; usually set in Settings instead |
 | `POSTHOG_API_KEY` | optional | Usage analytics — disabled if omitted |
-| `FRONTEND_URL` | optional | Defaults to `http://localhost:3001` |
-| `TS_AUTHTOKEN` | optional | Tailscale auth key — exposes a stable public HTTPS URL via [Tailscale Funnel](https://tailscale.com/kb/1247/funnel) (no account needed on the receiving end, unlike ngrok) so Strava can deliver webhooks to your local machine |
+| `POSTHOG_HOST` | optional | Defaults to `https://eu.i.posthog.com` |
+| `FRONTEND_URL` | optional | Frontend origin allowed by CORS — defaults to `http://localhost:3001` |
+| `NEXT_PUBLIC_API_URL` | optional | API URL the browser calls, read when the frontend is **built** — defaults to `http://localhost:3000` |
+
+The Garmin key is **not** an environment variable: you paste it in Settings (see below). `GARMIN_API_KEY` in `.env.example` is only read by the dev script `pnpm --filter api garmin:probe`, which prints Garmin response shapes.
 
 ---
 
-## Connecting Strava
+## Connecting Garmin
 
-1. Register an app at [strava.com/settings/api](https://www.strava.com/settings/api) — set **Authorization Callback Domain** to `localhost`
-2. Copy `Client ID` and `Client Secret` into `.env`
-3. Open FitCoach → **Settings** → **Connect Strava**
-4. Authorise — the last 30 days of activities sync automatically
+1. Create a personal API key at [connect.garmin.com/app/settings/personalApiToken](https://connect.garmin.com/app/settings/personalApiToken)
+2. Open FitCoach → **Settings** → **Garmin**, paste the key and click **Connect**. It is stored AES-256-GCM encrypted.
+3. The first import pulls the last **12 months of activities** and **90 days of recovery data** (sleep, HRV, Body Battery, stress, calories). It runs in the background; Home shows "Importing from Garmin…" until it is done.
+
+After that, data is pulled whenever you open Home (or return to the tab), **at most every 15 minutes**; **Sync now** forces it. When the key expires, Settings shows "Key invalid or expired" with a field to paste a new one — your data is kept and the reconnect runs a normal incremental sync, not a full re-import.
 
 ---
 
@@ -101,9 +136,9 @@ Open **http://localhost:3001** and create your account.
 │                                ┌──────────┴──────────┐                  │
 │                                ▼                     ▼                  │
 │                       ┌──────────────┐     ┌──────────────┐            │
-│                       │  Strava API  │     │  Claude API  │            │
-│                       │  OAuth 2.0   │     │  (BYOK)      │            │
-│                       │  Webhooks    │     │  Streaming   │            │
+│                       │  Garmin API  │     │  Claude API  │            │
+│                       │  Personal    │     │  (BYOK)      │            │
+│                       │  API key     │     │  Streaming   │            │
 │                       └──────────────┘     └──────────────┘            │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
@@ -115,7 +150,7 @@ Open **http://localhost:3001** and create your account.
 3. Queries Postgres for 42 days of activities, computes ATL/CTL/TSB, builds a structured prompt
 4. Opens an Anthropic streaming request, forwards `data:` SSE chunks on the same HTTP response
 5. Frontend reads via `ReadableStream`, appends each delta to React state → `react-markdown` renders live
-6. After stream ends, full response + token counts written to `chat_history` (fire-and-forget)
+6. After stream ends, the recap + token counts are stored in `daily_recommendations` (keyed by date and an input hash, so it is only regenerated when your data changes)
 
 ---
 
@@ -128,20 +163,20 @@ fitcoach/
 │   │   ├── src/
 │   │   │   ├── db/        # Drizzle ORM client & schema
 │   │   │   ├── middleware/ # JWT auth hook
-│   │   │   ├── routes/    # activities · ai · auth · settings · strava
-│   │   │   └── services/  # ai-context · atl-ctl · encryption · strava-client
+│   │   │   ├── routes/    # activities · ai · auth · garmin · settings · wellness
+│   │   │   └── services/  # atl-ctl · daily-recap · encryption · streams · wellness
+│   │   │       └── garmin/ # client · sync · mappers · fit (FIT download)
 │   │   └── drizzle/       # SQL migration files
 │   └── frontend/          # Next.js 15 App Router
 │       └── src/
 │           ├── app/       # Route segments: activities · trends · coach · settings
 │           ├── components/ # shadcn/ui primitives + shared Markdown renderer
-│           └── lib/       # Typed API client + SSE streaming helper
+│           └── lib/       # Typed API client + SSE streaming helper + Garmin auto-sync
 ├── packages/
 │   └── shared/            # Zod schemas shared between API and frontend
 ├── db/
 │   └── init.sql           # pgvector / pgcrypto bootstrap
-├── docker-compose.yml
-└── docker-compose.override.yml  # dev Tailscale Funnel overlay
+└── docker-compose.yml
 ```
 
 ---
@@ -169,7 +204,7 @@ LLM output is unidirectional (server → client), which makes Server-Sent Events
 
 ### AES-256-GCM for credential storage
 
-Strava tokens and user-supplied API keys are encrypted before hitting the database. Each `encrypt()` call uses a fresh random 12-byte IV; the GCM auth tag rejects tampered ciphertexts at decryption. The encryption key never touches the database.
+User-supplied API keys are encrypted before hitting the database. Each `encrypt()` call uses a fresh random 12-byte IV; the GCM auth tag rejects tampered ciphertexts at decryption. The encryption key never touches the database.
 
 ### pgvector included
 
@@ -185,12 +220,15 @@ One Rust-based tool, one config file, zero conflicts between linter and formatte
 
 ```
 users              id, email, passwordHash, createdAt
-apiKeys            userId → users, provider, encryptedKey  — UNIQUE(userId, provider)
-stravaTokens       userId → users, accessToken*, refreshToken*, expiresAt, athleteId  — UNIQUE(userId)
+apiKeys            userId → users, provider ("anthropic" | "garmin"), encryptedKey*  — UNIQUE(userId, provider)
+garminSync         userId → users (PK), status, lastSyncedAt, lastError, keyExpiresAt, importedAt
+dailyWellness      userId → users, date, sleep score/duration/stages, sleepStart/End, HRV,
+                   Body Battery (overnight charge, at wake, current), stress, resting HR,
+                   calories  — UNIQUE(userId, date)
 userProfiles       userId → users (PK), sex, weightKg, heightCm, maxHeartRate, ftpWatts
 activities         userId → users, externalId, source, sportType, startDate,
                    duration, distance, elevation, HR, pace, RPE, calories,
-                   rawData (jsonb)  — UNIQUE(userId, externalId, source)
+                   rawData (jsonb), streamData (jsonb, parsed FIT)  — UNIQUE(userId, externalId, source)
 chatHistory        userId → users, role, content, tokensUsed, createdAt
 dailyRecommendations userId → users, date, inputHash, content, tokensUsed, generatedAt  — UNIQUE(userId, date)
 weeklyReports      userId → users, weekStart, summary, metrics (jsonb)  — UNIQUE(userId, weekStart)
@@ -199,8 +237,8 @@ weeklyReports      userId → users, weekStart, summary, metrics (jsonb)  — UN
 `*` encrypted at rest with AES-256-GCM
 
 **Notable choices:**
-- `rawData jsonb` preserves the full Strava payload — new fields can be surfaced without a schema migration
-- `UNIQUE(userId, externalId, source)` on activities enables safe upsert from both initial sync and webhook events
+- `rawData jsonb` preserves the full source payload — new fields can be surfaced without a schema migration
+- `UNIQUE(userId, externalId, source)` on activities enables safe upsert from repeated syncs
 - `userProfiles` is a separate table (not columns on `users`) so it can be left entirely empty without nulls polluting the users row
 
 ---
@@ -229,7 +267,7 @@ TSB > +5 → fresh. TSB < −10 → accumulating fatigue.
 
 ## API Reference
 
-All routes except `/auth/*` and the Strava webhook endpoint require a valid `fitcoach_token` cookie.
+All routes except `/auth/*` require a valid `fitcoach_token` cookie.
 
 | Method | Path | Description |
 |---|---|---|
@@ -241,18 +279,17 @@ All routes except `/auth/*` and the Strava webhook endpoint require a valid `fit
 | `GET` | `/activities` | Paginated list — `limit`, `offset`, `sport`, `from`, `to` |
 | `GET` | `/activities/stats` | Current `{ atl, ctl, tsb }` |
 | `GET` | `/activities/:id` | Single activity |
+| `GET` | `/wellness?date=` | Garmin recovery data — `{ today, days }` (last 7 days) |
 | `GET` | `/ai/recommendation?date=` | Stored daily recap — returns `{ hasKey, recap }` (`recap` includes `stale`) |
 | `POST` | `/ai/recommendation` | Stream daily recap (SSE) — body `{ date }` |
 | `POST` | `/ai/chat` | Stream chat reply (SSE) |
 | `GET` | `/ai/chat/history` | Chat history |
 | `DELETE` | `/ai/chat/history` | Clear chat history |
 | `POST` | `/ai/weekly-report` | Generate / return this week's report |
-| `GET` | `/strava/connect` | Redirect to Strava OAuth |
-| `GET` | `/strava/callback` | OAuth callback handler |
-| `GET` | `/strava/status` | Connection status |
-| `POST` | `/strava/sync` | Manual activity sync |
-| `DELETE` | `/strava/disconnect` | Remove Strava tokens |
-| `GET/POST` | `/strava/webhook` | Strava webhook (public) |
+| `POST` | `/garmin/connect` | Validate + store Garmin Personal API key, start initial import |
+| `GET` | `/garmin/status` | `{ connected, status, lastSyncedAt, lastError, keyExpiresAt }` |
+| `POST` | `/garmin/sync` | Incremental sync (15 min gate; body `{ force }`) |
+| `DELETE` | `/garmin/key` | Remove Garmin key + sync state (data kept) |
 | `GET` | `/settings/apikey` | Configured providers |
 | `POST` | `/settings/apikey` | Save encrypted API key |
 | `DELETE` | `/settings/apikey/:provider` | Remove API key |
@@ -272,10 +309,6 @@ pnpm dev
 
 # Full Docker stack
 docker compose up -d --build
-
-# Strava webhooks locally (requires TS_AUTHTOKEN in .env)
-docker compose -f docker-compose.yml -f docker-compose.override.yml up -d
-# Public URL: https://fitcoach-dev.<tailnet>.ts.net
 ```
 
 **Other tools:**
@@ -288,17 +321,15 @@ pnpm --filter api test          # run unit tests
 pnpm --filter api test:coverage # coverage report → apps/api/coverage/index.html
 ```
 
-pgAdmin is available at `http://localhost:5050` when running the override compose file.
-
 ---
 
 ## Data Privacy
 
-FitCoach is **fully self-hosted** — all activity data, chat history, and credentials live in your local PostgreSQL database. The only external calls are:
+FitCoach is **fully self-hosted** — all activity data, wellness data, chat history, and credentials live in your local PostgreSQL database. The only external calls are:
 
-- **Anthropic Claude API** — recent activities and chat messages are sent to generate AI responses. [Anthropic privacy policy](https://www.anthropic.com/privacy).
-- **Strava API** — activity data is fetched and stored locally.
-- **PostHog** (optional) — usage analytics only, no health data. EU instance by default.
+- **Anthropic Claude API** — recent activities, sleep, HRV, Body Battery, stress and resting heart rate, plus chat messages, are sent to generate coaching responses. [Anthropic privacy policy](https://www.anthropic.com/privacy).
+- **Garmin** — the data source: activities and daily wellness are fetched and stored locally.
+- **PostHog** (optional) — usage analytics and LLM metrics only. Privacy mode is forced on every Claude call, so PostHog receives no prompt or response content. EU instance by default.
 
 **To delete all data:** `docker compose down -v`
 
@@ -312,4 +343,4 @@ Issues and PRs are welcome. Please open an issue before starting significant wor
 
 ## License
 
-Apache 2.0 — see [LICENSE](LICENSE)
+MIT — see [LICENSE](LICENSE)
