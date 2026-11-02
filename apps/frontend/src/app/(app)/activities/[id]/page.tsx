@@ -1,9 +1,10 @@
 "use client"
 
 import { Markdown } from "@/components/markdown"
+import { PageHeader } from "@/components/page-header"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle, MetricLabel } from "@/components/ui/card"
 import { api } from "@/lib/api"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import {
@@ -122,14 +123,14 @@ function StatCard({
   sub?: string
 }) {
   return (
-    <div className="flex items-start gap-3 p-4 bg-muted/50 rounded-lg">
+    <Card className="flex items-start gap-3">
       <Icon className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
       <div>
         <p className="text-xs text-muted-foreground">{label}</p>
-        <p className="font-semibold text-sm">{value}</p>
+        <p className="text-lg font-bold tabular-nums">{value}</p>
         {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
       </div>
-    </div>
+    </Card>
   )
 }
 
@@ -157,7 +158,7 @@ function HrZoneChart({ zones, maxHrUsed }: { zones: HrZones; maxHrUsed: number |
         return (
           <div key={zone.label} className="flex items-center gap-3">
             <span className="w-6 text-sm font-bold shrink-0">{zone.label}</span>
-            <div className="flex-1 h-6 rounded-sm overflow-hidden bg-black/5">
+            <div className="flex-1 h-6 rounded-sm overflow-hidden bg-muted">
               <div
                 className="h-full rounded-sm transition-all"
                 style={{
@@ -180,7 +181,15 @@ function HrZoneChart({ zones, maxHrUsed }: { zones: HrZones; maxHrUsed: number |
   )
 }
 
-const chartTooltipStyle = { fontSize: 12, borderRadius: 8 }
+const chartTooltipStyle = {
+  background: "hsl(var(--popover))",
+  color: "hsl(var(--popover-foreground))",
+  border: "1px solid hsl(var(--border))",
+  borderRadius: 12,
+  fontSize: 12,
+}
+const tick = { fontSize: 11, fill: "hsl(var(--muted-foreground))" }
+const grid = { stroke: "hsl(var(--border))", strokeDasharray: "3 3", vertical: false } as const
 const chartMargin = { top: 4, right: 20, left: 0, bottom: 0 }
 
 export default function ActivityDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -206,7 +215,7 @@ export default function ActivityDetailPage({ params }: { params: Promise<{ id: s
     return (
       <div className="space-y-4 max-w-3xl">
         {[1, 2, 3].map((i) => (
-          <div key={i} className="h-32 bg-muted animate-pulse rounded-lg" />
+          <div key={i} className="h-32 bg-muted animate-pulse rounded-[20px]" />
         ))}
       </div>
     )
@@ -235,62 +244,44 @@ export default function ActivityDetailPage({ params }: { params: Promise<{ id: s
 
   return (
     <div className="space-y-6 max-w-3xl">
-      {/* Back + header */}
-      <div>
-        <Link
-          href="/activities"
-          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-3"
-        >
-          <ArrowLeft className="h-3 w-3" /> Activities
-        </Link>
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold">{activity.name ?? activity.sportType}</h1>
-            <div className="flex items-center gap-2 mt-1">
-              <Badge variant="outline" className="capitalize">
-                {activity.sportType}
-              </Badge>
-              {isIndoor && <Badge variant="secondary">Indoor</Badge>}
-              {raw.commute && <Badge variant="secondary">Commute</Badge>}
-              <span className="text-sm text-muted-foreground">
-                {new Date(activity.startDate).toLocaleDateString("en-GB", {
-                  weekday: "long",
-                  day: "numeric",
-                  month: "long",
-                  year: "numeric",
-                })}
-              </span>
-            </div>
-            {raw.device_name && (
-              <p className="text-xs text-muted-foreground mt-1">via {raw.device_name}</p>
-            )}
-          </div>
-          <div className="flex gap-3 shrink-0 text-center">
-            {raw.pr_count != null && raw.pr_count > 0 && (
-              <div className="flex flex-col items-center">
-                <Trophy className="h-5 w-5 text-yellow-500" />
-                <span className="text-xs font-medium">{raw.pr_count} PR</span>
-              </div>
-            )}
-            {raw.achievement_count != null && raw.achievement_count > 0 && (
-              <div className="flex flex-col items-center">
-                <Activity className="h-5 w-5 text-blue-500" />
-                <span className="text-xs font-medium">{raw.achievement_count}</span>
-              </div>
-            )}
-          </div>
-        </div>
+      <Link
+        href="/activities"
+        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+      >
+        <ArrowLeft className="h-3 w-3" /> Activities
+      </Link>
+      <PageHeader
+        title={activity.name ?? activity.sportType}
+        subtitle={new Date(activity.startDate).toLocaleDateString("en-GB", {
+          weekday: "long",
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+        })}
+      />
+      <div className="-mt-2 flex flex-wrap items-center gap-2">
+        <Badge variant="outline" className="capitalize">
+          {activity.sportType}
+        </Badge>
+        {isIndoor && <Badge variant="secondary">Indoor</Badge>}
+        {raw.commute && <Badge variant="secondary">Commute</Badge>}
+        {raw.pr_count != null && raw.pr_count > 0 && (
+          <span className="inline-flex items-center gap-1 text-xs font-medium">
+            <Trophy className="h-4 w-4 text-yellow-500" /> {raw.pr_count} PR
+          </span>
+        )}
+        {raw.achievement_count != null && raw.achievement_count > 0 && (
+          <span className="inline-flex items-center gap-1 text-xs font-medium">
+            <Activity className="h-4 w-4 text-blue-500" /> {raw.achievement_count}
+          </span>
+        )}
+        {raw.device_name && (
+          <span className="text-xs text-muted-foreground">via {raw.device_name}</span>
+        )}
       </div>
 
-      {/* Map */}
-      {polyline && (
-        <Card className="overflow-hidden">
-          <ActivityMap polyline={polyline} />
-        </Card>
-      )}
-
       {/* Key stats grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 gap-3">
         {movingTime != null && (
           <StatCard
             icon={Timer}
@@ -373,37 +364,42 @@ export default function ActivityDetailPage({ params }: { params: Promise<{ id: s
         )}
       </div>
 
+      {/* Map */}
+      {polyline && <ActivityMap polyline={polyline} />}
+
       {/* Stream charts */}
       {pts.length > 0 && (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {/* HR over distance */}
           {hasHr && (
             <Card>
-              <CardHeader className="pb-2 pt-5 px-5">
+              <CardHeader>
                 <CardTitle className="text-sm font-medium text-muted-foreground">
                   Heart Rate <span className="font-normal text-xs ml-1">bpm</span>
                 </CardTitle>
               </CardHeader>
-              <CardContent className="px-2 pb-4">
+              <CardContent>
                 <ResponsiveContainer width="100%" height={180}>
                   <AreaChart data={pts} margin={chartMargin}>
                     <defs>
                       <linearGradient id="hrGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3} />
-                        <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
+                        <stop offset="5%" stopColor="hsl(var(--chart-hr))" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="hsl(var(--chart-hr))" stopOpacity={0} />
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" />
+                    <CartesianGrid {...grid} />
                     <XAxis
+                      axisLine={false}
+                      tickLine={false}
                       dataKey="distanceKm"
                       type="number"
                       domain={[0, maxKm]}
                       ticks={kmTicks}
                       tickFormatter={(v) => `${v} km`}
-                      tick={{ fontSize: 11 }}
+                      tick={tick}
                       padding={{ left: 0, right: 0 }}
                     />
-                    <YAxis tick={{ fontSize: 11 }} width={36} />
+                    <YAxis tick={tick} width={36} axisLine={false} tickLine={false} />
                     <Tooltip
                       formatter={(v: number) => [`${v} bpm`, "HR"]}
                       labelFormatter={(v) => `${v} km`}
@@ -412,7 +408,7 @@ export default function ActivityDetailPage({ params }: { params: Promise<{ id: s
                     <Area
                       type="monotone"
                       dataKey="heartrate"
-                      stroke="#ef4444"
+                      stroke="hsl(var(--chart-hr))"
                       strokeWidth={1.5}
                       fill="url(#hrGrad)"
                       dot={false}
@@ -427,30 +423,36 @@ export default function ActivityDetailPage({ params }: { params: Promise<{ id: s
           {/* Speed over distance */}
           {hasSpeed && (
             <Card>
-              <CardHeader className="pb-2 pt-5 px-5">
+              <CardHeader>
                 <CardTitle className="text-sm font-medium text-muted-foreground">
                   Speed <span className="font-normal text-xs ml-1">km/h</span>
                 </CardTitle>
               </CardHeader>
-              <CardContent className="px-2 pb-4">
+              <CardContent>
                 <ResponsiveContainer width="100%" height={180}>
                   <AreaChart data={pts} margin={chartMargin}>
                     <defs>
                       <linearGradient id="speedGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
-                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                        <stop
+                          offset="5%"
+                          stopColor="hsl(var(--chart-duration))"
+                          stopOpacity={0.3}
+                        />
+                        <stop offset="95%" stopColor="hsl(var(--chart-duration))" stopOpacity={0} />
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" />
+                    <CartesianGrid {...grid} />
                     <XAxis
+                      axisLine={false}
+                      tickLine={false}
                       dataKey="distanceKm"
                       type="number"
                       domain={[0, maxKm]}
                       ticks={kmTicks}
                       tickFormatter={(v) => `${v} km`}
-                      tick={{ fontSize: 11 }}
+                      tick={tick}
                     />
-                    <YAxis tick={{ fontSize: 11 }} width={36} />
+                    <YAxis tick={tick} width={36} axisLine={false} tickLine={false} />
                     <Tooltip
                       formatter={(v: number) => [`${v} km/h`, "Speed"]}
                       labelFormatter={(v) => `${v} km`}
@@ -459,7 +461,7 @@ export default function ActivityDetailPage({ params }: { params: Promise<{ id: s
                     <Area
                       type="monotone"
                       dataKey="speedKmh"
-                      stroke="#3b82f6"
+                      stroke="hsl(var(--chart-duration))"
                       strokeWidth={1.5}
                       fill="url(#speedGrad)"
                       dot={false}
@@ -474,30 +476,40 @@ export default function ActivityDetailPage({ params }: { params: Promise<{ id: s
           {/* Elevation over distance */}
           {hasAlt && (
             <Card>
-              <CardHeader className="pb-2 pt-5 px-5">
+              <CardHeader>
                 <CardTitle className="text-sm font-medium text-muted-foreground">
                   Elevation <span className="font-normal text-xs ml-1">m</span>
                 </CardTitle>
               </CardHeader>
-              <CardContent className="px-2 pb-4">
+              <CardContent>
                 <ResponsiveContainer width="100%" height={180}>
                   <AreaChart data={pts} margin={chartMargin}>
                     <defs>
                       <linearGradient id="altGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.4} />
-                        <stop offset="95%" stopColor="#10b981" stopOpacity={0.05} />
+                        <stop
+                          offset="5%"
+                          stopColor="hsl(var(--chart-distance))"
+                          stopOpacity={0.4}
+                        />
+                        <stop
+                          offset="95%"
+                          stopColor="hsl(var(--chart-distance))"
+                          stopOpacity={0.05}
+                        />
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" />
+                    <CartesianGrid {...grid} />
                     <XAxis
+                      axisLine={false}
+                      tickLine={false}
                       dataKey="distanceKm"
                       type="number"
                       domain={[0, maxKm]}
                       ticks={kmTicks}
                       tickFormatter={(v) => `${v} km`}
-                      tick={{ fontSize: 11 }}
+                      tick={tick}
                     />
-                    <YAxis tick={{ fontSize: 11 }} width={40} />
+                    <YAxis tick={tick} width={40} axisLine={false} tickLine={false} />
                     <Tooltip
                       formatter={(v: number) => [`${Math.round(v)} m`, "Altitude"]}
                       labelFormatter={(v) => `${v} km`}
@@ -506,7 +518,7 @@ export default function ActivityDetailPage({ params }: { params: Promise<{ id: s
                     <Area
                       type="monotone"
                       dataKey="altitudeM"
-                      stroke="#10b981"
+                      stroke="hsl(var(--chart-distance))"
                       strokeWidth={1.5}
                       fill="url(#altGrad)"
                       dot={false}
@@ -521,7 +533,7 @@ export default function ActivityDetailPage({ params }: { params: Promise<{ id: s
           {/* HR zones */}
           {streams?.hrZones && (
             <Card>
-              <CardHeader className="pb-2 pt-5 px-5">
+              <CardHeader>
                 <CardTitle className="text-sm font-medium text-muted-foreground">
                   Heart Rate Zones
                   {streams.maxHrUsed && (
@@ -531,7 +543,7 @@ export default function ActivityDetailPage({ params }: { params: Promise<{ id: s
                   )}
                 </CardTitle>
               </CardHeader>
-              <CardContent className="px-2 pb-4">
+              <CardContent>
                 <HrZoneChart zones={streams.hrZones} maxHrUsed={streams.maxHrUsed} />
               </CardContent>
             </Card>
@@ -542,9 +554,7 @@ export default function ActivityDetailPage({ params }: { params: Promise<{ id: s
       {/* AI Insight */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <Zap className="h-4 w-4" /> AI Insight
-          </CardTitle>
+          <MetricLabel color="coach">AI Insight</MetricLabel>
         </CardHeader>
         <CardContent className="space-y-3">
           {insightsMutation.data ? (

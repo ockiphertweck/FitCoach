@@ -23,19 +23,21 @@ export default function ActivityMap({ polyline }: { polyline: string }) {
   const center = positions[Math.floor(positions.length / 2)]
 
   return (
-    <MapContainer
-      center={center}
-      zoom={13}
-      style={{ height: 300, width: "100%" }}
-      zoomControl={true}
-      scrollWheelZoom={false}
-    >
-      <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-      />
-      <Polyline positions={positions} color="hsl(221, 83%, 53%)" weight={3} />
-      <FitBounds positions={positions} />
-    </MapContainer>
+    <div className="isolate overflow-hidden rounded-[20px]">
+      <MapContainer
+        center={center}
+        zoom={13}
+        style={{ height: 300, width: "100%" }}
+        zoomControl={true}
+        scrollWheelZoom={false}
+      >
+        <TileLayer
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        />
+        <Polyline positions={positions} color="hsl(221, 83%, 53%)" weight={3} />
+        <FitBounds positions={positions} />
+      </MapContainer>
+    </div>
   )
 }
