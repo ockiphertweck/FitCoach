@@ -169,6 +169,45 @@ test.describe("Summary", () => {
       pwExpect(posts).toHaveLength(1)
     })
 
+    test("leaving mid-stream and returning after it settled sends no second POST", async ({
+      authedPage,
+    }) => {
+      const posts = trackPosts(authedPage)
+      let saved = false // like the real server: GET returns the saved recap once the stream ends
+      let gets = 0
+      await authedPage.route(/\/ai\/recommendation\?date=/, (route) => {
+        gets++
+        route.fulfill({
+          json: saved ? recap("Saved recap.") : { hasKey: true, recap: null },
+        })
+      })
+      await authedPage.route(`${API_BASE}/ai/recommendation`, async (route) => {
+        await new Promise((r) => setTimeout(r, 1000))
+        await route.fulfill({
+          status: 200,
+          contentType: "text/event-stream",
+          body: 'data: {"text":"Saved recap."}\n\ndata: [DONE]\n\n',
+        })
+        saved = true
+      })
+      await authedPage.goto("/")
+      await pwExpect.poll(() => posts.length).toBe(1)
+      await authedPage
+        .getByRole("link", { name: /Activities/i })
+        .first()
+        .click()
+      await expect(authedPage).toHaveURL(/\/activities$/)
+      await pwExpect.poll(() => saved, { timeout: 5000 }).toBe(true)
+      await authedPage.waitForTimeout(300) // let the stream promise settle in the page
+      const getsBefore = gets
+      await authedPage.goBack()
+      await expect(authedPage).toHaveURL(/\/$/)
+      await pwExpect.poll(() => gets).toBeGreaterThan(getsBefore)
+      await expect(authedPage.getByText("Saved recap.")).toBeVisible()
+      await authedPage.waitForTimeout(500)
+      pwExpect(posts).toHaveLength(1)
+    })
+
     test("stale recap shows old text with Updating then new text", async ({ authedPage }) => {
       await mockGet(authedPage, /\/ai\/recommendation\?date=/, recap("Old advice.", true))
       await authedPage.route(`${API_BASE}/ai/recommendation`, async (route) => {

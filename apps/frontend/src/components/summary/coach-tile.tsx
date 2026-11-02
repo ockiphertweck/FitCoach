@@ -14,8 +14,10 @@ interface RecapResponse {
   recap: { content: string; generatedAt: string; stale: boolean } | null
 }
 
-// Module-level so a remounted tile joins a stream that is still running.
+// Module-level so a remounted tile joins a stream that is still running and never re-starts a
+// (date, generatedAt) key that an earlier mount already handled.
 const inflight = new Map<string, Promise<void>>()
+const autoStarted = new Set<string>()
 
 // Hard cap on automatic (non-click) streams per date per page load: guards against billing
 // loops if the server keeps reporting a just-saved recap as stale.
@@ -25,12 +27,11 @@ const autoStreams = new Map<string, number>()
 export function CoachTile() {
   const qc = useQueryClient()
   const date = localDate()
-  const started = useRef<string | null>(null)
   const [streamed, setStreamed] = useState("")
   const [streaming, setStreaming] = useState(false)
   const [failed, setFailed] = useState(false)
 
-  const { data } = useQuery<RecapResponse>({
+  const { data, isFetching } = useQuery<RecapResponse>({
     queryKey: ["recap", date],
     queryFn: () => api.get(`/ai/recommendation?date=${date}`),
   })
@@ -67,17 +68,23 @@ export function CoachTile() {
     setFailed(false)
   }, [key])
 
+  // Remounted while a stream for this date is running: show its progress, no new POST.
+  useEffect(() => {
+    if (inflight.has(date)) void generate()
+  }, [date, generate])
+
   const needsStream = !!data?.hasKey && (!data.recap || data.recap.stale)
   useEffect(() => {
     // Guard per (date, generatedAt): no loop if a save fails, one retry per new stale recap,
-    // and no double stream under StrictMode.
-    if (!needsStream || key === null || started.current === key) return
-    started.current = key
+    // and no double stream under StrictMode or remount. Decide only on settled data.
+    if (!needsStream || key === null || isFetching || inflight.has(date) || autoStarted.has(key))
+      return
+    autoStarted.add(key)
     const used = autoStreams.get(date) ?? 0
     if (used >= MAX_AUTO_STREAMS) return
     autoStreams.set(date, used + 1)
     void generate()
-  }, [needsStream, key, date, generate])
+  }, [needsStream, key, isFetching, date, generate])
 
   const old = data?.recap?.content
   const shown = streamed || old

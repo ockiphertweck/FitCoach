@@ -1,25 +1,20 @@
-import { chromium } from "@playwright/test"
+import { type BrowserContext, type FullConfig, chromium } from "@playwright/test"
 import { API_BASE, TEST_USER_EMAIL, TEST_USER_ID, generateTestToken } from "./fixtures"
 
 // `next dev` compiles routes on first request and, when several workers hit a cold route at once,
 // can serve empty/partial chunks (hydration never finishes). Compile every route once up front.
-const ROUTES = [
+const AUTHED_ROUTES = [
   "/",
   "/coach",
   "/activities",
   "/activities/00000000-0000-0000-0000-000000000000",
   "/trends",
   "/settings",
-  "/login",
-  "/setup",
 ]
+// An authed context gets redirected away from these, so warm them logged out.
+const PUBLIC_ROUTES = ["/login", "/setup"]
 
-export default async function globalSetup() {
-  const browser = await chromium.launch()
-  const context = await browser.newContext()
-  await context.addCookies([
-    { name: "fitcoach_token", value: await generateTestToken(), domain: "localhost", path: "/" },
-  ])
+async function warm(context: BrowserContext, baseURL: string, routes: string[]) {
   await context.route(`${API_BASE}/**`, (route) => {
     const me = route.request().url().endsWith("/auth/me")
     route.fulfill({
@@ -31,8 +26,19 @@ export default async function globalSetup() {
     })
   })
   const page = await context.newPage()
-  for (const route of ROUTES) {
-    await page.goto(`http://localhost:3001${route}`, { waitUntil: "networkidle" })
+  for (const route of routes) {
+    await page.goto(`${baseURL}${route}`, { waitUntil: "networkidle" })
   }
+}
+
+export default async function globalSetup(config: FullConfig) {
+  const baseURL = config.projects[0].use.baseURL ?? "http://localhost:3001"
+  const browser = await chromium.launch()
+  const authed = await browser.newContext()
+  await authed.addCookies([
+    { name: "fitcoach_token", value: await generateTestToken(), url: baseURL },
+  ])
+  await warm(authed, baseURL, AUTHED_ROUTES)
+  await warm(await browser.newContext(), baseURL, PUBLIC_ROUTES)
   await browser.close()
 }
