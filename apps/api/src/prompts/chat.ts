@@ -3,7 +3,7 @@ import { and, desc, eq, gte } from "drizzle-orm"
 import type { DB } from "../db/index.js"
 import { activities, userProfiles } from "../db/schema.js"
 import { calculateTrainingLoad } from "../services/atl-ctl.js"
-import { formatDistance, formatDuration, formatProfileSection } from "./_format.js"
+import { formatDistance, formatDuration, formatFormLabel, formatProfileSection } from "./_format.js"
 import { SYSTEM_PROMPT } from "./system.js"
 
 /**
@@ -40,7 +40,7 @@ export async function buildChatSystemPrompt(userId: string, db: DB): Promise<str
     "",
     ...formatProfileSection(profile),
     "## Current Training Load",
-    `- ATL: ${load.atl} | CTL: ${load.ctl} | TSB: ${load.tsb} ${load.tsb > 5 ? "(fresh)" : load.tsb < -10 ? "(fatigued)" : "(moderate)"}`,
+    `- ATL: ${load.atl} | CTL: ${load.ctl} | TSB: ${load.tsb} ${formatFormLabel(load.tsb)}`,
     "",
     "## Recent Activities (last 14 days)",
   ]

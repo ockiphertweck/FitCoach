@@ -26,8 +26,9 @@ async function warm(context: BrowserContext, baseURL: string, routes: string[]) 
     })
   })
   const page = await context.newPage()
+  // Sequential on purpose: one page cold-compiles each route in turn; parallel gotos would race.
   for (const route of routes) {
-    await page.goto(`${baseURL}${route}`, { waitUntil: "networkidle" })
+    await page.goto(`${baseURL}${route}`, { waitUntil: "networkidle" }) // NOSONAR
   }
 }
 

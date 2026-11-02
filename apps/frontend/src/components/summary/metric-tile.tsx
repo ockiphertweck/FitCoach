@@ -6,12 +6,12 @@ export function MetricTile({
   color,
   value,
   caption,
-}: {
+}: Readonly<{
   label: string
   color: ComponentProps<typeof MetricLabel>["color"]
   value: number | undefined
   caption: string
-}) {
+}>) {
   return (
     <Card>
       <MetricLabel color={color}>{label}</MetricLabel>

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { api } from "@/lib/api"
-import { useMutation } from "@tanstack/react-query"
+import { useMutation, useQuery } from "@tanstack/react-query"
 import { Dumbbell, Eye, EyeOff } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
@@ -16,11 +16,14 @@ export default function LoginPage() {
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
 
+  const status = useQuery({
+    queryKey: ["auth-status"],
+    queryFn: () => api.get<{ setup: boolean }>("/auth/status"),
+  })
+
   useEffect(() => {
-    api.get<{ setup: boolean }>("/auth/status").then(({ setup }) => {
-      if (!setup) router.replace("/setup")
-    })
-  }, [router])
+    if (status.data && !status.data.setup) router.replace("/setup")
+  }, [status.data, router])
 
   const loginMutation = useMutation({
     mutationFn: () => api.post("/auth/login", { email, password }),
@@ -85,6 +88,12 @@ export default function LoginPage() {
               </button>
             </div>
           </div>
+
+          {status.isError && (
+            <Alert variant="destructive">
+              <AlertDescription>{status.error.message}</AlertDescription>
+            </Alert>
+          )}
 
           {loginMutation.isError && (
             <Alert variant="destructive">

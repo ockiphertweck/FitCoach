@@ -134,6 +134,20 @@ test.describe("Authentication", () => {
       await expect(page).toHaveURL(/\/setup/)
     })
 
+    test("shows an error when the setup status check fails", async ({ page }) => {
+      await page.unroute(`${API_BASE}/auth/status`)
+      await page.route(`${API_BASE}/auth/status`, (route) =>
+        route.fulfill({
+          status: 500,
+          contentType: "application/json",
+          body: JSON.stringify({ error: "Status check failed" }),
+        })
+      )
+      await page.goto("/login")
+      await expect(page.getByText("Status check failed")).toBeVisible()
+      await expect(page).toHaveURL(/\/login/)
+    })
+
     test("navbar is not visible on login page", async ({ page }) => {
       await page.goto("/login")
       await expect(page.locator("nav")).not.toBeVisible()

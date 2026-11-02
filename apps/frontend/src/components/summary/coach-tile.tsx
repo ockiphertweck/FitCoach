@@ -24,6 +24,26 @@ const autoStarted = new Set<string>()
 const MAX_AUTO_STREAMS = 2
 const autoStreams = new Map<string, number>()
 
+// Reuse a stream already running for this date (e.g. after navigating away and back).
+function joinOrStartStream(date: string, onChunk: (t: string) => void): Promise<void> {
+  let run = inflight.get(date)
+  if (!run) {
+    run = streamPost("/ai/recommendation", { date }, onChunk).finally(() => inflight.delete(date))
+    inflight.set(date, run)
+  }
+  return run
+}
+
+// Claims the single automatic stream for this (date, generatedAt) key, within the per-date cap.
+function claimAutoStream(date: string, key: string): boolean {
+  if (inflight.has(date) || autoStarted.has(key)) return false
+  autoStarted.add(key)
+  const used = autoStreams.get(date) ?? 0
+  if (used >= MAX_AUTO_STREAMS) return false
+  autoStreams.set(date, used + 1)
+  return true
+}
+
 export function CoachTile() {
   const qc = useQueryClient()
   const date = localDate()
@@ -42,15 +62,10 @@ export function CoachTile() {
     streamedRef.current = ""
     setFailed(false)
     setStreaming(true)
-    // Reuse a stream already running for this date (e.g. after navigating away and back).
-    let run = inflight.get(date)
-    if (!run) {
-      run = streamPost("/ai/recommendation", { date }, (t) => {
-        streamedRef.current += t
-        setStreamed((p) => p + t)
-      }).finally(() => inflight.delete(date))
-      inflight.set(date, run)
-    }
+    const run = joinOrStartStream(date, (t) => {
+      streamedRef.current += t
+      setStreamed((p) => p + t)
+    })
     try {
       await run
       await qc.invalidateQueries({ queryKey: ["recap", date] })
@@ -83,17 +98,10 @@ export function CoachTile() {
   useEffect(() => {
     // Guard per (date, generatedAt): no loop if a save fails, one retry per new stale recap,
     // and no double stream under StrictMode or remount. Decide only on settled data.
-    if (!needsStream || key === null || isFetching || inflight.has(date) || autoStarted.has(key))
-      return
-    autoStarted.add(key)
-    const used = autoStreams.get(date) ?? 0
-    if (used >= MAX_AUTO_STREAMS) return
-    autoStreams.set(date, used + 1)
-    void generate()
+    if (!needsStream || key === null || isFetching) return
+    if (claimAutoStream(date, key)) void generate()
   }, [needsStream, key, isFetching, date, generate])
 
-  const old = data?.recap?.content
-  const shown = streamed || old
   return (
     <Card>
       <div className="flex items-center justify-between">
@@ -111,33 +119,64 @@ export function CoachTile() {
         )}
       </div>
       <div className="mt-2 text-sm">
-        {data && !data.hasKey ? (
-          <p>
-            Add your Claude API key in{" "}
-            <Link href="/settings" className="font-medium underline">
-              Settings
-            </Link>
-          </p>
-        ) : isError && !data ? (
-          <p className="text-destructive">
-            Couldn't load your recap.{" "}
-            <button type="button" className="underline" onClick={() => void refetch()}>
-              Retry
-            </button>
-          </p>
-        ) : failed ? (
-          <p className="text-destructive">Recap generation failed. Try refreshing.</p>
-        ) : shown ? (
-          <div className={streaming && !streamed ? "opacity-50" : undefined}>
-            <Markdown>{shown}</Markdown>
-            {streaming && !streamed && (
-              <p className="mt-2 text-xs text-muted-foreground">Updating…</p>
-            )}
-          </div>
-        ) : (
-          <p className="text-muted-foreground">{data ? "Writing your recap…" : "Loading…"}</p>
-        )}
+        <RecapBody
+          data={data}
+          isError={isError}
+          failed={failed}
+          streaming={streaming}
+          streamed={streamed}
+          onRetry={() => void refetch()}
+        />
       </div>
     </Card>
+  )
+}
+
+function RecapBody({
+  data,
+  isError,
+  failed,
+  streaming,
+  streamed,
+  onRetry,
+}: Readonly<{
+  data: RecapResponse | undefined
+  isError: boolean
+  failed: boolean
+  streaming: boolean
+  streamed: string
+  onRetry: () => void
+}>) {
+  if (data && !data.hasKey) {
+    return (
+      <p>
+        Add your Claude API key in{" "}
+        <Link href="/settings" className="font-medium underline">
+          Settings
+        </Link>
+      </p>
+    )
+  }
+  if (isError && !data) {
+    return (
+      <p className="text-destructive">
+        Couldn't load your recap.{" "}
+        <button type="button" className="underline" onClick={onRetry}>
+          Retry
+        </button>
+      </p>
+    )
+  }
+  if (failed) return <p className="text-destructive">Recap generation failed. Try refreshing.</p>
+  const shown = streamed || data?.recap?.content
+  if (!shown) {
+    return <p className="text-muted-foreground">{data ? "Writing your recap…" : "Loading…"}</p>
+  }
+  const updating = streaming && !streamed
+  return (
+    <div className={updating ? "opacity-50" : undefined}>
+      <Markdown>{shown}</Markdown>
+      {updating && <p className="mt-2 text-xs text-muted-foreground">Updating…</p>}
+    </div>
   )
 }

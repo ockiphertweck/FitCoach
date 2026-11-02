@@ -33,7 +33,7 @@ function formatDuration(seconds: number): string {
   return `${h}:${m}`
 }
 
-export function ActivityRow({ activity: a }: { activity: ActivityItem }) {
+export function ActivityRow({ activity: a }: Readonly<{ activity: ActivityItem }>) {
   const sport = a.sportType.toLowerCase()
   const Icon = ICONS[sport as keyof typeof ICONS] ?? Activity
   const tint = TINTS[sport] ?? "bg-muted text-muted-foreground"
