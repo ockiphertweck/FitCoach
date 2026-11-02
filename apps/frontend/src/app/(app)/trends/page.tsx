@@ -91,10 +91,7 @@ export default function TrendsPage() {
                   { label: "ATL", value: String(reportMutation.data.metrics.atl) },
                   { label: "CTL", value: String(reportMutation.data.metrics.ctl) },
                 ].map(({ label, value }) => (
-                  <div
-                    key={label}
-                    className="rounded-xl bg-white/30 border border-white/50 px-4 py-3"
-                  >
+                  <div key={label} className="rounded-xl bg-muted px-4 py-3">
                     <p className="text-muted-foreground text-xs mb-0.5">{label}</p>
                     <p className="font-semibold text-sm">{value}</p>
                   </div>

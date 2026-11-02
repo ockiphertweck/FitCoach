@@ -9,11 +9,11 @@ export default function Loading() {
       </div>
       <div className="grid gap-4 md:grid-cols-3">
         {[1, 2, 3].map((i) => (
-          <Skeleton key={i} className="h-32 w-full rounded-lg" />
+          <Skeleton key={i} className="h-32 w-full rounded-[20px]" />
         ))}
       </div>
       <Skeleton className="h-10 w-64" />
-      <Skeleton className="h-64 w-full rounded-lg" />
+      <Skeleton className="h-64 w-full rounded-[20px]" />
     </div>
   )
 }

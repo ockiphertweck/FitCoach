@@ -99,7 +99,7 @@ function SportBadge({ sport }: { sport: string }) {
   }
   return (
     <span
-      className={`inline-flex items-center rounded-lg border px-2 py-0.5 text-xs font-medium capitalize ${colors[sport] ?? "bg-white/10 text-foreground/65 border-white/20"}`}
+      className={`inline-flex items-center rounded-lg border px-2 py-0.5 text-xs font-medium capitalize ${colors[sport] ?? "bg-muted text-muted-foreground border-transparent"}`}
     >
       {sport}
     </span>
@@ -110,7 +110,7 @@ function MetricHint({ text }: { text: string }) {
   return (
     <span className="relative group inline-flex items-center">
       <HelpCircle className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
-      <span className="pointer-events-none absolute top-full left-1/2 -translate-x-1/2 mt-2 w-72 rounded-xl bg-white/90 border border-white/80 text-gray-800 text-sm px-4 py-3 shadow-xl opacity-0 group-hover:opacity-100 transition-opacity z-50 leading-relaxed backdrop-blur-2xl">
+      <span className="pointer-events-none absolute top-full left-1/2 -translate-x-1/2 mt-2 w-72 rounded-xl bg-popover text-popover-foreground text-sm px-4 py-3 shadow-xl opacity-0 group-hover:opacity-100 transition-opacity z-50 leading-relaxed backdrop-blur-2xl">
         {text}
       </span>
     </span>
@@ -435,7 +435,7 @@ export default function Dashboard() {
                 <Link
                   key={a.id}
                   href={`/activities/${a.id}`}
-                  className="flex items-center justify-between py-3 hover:bg-white/30 -mx-2 px-2 rounded-xl transition-colors"
+                  className="flex items-center justify-between py-3 hover:bg-muted -mx-2 px-2 rounded-xl transition-colors"
                 >
                   <div className="flex items-center gap-3">
                     <SportBadge sport={a.sportType} />

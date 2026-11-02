@@ -147,7 +147,7 @@ export default function SettingsPage() {
                 onChange={(e) =>
                   setProfileForm((p) => ({ ...p, sex: (e.target.value || null) as Profile["sex"] }))
                 }
-                className="flex h-9 w-full rounded-xl border border-white/42 bg-white/22 backdrop-blur-sm px-3 py-1 text-sm"
+                className="flex h-9 w-full rounded-xl border-0 bg-muted px-3 py-1 text-sm"
               >
                 <option value="">Prefer not to say</option>
                 <option value="male">Male</option>

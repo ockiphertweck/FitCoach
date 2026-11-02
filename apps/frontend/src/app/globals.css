@@ -82,16 +82,16 @@
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background: rgba(0, 0, 0, 0.14);
+    background: hsl(var(--muted-foreground) / 0.4);
     border-radius: 999px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: rgba(0, 0, 0, 0.22);
+    background: hsl(var(--muted-foreground) / 0.6);
   }
 }
 
 @layer utilities {
-  /* Floating capsule (tab bars). Old .glass-strong/.glass-card below are removed in Task 5. */
+  /* Floating capsule (tab bars). */
   .glass {
     background: linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0.28));
     backdrop-filter: blur(18px) saturate(180%);
@@ -115,29 +115,5 @@
       backdrop-filter: none;
       -webkit-backdrop-filter: none;
     }
-  }
-
-  /* Nav — slightly more opaque for legibility */
-  .glass-strong {
-    background: rgba(255, 255, 255, 0.28);
-    backdrop-filter: blur(56px) saturate(150%);
-    -webkit-backdrop-filter: blur(56px) saturate(150%);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.32);
-    box-shadow: 0 1px 0 rgba(180, 210, 255, 0.1), 0 4px 20px rgba(70, 100, 210, 0.08), 0 1px 3px
-      rgba(0, 0, 0, 0.04);
-  }
-
-  /* Cards — very transparent so coloured blobs bleed through */
-  .glass-card {
-    background: rgba(255, 255, 255, 0.07);
-    backdrop-filter: blur(52px) saturate(160%);
-    -webkit-backdrop-filter: blur(52px) saturate(160%);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 8px 28px rgba(70, 100, 210, 0.1), 0 2px
-      6px rgba(0, 0, 0, 0.05);
-  }
-
-  .glow-blue {
-    box-shadow: 0 0 20px rgba(59, 130, 246, 0.28), 0 0 60px rgba(59, 130, 246, 0.1);
   }
 }

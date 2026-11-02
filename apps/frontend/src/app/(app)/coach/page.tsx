@@ -193,8 +193,8 @@ export default function CoachPage() {
                 className={cn(
                   "flex flex-1 items-center gap-1 rounded-xl px-3 py-2 text-sm cursor-pointer transition-all min-w-0 overflow-hidden text-left",
                   activeSessionId === session.id
-                    ? "bg-primary/10 text-primary border border-primary/18"
-                    : "text-foreground/60 hover:bg-white/30 hover:text-foreground"
+                    ? "bg-primary/10 text-primary border-0"
+                    : "text-foreground/60 hover:bg-muted hover:text-foreground"
                 )}
                 onClick={() => handleSelectSession(session.id)}
               >
@@ -235,7 +235,7 @@ export default function CoachPage() {
         className={cn(
           "flex flex-col gap-2 z-50 transition-transform duration-200",
           // Mobile: fixed overlay panel
-          "fixed top-14 bottom-0 left-0 w-64 p-3 glass-strong md:hidden",
+          "fixed top-14 bottom-0 left-0 w-64 p-3 bg-card md:hidden",
           sidebarOpen ? "translate-x-0" : "-translate-x-full",
           // Desktop: static in flow
           "md:static md:translate-x-0 md:w-52 md:p-0 md:bg-transparent md:backdrop-filter-none md:border-0 md:shadow-none md:flex"
@@ -298,9 +298,7 @@ export default function CoachPage() {
                 <div
                   className={cn(
                     "flex h-8 w-8 shrink-0 items-center justify-center rounded-xl",
-                    msg.role === "user"
-                      ? "bg-primary text-white shadow-[0_2px_8px_rgba(59,130,246,0.35)]"
-                      : "bg-white/30 border border-white/40 text-muted-foreground"
+                    msg.role === "user" ? "bg-primary text-white" : "bg-muted text-muted-foreground"
                   )}
                 >
                   {msg.role === "user" ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
@@ -308,9 +306,7 @@ export default function CoachPage() {
                 <div
                   className={cn(
                     "max-w-[85%] rounded-2xl px-4 py-3 text-sm",
-                    msg.role === "user"
-                      ? "bg-primary text-white shadow-[0_2px_12px_rgba(59,130,246,0.3)]"
-                      : "glass-card"
+                    msg.role === "user" ? "bg-primary text-white" : "bg-card"
                   )}
                 >
                   {msg.role === "assistant" ? (
@@ -348,10 +344,10 @@ export default function CoachPage() {
 
             {(isStreaming || streamingMessage) && (
               <div className="flex gap-3">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white/30 border border-white/40 text-muted-foreground">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground">
                   <Bot className="h-4 w-4" />
                 </div>
-                <div className="max-w-[85%] rounded-2xl px-4 py-3 text-sm glass-card">
+                <div className="max-w-[85%] rounded-2xl px-4 py-3 text-sm bg-card">
                   {streamingMessage ? (
                     <div>
                       <div className="prose prose-sm max-w-none text-foreground/85">

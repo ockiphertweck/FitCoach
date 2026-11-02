@@ -5,7 +5,10 @@ const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElemen
   ({ className, ...props }, ref) => (
     <div
       ref={ref}
-      className={cn("rounded-2xl text-card-foreground glass-card", className)}
+      className={cn(
+        "rounded-[20px] border-0 bg-card p-4 text-card-foreground shadow-none",
+        className
+      )}
       {...props}
     />
   )
@@ -14,7 +17,7 @@ Card.displayName = "Card"
 
 const CardHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
-    <div ref={ref} className={cn("flex flex-col space-y-1.5 p-6", className)} {...props} />
+    <div ref={ref} className={cn("flex flex-col space-y-1.5 pb-3", className)} {...props} />
   )
 )
 CardHeader.displayName = "CardHeader"
@@ -23,7 +26,7 @@ const CardTitle = React.forwardRef<HTMLParagraphElement, React.HTMLAttributes<HT
   ({ className, ...props }, ref) => (
     <h3
       ref={ref}
-      className={cn("text-2xl font-semibold leading-none tracking-tight", className)}
+      className={cn("text-lg font-semibold leading-none tracking-tight", className)}
       {...props}
     />
   )
@@ -39,17 +42,43 @@ const CardDescription = React.forwardRef<
 CardDescription.displayName = "CardDescription"
 
 const CardContent = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => (
-    <div ref={ref} className={cn("p-6 pt-0", className)} {...props} />
-  )
+  ({ className, ...props }, ref) => <div ref={ref} className={cn("", className)} {...props} />
 )
 CardContent.displayName = "CardContent"
 
 const CardFooter = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
-    <div ref={ref} className={cn("flex items-center p-6 pt-0", className)} {...props} />
+    <div ref={ref} className={cn("flex items-center pt-3", className)} {...props} />
   )
 )
 CardFooter.displayName = "CardFooter"
 
-export { Card, CardHeader, CardFooter, CardTitle, CardDescription, CardContent }
+const metricColors = {
+  fatigue: "text-metric-fatigue",
+  fitness: "text-metric-fitness",
+  form: "text-metric-form",
+  coach: "text-metric-coach",
+} as const
+
+function MetricLabel({
+  color,
+  className,
+  children,
+  ...props
+}: React.HTMLAttributes<HTMLSpanElement> & { color: keyof typeof metricColors }) {
+  return (
+    <span
+      className={cn(
+        "text-xs font-semibold uppercase tracking-wide",
+        metricColors[color],
+        className
+      )}
+      {...props}
+    >
+      <span aria-hidden="true">● </span>
+      {children}
+    </span>
+  )
+}
+
+export { MetricLabel, Card, CardHeader, CardFooter, CardTitle, CardDescription, CardContent }

@@ -34,11 +34,11 @@ export default function LoginPage() {
 
   return (
     <div className="w-full max-w-sm px-4">
-      {/* Glass card */}
-      <div className="rounded-2xl bg-white/60 backdrop-blur-2xl border border-white/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.95),0_24px_64px_rgba(100,120,200,0.18),0_4px_12px_rgba(0,0,0,0.06)] p-8">
+      {/* Tile */}
+      <div className="rounded-[20px] bg-card p-8">
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-white shadow-[0_4px_20px_rgba(59,130,246,0.45)] mb-4">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-white mb-4">
             <Dumbbell className="h-7 w-7" />
           </div>
           <h1 className="text-2xl font-semibold tracking-tight">Welcome back</h1>
