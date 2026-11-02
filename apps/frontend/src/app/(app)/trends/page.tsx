@@ -10,6 +10,8 @@ import {
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { api } from "@/lib/api"
+import { translateApiError } from "@/lib/i18n"
+import { useI18n } from "@/lib/i18n/client"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { FileText, Loader2 } from "lucide-react"
 
@@ -29,23 +31,24 @@ interface WeeklyReport {
 }
 
 export default function TrendsPage() {
+  const { lang, t, locale } = useI18n()
   const reportMutation = useMutation({
-    mutationFn: () => api.post<WeeklyReport>("/ai/weekly-report"),
+    mutationFn: () => api.post<WeeklyReport>("/ai/weekly-report", { lang }),
   })
 
   const { data: activities, isError } = useQuery<{ items: ChartActivity[] }>({
     queryKey: ["chart-activities"],
     queryFn: () => api.get("/activities?limit=200"),
   })
-  const weekly = buildWeeklyChartData(activities?.items ?? [])
+  const weekly = buildWeeklyChartData(activities?.items ?? [], locale)
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Trends" />
+      <PageHeader title={t.trends.title} />
 
       <div className="space-y-4 lg:grid lg:grid-cols-2 lg:gap-4 lg:space-y-0">
         <WeeklyChart
-          title="Distance"
+          title={t.trends.distance}
           dataKey="distance"
           data={weekly}
           error={isError}
@@ -53,7 +56,7 @@ export default function TrendsPage() {
           format={(v) => `${v} km`}
         />
         <WeeklyChart
-          title="Duration"
+          title={t.trends.duration}
           dataKey="duration"
           data={weekly}
           error={isError}
@@ -61,7 +64,7 @@ export default function TrendsPage() {
           format={(v) => `${v} min`}
         />
         <WeeklyChart
-          title="Avg Heart Rate"
+          title={t.trends.avgHeartRate}
           dataKey="avgHR"
           data={weekly}
           error={isError}
@@ -73,11 +76,9 @@ export default function TrendsPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base font-medium">
               <FileText className="h-4 w-4 text-primary" />
-              Weekly Report
+              {t.trends.weeklyReport}
             </CardTitle>
-            <CardDescription>
-              Analyses your current week's distance, duration, heart rate, and training load.
-            </CardDescription>
+            <CardDescription>{t.trends.reportDescription}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
             <Button
@@ -88,18 +89,20 @@ export default function TrendsPage() {
               {reportMutation.isPending ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Generating…
+                  {t.trends.generating}
                 </>
               ) : (
                 <>
                   <FileText className="h-4 w-4" />
-                  Generate report
+                  {t.trends.generate}
                 </>
               )}
             </Button>
 
             {reportMutation.isError && (
-              <p className="text-sm text-destructive">{reportMutation.error.message}</p>
+              <p className="text-sm text-destructive">
+                {translateApiError(reportMutation.error.message, t)}
+              </p>
             )}
 
             {reportMutation.data && (
@@ -107,19 +110,22 @@ export default function TrendsPage() {
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                   {[
                     {
-                      label: "Distance",
-                      value: `${(reportMutation.data.metrics.totalDistance / 1000).toFixed(1)} km`,
+                      label: t.trends.distance,
+                      value: `${(reportMutation.data.metrics.totalDistance / 1000).toLocaleString(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} km`,
                     },
                     {
-                      label: "Duration",
+                      label: t.trends.duration,
                       value: `${Math.round(reportMutation.data.metrics.totalDuration / 60)} min`,
                     },
-                    { label: "Sessions", value: String(reportMutation.data.metrics.sessions) },
+                    {
+                      label: t.trends.sessions,
+                      value: String(reportMutation.data.metrics.sessions),
+                    },
                     {
                       label: "Avg HR",
                       value: reportMutation.data.metrics.avgHR
                         ? `${reportMutation.data.metrics.avgHR} bpm`
-                        : "N/A",
+                        : t.trends.notAvailable,
                     },
                     { label: "ATL", value: String(reportMutation.data.metrics.atl) },
                     { label: "CTL", value: String(reportMutation.data.metrics.ctl) },
@@ -136,7 +142,8 @@ export default function TrendsPage() {
                 </div>
 
                 <p className="text-xs text-muted-foreground">
-                  Generated {new Date(reportMutation.data.generatedAt).toLocaleString()}
+                  {t.trends.generatedAt}{" "}
+                  {new Date(reportMutation.data.generatedAt).toLocaleString(locale)}
                 </p>
               </div>
             )}

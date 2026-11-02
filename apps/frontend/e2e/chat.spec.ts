@@ -338,3 +338,43 @@ test.describe("AI Coach — retry on failure", () => {
     await expect(authedPage.getByRole("button", { name: /Retry/i })).not.toBeVisible()
   })
 })
+
+test.describe("AI Coach — language", () => {
+  test("sends lang with the chat message", async ({ authedPage }) => {
+    await setupChat(authedPage)
+    let body: Record<string, unknown> = {}
+    await authedPage.route(`${API_BASE}/ai/chat`, (route) => {
+      body = route.request().postDataJSON()
+      route.fulfill({
+        status: 200,
+        contentType: "text/event-stream",
+        body: 'data: {"text":"Hi"}\n\ndata: [DONE]\n\n',
+      })
+    })
+    await authedPage.goto("/coach")
+    await authedPage.getByPlaceholder(/Ask your coach/).fill("Hello")
+    await authedPage.getByPlaceholder(/Ask your coach/).press("Enter")
+    await expect.poll(() => body.lang).toBe("en")
+  })
+
+  test.describe("German", () => {
+    test.use({ locale: "de-DE" })
+
+    test("shows German copy, localized title and sends lang=de", async ({ authedPage }) => {
+      await setupChat(authedPage)
+      let body: Record<string, unknown> = {}
+      await authedPage.route(`${API_BASE}/ai/chat`, (route) => {
+        body = route.request().postDataJSON()
+        route.fulfill({ status: 500, body: "error" })
+      })
+      await authedPage.goto("/coach")
+      await expect(authedPage.getByText("Neuer Chat").first()).toBeVisible()
+      await expect(authedPage.getByText("New chat")).toHaveCount(0)
+      await expect(authedPage.getByText("Starte eine Unterhaltung")).toBeVisible()
+      await authedPage.getByPlaceholder(/Frag deinen Coach/).fill("Hallo")
+      await authedPage.getByPlaceholder(/Frag deinen Coach/).press("Enter")
+      await expect(authedPage.getByText("Senden fehlgeschlagen")).toBeVisible()
+      expect(body.lang).toBe("de")
+    })
+  })
+})

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
 import { api, streamPost } from "@/lib/api"
+import { useI18n } from "@/lib/i18n/client"
 import { cn } from "@/lib/utils"
 import * as Dialog from "@radix-ui/react-dialog"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
@@ -28,6 +29,7 @@ interface ChatSession {
 
 export default function CoachPage() {
   const qc = useQueryClient()
+  const { lang, t, locale } = useI18n()
   const bottomRef = useRef<HTMLDivElement>(null)
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [input, setInput] = useState("")
@@ -135,7 +137,7 @@ export default function CoachPage() {
     }
 
     try {
-      await streamPost("/ai/chat", { message, sessionId: activeSessionId }, (text) => {
+      await streamPost("/ai/chat", { message, sessionId: activeSessionId, lang }, (text) => {
         streamingRef.current += text
         setStreamingMessage((prev) => prev + text)
       })
@@ -175,6 +177,8 @@ export default function CoachPage() {
   }
 
   const activeSession = sessions.find((s) => s.id === activeSessionId)
+  // The DB default title is the literal "New chat"
+  const titleOf = (s: ChatSession) => (s.title === "New chat" ? t.coach.newChat : s.title)
 
   const sessionList = (
     <>
@@ -185,7 +189,7 @@ export default function CoachPage() {
         className="gap-2 w-full justify-start shrink-0"
       >
         <MessageSquarePlus className="h-4 w-4" />
-        New chat
+        {t.coach.newChat}
       </Button>
       <div className="space-y-1 overflow-y-auto min-h-0">
         {sessions.map((session) => (
@@ -200,7 +204,7 @@ export default function CoachPage() {
               )}
               onClick={() => handleSelectSession(session.id)}
             >
-              <span className="min-w-0 flex-1 truncate leading-snug">{session.title}</span>
+              <span className="min-w-0 flex-1 truncate leading-snug">{titleOf(session)}</span>
             </button>
             <button
               type="button"
@@ -209,7 +213,7 @@ export default function CoachPage() {
                 deleteSessionMutation.mutate(session.id)
               }}
               className="md:opacity-0 md:group-hover:opacity-100 focus-visible:opacity-100 transition-opacity p-1 rounded hover:text-destructive shrink-0 self-center"
-              aria-label="Delete chat"
+              aria-label={t.coach.deleteChat}
             >
               <Trash2 className="h-3.5 w-3.5" />
             </button>
@@ -222,8 +226,8 @@ export default function CoachPage() {
   return (
     <div className="flex flex-1 min-h-0 flex-col">
       <PageHeader
-        title="Coach"
-        subtitle={activeSession?.title?.toUpperCase()}
+        title={t.coach.title}
+        subtitle={activeSession && titleOf(activeSession).toUpperCase()}
         action={
           <>
             {messages.length > 0 && (
@@ -235,7 +239,7 @@ export default function CoachPage() {
                 className="text-muted-foreground hover:text-destructive"
               >
                 <Trash2 className="h-4 w-4" />
-                Clear
+                {t.coach.clear}
               </Button>
             )}
             <Button
@@ -245,7 +249,7 @@ export default function CoachPage() {
               onClick={() => setSheetOpen(true)}
             >
               <MessagesSquare className="h-4 w-4" />
-              Chats
+              {t.coach.chats}
             </Button>
             <Button
               variant="secondary"
@@ -255,7 +259,7 @@ export default function CoachPage() {
               onClick={() => setListOpen((o) => !o)}
             >
               <MessagesSquare className="h-4 w-4" />
-              Chats
+              {t.coach.chats}
             </Button>
           </>
         }
@@ -276,7 +280,7 @@ export default function CoachPage() {
             aria-describedby={undefined}
             className="fixed inset-x-0 bottom-0 z-50 flex max-h-[70vh] flex-col gap-2 rounded-t-[20px] bg-card p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] md:hidden"
           >
-            <Dialog.Title className="text-lg font-semibold">Chats</Dialog.Title>
+            <Dialog.Title className="text-lg font-semibold">{t.coach.chats}</Dialog.Title>
             {sessionList}
           </Dialog.Content>
         </Dialog.Portal>
@@ -299,8 +303,8 @@ export default function CoachPage() {
                   <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-metric-coach/15 mx-auto mb-4">
                     <Bot className="h-7 w-7 text-metric-coach" />
                   </div>
-                  <p className="text-base font-medium text-foreground">Start a conversation</p>
-                  <p className="text-sm mt-1">Ask about your training, recovery, or goals</p>
+                  <p className="text-base font-medium text-foreground">{t.coach.emptyTitle}</p>
+                  <p className="text-sm mt-1">{t.coach.emptyHint}</p>
                 </div>
               )}
 
@@ -322,13 +326,15 @@ export default function CoachPage() {
                     {/* Retry button on last user message when request failed */}
                     {msg.role === "user" && failedMessage && i === messages.length - 1 ? (
                       <div className="flex items-center justify-end gap-2 mt-2">
-                        <span className="text-xs text-muted-foreground">Failed to send</span>
+                        <span className="text-xs text-muted-foreground">
+                          {t.coach.failedToSend}
+                        </span>
                         <button
                           type="button"
                           onClick={() => handleSend(failedMessage)}
                           className="flex items-center gap-1 text-xs text-foreground bg-foreground/10 hover:bg-foreground/15 rounded-lg px-2 py-1 transition-colors"
                         >
-                          <RefreshCw className="h-3 w-3" /> Retry
+                          <RefreshCw className="h-3 w-3" /> {t.coach.retry}
                         </button>
                       </div>
                     ) : (
@@ -338,7 +344,7 @@ export default function CoachPage() {
                           msg.role === "user" ? "text-right" : ""
                         )}
                       >
-                        {new Date(msg.createdAt).toLocaleTimeString()}
+                        {new Date(msg.createdAt).toLocaleTimeString(locale)}
                       </p>
                     )}
                   </div>
@@ -380,7 +386,7 @@ export default function CoachPage() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Ask your coach anything… (Enter to send, Shift+Enter for newline)"
+              placeholder={t.coach.placeholder}
               className="min-h-[44px] max-h-[200px] resize-none rounded-3xl bg-transparent placeholder:text-muted-foreground"
               disabled={isStreaming || !activeSessionId}
             />
@@ -388,7 +394,7 @@ export default function CoachPage() {
               onClick={() => handleSend()}
               disabled={!input.trim() || isStreaming || !activeSessionId}
               size="icon"
-              aria-label="Send"
+              aria-label={t.coach.send}
               className="h-11 w-11 shrink-0 rounded-full"
             >
               <Send className="h-4 w-4" />

@@ -1,6 +1,8 @@
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import type { Dict } from "@/lib/i18n"
+import { useI18n } from "@/lib/i18n/client"
 import { localDate } from "@/lib/utils"
 import {
   Area,
@@ -34,7 +36,7 @@ function mondayKey(date: Date): string {
   return localDate(monday)
 }
 
-export function buildWeeklyChartData(activities: ChartActivity[]): WeeklyPoint[] {
+export function buildWeeklyChartData(activities: ChartActivity[], locale: string): WeeklyPoint[] {
   const weeks = new Map<
     string,
     { distance: number; duration: number; hrSum: number; hrCount: number }
@@ -57,7 +59,7 @@ export function buildWeeklyChartData(activities: ChartActivity[]): WeeklyPoint[]
     .sort(([a], [b]) => a.localeCompare(b))
     .slice(-8)
     .map(([week, data]) => ({
-      week: new Date(`${week}T00:00:00`).toLocaleDateString("en-GB", {
+      week: new Date(`${week}T00:00:00`).toLocaleDateString(locale, {
         month: "short",
         day: "numeric",
       }),
@@ -68,9 +70,9 @@ export function buildWeeklyChartData(activities: ChartActivity[]): WeeklyPoint[]
     }))
 }
 
-function weekLabel(weekStart: string): string {
-  if (weekStart === mondayKey(new Date())) return "This week"
-  return `Week of ${new Date(weekStart).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" })}`
+function weekLabel(weekStart: string, locale: string, t: Dict): string {
+  if (weekStart === mondayKey(new Date())) return t.trends.thisWeek
+  return `${t.trends.weekOf} ${new Date(weekStart).toLocaleDateString(locale, { day: "numeric", month: "short", timeZone: "UTC" })}`
 }
 
 const tick = { fontSize: 10, fill: "hsl(var(--muted-foreground))" }
@@ -90,6 +92,7 @@ export function WeeklyChart({
   format: (v: number) => string
   error?: boolean
 }>) {
+  const { t, locale } = useI18n()
   const rows = dataKey === "avgHR" ? data.filter((d) => d.avgHR !== null) : data
   const latest = rows.at(-1)
   const last = latest?.[dataKey] ?? null
@@ -99,8 +102,12 @@ export function WeeklyChart({
     : null
   const prev = rows.find((d) => d.weekStart === prevStart)?.[dataKey] ?? null
   const delta = last !== null && prev ? Math.round(((last - prev) / prev) * 100) : null
-  const label = latest ? weekLabel(latest.weekStart) : ""
-  const seriesName = { distance: "Distance", duration: "Duration", avgHR: "Avg HR" }[dataKey]
+  const label = latest ? weekLabel(latest.weekStart, locale, t) : ""
+  const seriesName = {
+    distance: t.trends.distance,
+    duration: t.trends.duration,
+    avgHR: t.trends.avgHr,
+  }[dataKey]
   const gid = `grad-${dataKey}`
 
   return (
@@ -126,7 +133,7 @@ export function WeeklyChart({
       <CardContent>
         {error || rows.length === 0 ? (
           <p className="py-12 text-center text-sm text-muted-foreground">
-            {error ? "Couldn't load activities" : "No activities yet"}
+            {error ? t.trends.loadFailed : t.trends.noActivities}
           </p>
         ) : (
           <ResponsiveContainer width="100%" height={160}>
