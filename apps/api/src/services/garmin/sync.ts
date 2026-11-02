@@ -233,7 +233,9 @@ export async function runGarminSync(
       lastError: null,
       ...(opts.initial ? { importedAt: now } : {}),
     })
+    backoff.delete(userId)
   } catch (e) {
+    noteRateLimit(userId, e)
     const code: GarminErrorCode = e instanceof GarminError ? e.code : "garmin_unavailable"
     // Never log e.message: it could carry health data or DB details.
     if (!(e instanceof GarminError))
@@ -246,6 +248,23 @@ export async function runGarminSync(
       )
     await setSync(db, userId, { status: "error", lastError: code })
   }
+}
+
+const BACKOFF_BASE_MS = 15 * 60_000
+const BACKOFF_MAX_MS = 6 * 3600_000
+
+/** How long to leave Garmin alone after the n-th 429 in a row: its Retry-After, else 15 min doubling up to 6 h. */
+export function rateLimitBackoffMs(strikes: number, retryAfterMs?: number): number {
+  return retryAfterMs ?? Math.min(BACKOFF_BASE_MS * 2 ** (strikes - 1), BACKOFF_MAX_MS)
+}
+
+// shortcut: in-memory, so a restart forgets the backoff (next sync may hit one more 429); persist in garmin_sync if that matters.
+const backoff = new Map<string, { until: number; strikes: number }>()
+
+function noteRateLimit(userId: string, e: unknown): void {
+  if (!(e instanceof GarminError) || e.code !== "rate_limited") return
+  const strikes = (backoff.get(userId)?.strikes ?? 0) + 1
+  backoff.set(userId, { strikes, until: Date.now() + rateLimitBackoffMs(strikes, e.retryAfterMs) })
 }
 
 // After a failed run, the last attempt (updatedAt) gates auto-syncs so we don't hammer Garmin.
@@ -298,6 +317,8 @@ export async function connectGarmin(
 
 /** Gate + lock + incremental sync for POST /garmin/sync. Returns the status without calling Garmin when skipped. */
 export async function syncIfDue(db: DB, userId: string, force: boolean): Promise<GarminStatus> {
+  // Garmin asked us to back off: honour it even for "Sync now".
+  if ((backoff.get(userId)?.until ?? 0) > Date.now()) return getGarminStatus(db, userId)
   let importNeeded = false
   await withUserLock(userId, async () => {
     // Read inside the lock so a concurrent run's result is seen.

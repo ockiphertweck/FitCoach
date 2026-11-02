@@ -6,7 +6,9 @@ export class GarminError extends Error {
   constructor(
     public code: GarminErrorCode,
     message: string,
-    public status?: number
+    public status?: number,
+    /** From a 429's Retry-After header, when Garmin sends one. */
+    public retryAfterMs?: number
   ) {
     super(message)
     this.name = "GarminError"
@@ -18,12 +20,28 @@ export const GARMIN_API_BASE = "https://personal.connectapi.garmin.com"
 export const GARMIN_TOKEN_URL = `${GARMIN_API_BASE}/personalapitoken-service/personal-api/personal-api-key/token`
 
 const REFRESH_WINDOW_MS = 3600_000
+// A 429 with a Retry-After up to this long is waited out in place (at most MAX_RATE_RETRIES times);
+// longer waits end the sync and the caller backs off.
+const MAX_INLINE_WAIT_MS = 60_000
+const MAX_RATE_RETRIES = 2
+
+/** Retry-After as ms (delta-seconds or HTTP-date), undefined when absent or unparseable. */
+function retryAfterMs(res: Response): number | undefined {
+  const h = res.headers.get("retry-after")?.trim()
+  if (!h) return undefined
+  if (/^\d+$/.test(h)) return Number(h) * 1000
+  const at = Date.parse(h)
+  return Number.isNaN(at) ? undefined : Math.max(0, at - Date.now())
+}
+
+const wait = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
 // Error messages are fixed strings built from status only: never echo response bodies, key or token.
-function fromStatus(status: number): GarminError {
+function fromStatus(status: number, retryAfter?: number): GarminError {
   if (status === 401 || status === 403)
     return new GarminError("key_invalid", `Garmin rejected credentials (${status})`, status)
-  if (status === 429) return new GarminError("rate_limited", "Garmin rate limit hit (429)", status)
+  if (status === 429)
+    return new GarminError("rate_limited", "Garmin rate limit hit (429)", status, retryAfter)
   return new GarminError("garmin_unavailable", `Garmin request failed (${status})`, status)
 }
 
@@ -78,13 +96,25 @@ export function createGarminClient(key: string) {
     const qs = params
       ? `?${new URLSearchParams(Object.entries(params).map(([k, v]): [string, string] => [k, String(v)]))}`
       : ""
-    for (let attempt = 0; ; attempt++) {
+    let authRetried = false
+    let rateRetries = 0
+    for (;;) {
       const res = await send(`${GARMIN_API_BASE}${path}${qs}`, {
         headers: { Accept: accept, Authorization: `Bearer ${await token()}` },
       })
-      if (res.status === 401 && attempt === 0) {
+      if (res.status === 401 && !authRetried) {
+        authRetried = true
         tokenCache.delete(cacheKey)
         continue
+      }
+      if (res.status === 429) {
+        const ra = retryAfterMs(res)
+        if (ra !== undefined && ra <= MAX_INLINE_WAIT_MS && rateRetries < MAX_RATE_RETRIES) {
+          rateRetries++
+          await wait(ra)
+          continue
+        }
+        throw fromStatus(429, ra)
       }
       if (!res.ok) throw fromStatus(res.status)
       return res

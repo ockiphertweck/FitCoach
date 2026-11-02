@@ -43,6 +43,65 @@ describe("exchangeKey", () => {
   })
 })
 
+describe("client.get 429 handling", () => {
+  const limited = (retryAfter?: string) =>
+    new Response("", { status: 429, headers: retryAfter ? { "Retry-After": retryAfter } : {} })
+  afterEach(() => vi.useRealTimers())
+
+  it("waits a short Retry-After and retries the same request", async () => {
+    vi.useFakeTimers()
+    fetchMock
+      .mockResolvedValueOnce(res(200, jwt(inHours(24))))
+      .mockResolvedValueOnce(limited("2"))
+      .mockResolvedValueOnce(res(200, "[1]"))
+    const p = createGarminClient(KEY).get("/x")
+    await vi.advanceTimersByTimeAsync(1999)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    await vi.advanceTimersByTimeAsync(1)
+    await expect(p).resolves.toEqual([1])
+  })
+
+  it("gives up after two short retries", async () => {
+    vi.useFakeTimers()
+    fetchMock.mockResolvedValueOnce(res(200, jwt(inHours(24)))).mockResolvedValue(limited("1"))
+    const p = createGarminClient(KEY)
+      .get("/x")
+      .catch((e) => e)
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(await p).toMatchObject({ code: "rate_limited", retryAfterMs: 1000 })
+    expect(fetchMock).toHaveBeenCalledTimes(4) // token + 1 try + 2 retries
+  })
+
+  it("does not wait for a long Retry-After; reports it instead", async () => {
+    fetchMock
+      .mockResolvedValueOnce(res(200, jwt(inHours(24))))
+      .mockResolvedValueOnce(limited("120"))
+    const err = await createGarminClient(KEY)
+      .get("/x")
+      .catch((e) => e)
+    expect(err).toMatchObject({ code: "rate_limited", retryAfterMs: 120_000 })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it("reads an HTTP-date Retry-After; without the header retryAfterMs is undefined", async () => {
+    const at = new Date(Date.now() + 300_000).toUTCString()
+    fetchMock.mockResolvedValueOnce(res(200, jwt(inHours(24)))).mockResolvedValueOnce(limited(at))
+    const err = await createGarminClient(KEY)
+      .get("/x")
+      .catch((e) => e)
+    expect(err.retryAfterMs).toBeGreaterThan(290_000)
+    fetchMock.mockResolvedValueOnce(limited())
+    expect(
+      await createGarminClient(KEY)
+        .get("/x")
+        .catch((e) => e)
+    ).toMatchObject({
+      code: "rate_limited",
+      retryAfterMs: undefined,
+    })
+  })
+})
+
 describe("client.get", () => {
   const ok = (body: unknown) => res(200, JSON.stringify(body))
 

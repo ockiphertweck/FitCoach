@@ -29,6 +29,7 @@ import {
   connectGarmin,
   dateChunks,
   isSyncDue,
+  rateLimitBackoffMs,
   runGarminSync,
   syncIfDue,
   syncWindows,
@@ -296,6 +297,17 @@ describe("runGarminSync", () => {
   it("never loads the Claude client", () => expect(anthropic.touched).toBe(false))
 })
 
+describe("rateLimitBackoffMs", () => {
+  it("uses Retry-After when Garmin sends it", () => {
+    expect(rateLimitBackoffMs(1, 120_000)).toBe(120_000)
+  })
+  it("otherwise 15 min, doubling per repeated 429, capped at 6 h", () => {
+    expect(rateLimitBackoffMs(1)).toBe(15 * 60_000)
+    expect(rateLimitBackoffMs(2)).toBe(30 * 60_000)
+    expect(rateLimitBackoffMs(10)).toBe(6 * 3600_000)
+  })
+})
+
 describe("syncIfDue gate", () => {
   beforeEach(() => getMock.reset())
   const minAgo = (m: number) => new Date(Date.now() - m * 60_000)
@@ -321,6 +333,27 @@ describe("syncIfDue gate", () => {
     const { db } = makeDb([[row], [row]])
     await syncIfDue(db, "u1", false)
     expect(n()).toBe(0)
+  })
+
+  it("after a 429, not even a forced sync calls Garmin until the backoff ends", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] })
+    getImpl = async () => {
+      throw new GarminError("rate_limited", "x", 429, 600_000)
+    }
+    const { db } = makeDb([[{ encryptedKey: "e" }], [{ lastSyncedAt: null }]])
+    await runGarminSync(db, "rl", { initial: false })
+    const n = calls()
+    const row = statusRow({ status: "error", lastError: "rate_limited", updatedAt: minAgo(30) })
+    await syncIfDue(makeDb([[row], [row]]).db, "rl", true)
+    expect(n()).toBe(0)
+    vi.setSystemTime(Date.now() + 601_000)
+    await syncIfDue(
+      makeDb([[row], [{ encryptedKey: "e" }], [{ lastSyncedAt: null }], [row]]).db,
+      "rl",
+      true
+    )
+    expect(n()).toBeGreaterThan(0)
+    vi.useRealTimers()
   })
 
   it("force bypasses the error gate", async () => {
