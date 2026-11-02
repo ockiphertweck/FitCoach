@@ -53,7 +53,6 @@ interface RawData {
   elev_high?: number
   start_latlng?: [number, number]
   end_latlng?: [number, number]
-  map?: { summary_polyline?: string }
   workout_type?: number
   suffer_score?: number
 }
@@ -96,6 +95,7 @@ interface StreamsData {
   points: StreamPoint[]
   hrZones: HrZones | null
   maxHrUsed: number | null
+  polyline: string | null
 }
 
 function fmt(seconds: number) {
@@ -203,7 +203,7 @@ export default function ActivityDetailPage({ params }: { params: Promise<{ id: s
   const { data: streams } = useQuery<StreamsData>({
     queryKey: ["activity-streams", id],
     queryFn: () => api.get(`/activities/${id}/streams`),
-    enabled: !!activity && activity.source === "strava",
+    enabled: !!activity,
     retry: false,
   })
 
@@ -224,14 +224,14 @@ export default function ActivityDetailPage({ params }: { params: Promise<{ id: s
   if (!activity) return null
 
   const raw = activity.rawData ?? {}
-  const polyline = raw.map?.summary_polyline
+  const polyline = streams?.polyline
   const movingTime = raw.moving_time
   const elapsedTime = raw.elapsed_time ?? activity.durationSeconds
   const stopTime = movingTime && elapsedTime ? elapsedTime - movingTime : null
   const hasPower = raw.average_watts != null
   const isIndoor = raw.trainer === true
 
-  // Only use Strava's own calorie value — kJ/4.184 gives wrong result (metabolic ≠ mechanical)
+  // Only use the stored calorie value — kJ/4.184 gives wrong result (metabolic ≠ mechanical)
   const kcal = activity.calories ?? null
 
   const pts = streams?.points ?? []

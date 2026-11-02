@@ -1,5 +1,5 @@
 import { type Page, expect as pwExpect } from "@playwright/test"
-import { API_BASE, MOCK_ACTIVITY, expect, mockGet, mockPost, mockStream, test } from "./fixtures"
+import { API_BASE, MOCK_ACTIVITY, expect, mockGet, mockStream, test } from "./fixtures"
 
 const STATS_FRESH = { atl: 38, ctl: 52, tsb: 14 }
 const STATS_FATIGUED = { atl: 78, ctl: 55, tsb: -23 }
@@ -90,36 +90,6 @@ test.describe("Summary", () => {
       await authedPage.getByRole("button", { name: "Refresh recap" }).click()
       await expect(authedPage.getByText("Fresh take")).toBeVisible()
       pwExpect(posts).toHaveLength(1)
-    })
-
-    test("sync with a new stale recap triggers exactly one new POST", async ({ authedPage }) => {
-      const posts = trackPosts(authedPage)
-      let n = 0
-      await authedPage.route(/\/ai\/recommendation\?date=/, (route) => {
-        n++
-        route.fulfill({
-          json:
-            n === 1
-              ? { hasKey: true, recap: null }
-              : {
-                  hasKey: true,
-                  recap: {
-                    content: "Stored",
-                    stale: n === 3, // only the first post-sync fetch is stale
-                    generatedAt: `2026-01-0${Math.min(n, 4)}T00:00:00Z`,
-                  },
-                },
-        })
-      })
-      await mockStream(authedPage, "/ai/recommendation", ["Streamed"])
-      await mockPost(authedPage, "/strava/sync", { synced: 1 })
-      await authedPage.goto("/")
-      await expect(authedPage.getByText("Stored")).toBeVisible()
-      await pwExpect.poll(() => posts.length).toBe(1)
-      await authedPage.getByRole("button", { name: "Sync Strava" }).click()
-      await pwExpect.poll(() => posts.length).toBe(2)
-      await authedPage.waitForTimeout(500)
-      pwExpect(posts).toHaveLength(2)
     })
 
     test("always-stale recap stops after 2 automatic streams", async ({ authedPage }) => {
@@ -283,15 +253,6 @@ test.describe("Summary", () => {
       await expect(row.getByText("1:00")).toBeVisible()
       await row.click()
       await expect(authedPage).toHaveURL(new RegExp(`/activities/${MOCK_ACTIVITY.id}`))
-    })
-  })
-
-  test.describe("Sync Strava", () => {
-    test("sync button triggers API and shows count", async ({ authedPage }) => {
-      await mockPost(authedPage, "/strava/sync", { synced: 5 })
-      await authedPage.goto("/")
-      await authedPage.getByRole("button", { name: "Sync Strava" }).click()
-      await expect(authedPage.getByText("Synced 5 activities")).toBeVisible()
     })
   })
 })

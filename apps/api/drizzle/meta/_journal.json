@@ -71,6 +71,13 @@
       "when": 1793612814903,
       "tag": "0009_tense_supreme_intelligence",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793624971734,
+      "tag": "0010_wise_silver_surfer",
+      "breakpoints": true
     }
   ]
 }

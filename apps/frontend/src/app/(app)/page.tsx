@@ -5,13 +5,10 @@ import { type ActivityItem, ActivityRow } from "@/components/summary/activity-ro
 import { CoachTile } from "@/components/summary/coach-tile"
 import { FormScale, formLabel } from "@/components/summary/form-scale"
 import { MetricTile } from "@/components/summary/metric-tile"
-import { Button } from "@/components/ui/button"
 import { Card, MetricLabel } from "@/components/ui/card"
 import { api } from "@/lib/api"
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { RefreshCw } from "lucide-react"
+import { useQuery } from "@tanstack/react-query"
 import Link from "next/link"
-import { useState } from "react"
 
 interface TrainingLoad {
   atl: number
@@ -20,9 +17,6 @@ interface TrainingLoad {
 }
 
 export default function Summary() {
-  const qc = useQueryClient()
-  const [syncResult, setSyncResult] = useState<string | null>(null)
-
   const { data: stats } = useQuery<TrainingLoad>({
     queryKey: ["stats"],
     queryFn: () => api.get("/activities/stats"),
@@ -31,16 +25,6 @@ export default function Summary() {
   const { data: recentData } = useQuery<{ items: ActivityItem[]; total: number }>({
     queryKey: ["recent-activities"],
     queryFn: () => api.get("/activities?limit=5"),
-  })
-
-  const syncMutation = useMutation({
-    mutationFn: () => api.post<{ synced: number }>("/strava/sync"),
-    onSuccess: (data) => {
-      setSyncResult(`Synced ${data.synced} activities`)
-      qc.invalidateQueries({ queryKey: ["recent-activities"] })
-      qc.invalidateQueries({ queryKey: ["stats"] })
-      qc.invalidateQueries({ queryKey: ["recap"] })
-    },
   })
 
   return (
@@ -81,17 +65,6 @@ export default function Summary() {
           </div>
         )}
       </Card>
-
-      <Button
-        variant="secondary"
-        className="w-full gap-2"
-        onClick={() => syncMutation.mutate()}
-        disabled={syncMutation.isPending}
-      >
-        <RefreshCw className={`h-4 w-4 ${syncMutation.isPending ? "animate-spin" : ""}`} />
-        Sync Strava
-      </Button>
-      {syncResult && <p className="text-center text-sm text-muted-foreground">{syncResult}</p>}
     </div>
   )
 }

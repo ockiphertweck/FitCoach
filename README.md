@@ -4,9 +4,9 @@
 [![Tests](https://github.com/ockiphertweck/FitCoach/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/ockiphertweck/FitCoach/actions/workflows/test.yml)
 [![E2E Tests](https://github.com/ockiphertweck/FitCoach/actions/workflows/e2e.yml/badge.svg?branch=main)](https://github.com/ockiphertweck/FitCoach/actions/workflows/e2e.yml)
 
-**Self-hosted AI training coach powered by Strava and Claude.**
+**Self-hosted AI training coach powered by Garmin and Claude.**
 
-FitCoach connects to your Strava account, computes training load metrics (ATL/CTL/TSB), and uses the Anthropic Claude API to deliver personalised coaching — a daily recap, an interactive chat, and weekly reports. Everything runs on your own hardware. Your data never leaves your server.
+FitCoach connects to your Garmin account, computes training load metrics (ATL/CTL/TSB), and uses the Anthropic Claude API to deliver personalised coaching — a daily recap, an interactive chat, and weekly reports. Everything runs on your own hardware. Your data never leaves your server.
 
 > A self-hosted alternative to TrainingPeaks AI features — no subscription, no vendor lock-in, bring your own Claude API key.
 
@@ -19,7 +19,7 @@ FitCoach connects to your Strava account, computes training load metrics (ATL/CT
 - **Weekly reports** — AI-generated summary with distance, duration, HR, ATL/CTL, and coaching notes
 - **Trends** — interactive weekly trend charts for distance, duration, and heart rate
 - **Training load** — ATL / CTL / TSB computed from TRIMP (same methodology as TrainingPeaks)
-- **Strava sync** — manual sync + real-time webhook updates when you save an activity
+- **Garmin data source** — activities and wellness data via the Garmin Personal API (sync arrives in a follow-up)
 - **Athlete profile** — weight, height, max HR, FTP, sex — passed to Claude for personalised advice
 - **BYOK** — Claude API key stored AES-256-GCM encrypted; set it in Settings without redeploying
 - **Appearance** — light, dark or system theme
@@ -65,23 +65,22 @@ Open **http://localhost:3001** and create your account.
 | `API_KEY_ENCRYPTION_KEY` | ✅ | AES-256-GCM key (≥ 32 chars) — `openssl rand -base64 32` |
 | `DB_PASSWORD` | ✅ | PostgreSQL password |
 | `DATABASE_URL` | ✅ | Full postgres connection string |
-| `STRAVA_CLIENT_ID` | ✅ | From [strava.com/settings/api](https://www.strava.com/settings/api) |
-| `STRAVA_CLIENT_SECRET` | ✅ | From [strava.com/settings/api](https://www.strava.com/settings/api) |
-| `STRAVA_REDIRECT_URI` | ✅ | e.g. `http://localhost:3000/strava/callback` |
-| `STRAVA_WEBHOOK_VERIFY_TOKEN` | optional | Required to register Strava webhooks |
 | `CLAUDE_API_KEY` | optional | Default Claude key; can be set per-user in Settings |
 | `POSTHOG_API_KEY` | optional | Usage analytics — disabled if omitted |
 | `FRONTEND_URL` | optional | Defaults to `http://localhost:3001` |
-| `TS_AUTHTOKEN` | optional | Tailscale auth key — exposes a stable public HTTPS URL via [Tailscale Funnel](https://tailscale.com/kb/1247/funnel) (no account needed on the receiving end, unlike ngrok) so Strava can deliver webhooks to your local machine |
+| `GARMIN_API_KEY` | optional | Garmin Personal API key (portal key, 90-day expiry) |
 
 ---
 
-## Connecting Strava
+## Upgrading from Strava
 
-1. Register an app at [strava.com/settings/api](https://www.strava.com/settings/api) — set **Authorization Callback Domain** to `localhost`
-2. Copy `Client ID` and `Client Secret` into `.env`
-3. Open FitCoach → **Settings** → **Connect Strava**
-4. Authorise — the last 30 days of activities sync automatically
+Strava closed its API to free accounts, so FitCoach now uses Garmin. After pulling this version run `pnpm --filter api db:migrate`, then:
+
+```bash
+pnpm --filter api purge-legacy-data   # asks for "yes"; add --yes to skip the prompt
+```
+
+It deletes all Strava activities, chat history and sessions, daily recaps and weekly reports. Your account, saved API keys and athlete profile are kept.
 
 ---
 
@@ -101,9 +100,9 @@ Open **http://localhost:3001** and create your account.
 │                                ┌──────────┴──────────┐                  │
 │                                ▼                     ▼                  │
 │                       ┌──────────────┐     ┌──────────────┐            │
-│                       │  Strava API  │     │  Claude API  │            │
-│                       │  OAuth 2.0   │     │  (BYOK)      │            │
-│                       │  Webhooks    │     │  Streaming   │            │
+│                       │  Garmin API  │     │  Claude API  │            │
+│                       │  Personal    │     │  (BYOK)      │            │
+│                       │  API key     │     │  Streaming   │            │
 │                       └──────────────┘     └──────────────┘            │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
@@ -128,8 +127,8 @@ fitcoach/
 │   │   ├── src/
 │   │   │   ├── db/        # Drizzle ORM client & schema
 │   │   │   ├── middleware/ # JWT auth hook
-│   │   │   ├── routes/    # activities · ai · auth · settings · strava
-│   │   │   └── services/  # ai-context · atl-ctl · encryption · strava-client
+│   │   │   ├── routes/    # activities · ai · auth · settings
+│   │   │   └── services/  # ai-context · atl-ctl · encryption
 │   │   └── drizzle/       # SQL migration files
 │   └── frontend/          # Next.js 15 App Router
 │       └── src/
@@ -141,7 +140,7 @@ fitcoach/
 ├── db/
 │   └── init.sql           # pgvector / pgcrypto bootstrap
 ├── docker-compose.yml
-└── docker-compose.override.yml  # dev Tailscale Funnel overlay
+└── docker-compose.override.yml  # dev overlay (pgAdmin)
 ```
 
 ---
@@ -169,7 +168,7 @@ LLM output is unidirectional (server → client), which makes Server-Sent Events
 
 ### AES-256-GCM for credential storage
 
-Strava tokens and user-supplied API keys are encrypted before hitting the database. Each `encrypt()` call uses a fresh random 12-byte IV; the GCM auth tag rejects tampered ciphertexts at decryption. The encryption key never touches the database.
+User-supplied API keys are encrypted before hitting the database. Each `encrypt()` call uses a fresh random 12-byte IV; the GCM auth tag rejects tampered ciphertexts at decryption. The encryption key never touches the database.
 
 ### pgvector included
 
@@ -186,7 +185,6 @@ One Rust-based tool, one config file, zero conflicts between linter and formatte
 ```
 users              id, email, passwordHash, createdAt
 apiKeys            userId → users, provider, encryptedKey  — UNIQUE(userId, provider)
-stravaTokens       userId → users, accessToken*, refreshToken*, expiresAt, athleteId  — UNIQUE(userId)
 userProfiles       userId → users (PK), sex, weightKg, heightCm, maxHeartRate, ftpWatts
 activities         userId → users, externalId, source, sportType, startDate,
                    duration, distance, elevation, HR, pace, RPE, calories,
@@ -199,8 +197,8 @@ weeklyReports      userId → users, weekStart, summary, metrics (jsonb)  — UN
 `*` encrypted at rest with AES-256-GCM
 
 **Notable choices:**
-- `rawData jsonb` preserves the full Strava payload — new fields can be surfaced without a schema migration
-- `UNIQUE(userId, externalId, source)` on activities enables safe upsert from both initial sync and webhook events
+- `rawData jsonb` preserves the full source payload — new fields can be surfaced without a schema migration
+- `UNIQUE(userId, externalId, source)` on activities enables safe upsert from repeated syncs
 - `userProfiles` is a separate table (not columns on `users`) so it can be left entirely empty without nulls polluting the users row
 
 ---
@@ -229,7 +227,7 @@ TSB > +5 → fresh. TSB < −10 → accumulating fatigue.
 
 ## API Reference
 
-All routes except `/auth/*` and the Strava webhook endpoint require a valid `fitcoach_token` cookie.
+All routes except `/auth/*` require a valid `fitcoach_token` cookie.
 
 | Method | Path | Description |
 |---|---|---|
@@ -247,12 +245,6 @@ All routes except `/auth/*` and the Strava webhook endpoint require a valid `fit
 | `GET` | `/ai/chat/history` | Chat history |
 | `DELETE` | `/ai/chat/history` | Clear chat history |
 | `POST` | `/ai/weekly-report` | Generate / return this week's report |
-| `GET` | `/strava/connect` | Redirect to Strava OAuth |
-| `GET` | `/strava/callback` | OAuth callback handler |
-| `GET` | `/strava/status` | Connection status |
-| `POST` | `/strava/sync` | Manual activity sync |
-| `DELETE` | `/strava/disconnect` | Remove Strava tokens |
-| `GET/POST` | `/strava/webhook` | Strava webhook (public) |
 | `GET` | `/settings/apikey` | Configured providers |
 | `POST` | `/settings/apikey` | Save encrypted API key |
 | `DELETE` | `/settings/apikey/:provider` | Remove API key |
@@ -273,9 +265,8 @@ pnpm dev
 # Full Docker stack
 docker compose up -d --build
 
-# Strava webhooks locally (requires TS_AUTHTOKEN in .env)
+# With pgAdmin
 docker compose -f docker-compose.yml -f docker-compose.override.yml up -d
-# Public URL: https://fitcoach-dev.<tailnet>.ts.net
 ```
 
 **Other tools:**
@@ -297,7 +288,7 @@ pgAdmin is available at `http://localhost:5050` when running the override compos
 FitCoach is **fully self-hosted** — all activity data, chat history, and credentials live in your local PostgreSQL database. The only external calls are:
 
 - **Anthropic Claude API** — recent activities and chat messages are sent to generate AI responses. [Anthropic privacy policy](https://www.anthropic.com/privacy).
-- **Strava API** — activity data is fetched and stored locally.
+- **Garmin API** — activity data is fetched and stored locally.
 - **PostHog** (optional) — usage analytics only, no health data. EU instance by default.
 
 **To delete all data:** `docker compose down -v`

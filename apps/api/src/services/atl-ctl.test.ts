@@ -7,7 +7,7 @@ function makeActivity(overrides: Partial<Activity> = {}): Activity {
     id: "test-id",
     userId: "user-id",
     externalId: "ext-1",
-    source: "strava",
+    source: "garmin",
     name: null,
     sportType: "run",
     startDate: new Date(),

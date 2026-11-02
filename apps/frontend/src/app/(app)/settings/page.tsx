@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { api } from "@/lib/api"
 import { type Theme, parseTheme, setThemeCookie } from "@/lib/theme"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { CheckCircle, Key, Link2, Link2Off, LogOut, Palette, User } from "lucide-react"
+import { CheckCircle, Key, LogOut, Palette, User } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useCallback, useEffect, useState } from "react"
 
@@ -32,11 +32,6 @@ interface AuthUser {
 }
 interface ApiKeyStatus {
   providers: string[]
-}
-interface StravaStatus {
-  connected: boolean
-  athleteId: number | null
-  lastSynced: string | null
 }
 
 interface Profile {
@@ -83,10 +78,6 @@ export default function SettingsPage() {
     queryKey: ["api-key-status"],
     queryFn: () => api.get("/settings/apikey"),
   })
-  const { data: stravaStatus } = useQuery<StravaStatus>({
-    queryKey: ["strava-status"],
-    queryFn: () => api.get("/strava/status"),
-  })
 
   useEffect(() => {
     if (profile) setProfileForm(profile)
@@ -117,11 +108,6 @@ export default function SettingsPage() {
       qc.invalidateQueries({ queryKey: ["api-key-status"] })
       qc.invalidateQueries({ queryKey: ["recap"] })
     },
-  })
-
-  const disconnectStravaMutation = useMutation({
-    mutationFn: () => api.delete("/strava/disconnect"),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["strava-status"] }),
   })
 
   const logoutMutation = useMutation({
@@ -376,51 +362,6 @@ export default function SettingsPage() {
                 </p>
               )}
             </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Strava */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base font-medium">
-            <Link2 className="h-4 w-4 text-primary" /> Strava
-          </CardTitle>
-          <CardDescription>
-            Connect Strava to import activities automatically via OAuth.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {stravaStatus?.connected ? (
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Badge
-                  variant="outline"
-                  className="border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                >
-                  <CheckCircle className="h-3 w-3 mr-1" /> Connected
-                </Badge>
-                {stravaStatus.athleteId && (
-                  <span className="text-sm text-muted-foreground">
-                    Athlete #{stravaStatus.athleteId}
-                  </span>
-                )}
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => disconnectStravaMutation.mutate()}
-                disabled={disconnectStravaMutation.isPending}
-              >
-                <Link2Off className="h-4 w-4" /> Disconnect
-              </Button>
-            </div>
-          ) : (
-            <Button asChild size="sm">
-              <a href={`${process.env.NEXT_PUBLIC_API_URL}/strava/connect`}>
-                <Link2 className="h-4 w-4" /> Connect Strava
-              </a>
-            </Button>
           )}
         </CardContent>
       </Card>

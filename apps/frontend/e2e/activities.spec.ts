@@ -10,9 +10,8 @@ const MOCK_STREAMS = {
   ],
   hrZones: { zone1: 10, zone2: 30, zone3: 120, zone4: 80, zone5: 20 },
   maxHrUsed: 190,
+  polyline: null,
 }
-
-const MOCK_ACTIVITY_STRAVA = { ...MOCK_ACTIVITY, source: "strava" }
 
 const ACTIVITY_WITH_INSIGHT = {
   ...MOCK_ACTIVITY,
@@ -254,7 +253,7 @@ test.describe("Activity detail page", () => {
   test("shows Indoor badge for trainer activities", async ({ authedPage }) => {
     const indoorActivity = {
       ...MOCK_ACTIVITY,
-      rawData: { ...MOCK_ACTIVITY.rawData, trainer: true, map: null },
+      rawData: { ...MOCK_ACTIVITY.rawData, trainer: true },
     }
     await authedPage.unroute(`${API_BASE}/activities/${MOCK_ACTIVITY.id}`)
     await mockGet(authedPage, `/activities/${MOCK_ACTIVITY.id}`, indoorActivity)
@@ -262,13 +261,17 @@ test.describe("Activity detail page", () => {
     await expect(authedPage.getByText("Indoor")).toBeVisible()
   })
 
+  test("renders map from the streams polyline", async ({ authedPage }) => {
+    await mockGet(authedPage, `/activities/${MOCK_ACTIVITY.id}/streams`, {
+      ...MOCK_STREAMS,
+      polyline: "wkxuHkiiv@A?",
+    })
+    await authedPage.goto(`/activities/${MOCK_ACTIVITY.id}`)
+    await expect(authedPage.locator(".leaflet-container")).toBeVisible()
+  })
+
   test("does not render map when polyline is absent", async ({ authedPage }) => {
-    const noMapActivity = {
-      ...MOCK_ACTIVITY,
-      rawData: { ...MOCK_ACTIVITY.rawData, map: null },
-    }
-    await authedPage.unroute(`${API_BASE}/activities/${MOCK_ACTIVITY.id}`)
-    await mockGet(authedPage, `/activities/${MOCK_ACTIVITY.id}`, noMapActivity)
+    await mockGet(authedPage, `/activities/${MOCK_ACTIVITY.id}/streams`, MOCK_STREAMS)
     await authedPage.goto(`/activities/${MOCK_ACTIVITY.id}`)
     await expect(authedPage.locator(".leaflet-container")).not.toBeVisible()
   })
@@ -402,7 +405,7 @@ test.describe("Activity detail page", () => {
   test.describe("Stream charts", () => {
     test.beforeEach(async ({ authedPage }) => {
       await authedPage.unroute(`${API_BASE}/activities/${MOCK_ACTIVITY.id}`)
-      await mockGet(authedPage, `/activities/${MOCK_ACTIVITY.id}`, MOCK_ACTIVITY_STRAVA)
+      await mockGet(authedPage, `/activities/${MOCK_ACTIVITY.id}`, MOCK_ACTIVITY)
       await mockGet(authedPage, `/activities/${MOCK_ACTIVITY.id}/streams`, MOCK_STREAMS)
     })
 
@@ -433,16 +436,6 @@ test.describe("Activity detail page", () => {
       await authedPage.goto(`/activities/${MOCK_ACTIVITY.id}`)
       // maxHrUsed=190, Z5 lo=0.9 → > 171 bpm
       await expect(authedPage.getByText(/> \d+ bpm/)).toBeVisible()
-    })
-
-    test("does not render stream charts when source is not strava", async ({ authedPage }) => {
-      await authedPage.unroute(`${API_BASE}/activities/${MOCK_ACTIVITY.id}`)
-      await mockGet(authedPage, `/activities/${MOCK_ACTIVITY.id}`, {
-        ...MOCK_ACTIVITY,
-        source: "manual",
-      })
-      await authedPage.goto(`/activities/${MOCK_ACTIVITY.id}`)
-      await expect(authedPage.getByText("Heart Rate Zones")).not.toBeVisible()
     })
   })
 })

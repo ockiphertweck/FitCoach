@@ -19,7 +19,7 @@ export const ActivitySchema = z.object({
   id: z.string().uuid(),
   userId: z.string().uuid(),
   externalId: z.string(),
-  source: z.string().default("strava"),
+  source: z.string().default("garmin"),
   name: z.string().nullable(),
   sportType: z.string(),
   startDate: z.coerce.date(),
@@ -125,20 +125,6 @@ export const ApiKeyBodySchema = z.object({
   key: z.string().min(1),
 })
 export type ApiKeyBody = z.infer<typeof ApiKeyBodySchema>
-
-// ─── Strava ───────────────────────────────────────────────────────────────────
-
-export const StravaStatusSchema = z.object({
-  connected: z.boolean(),
-  athleteId: z.number().nullable(),
-  lastSynced: z.coerce.date().nullable(),
-})
-export type StravaStatus = z.infer<typeof StravaStatusSchema>
-
-export const StravaSyncResultSchema = z.object({
-  synced: z.number().int(),
-})
-export type StravaSyncResult = z.infer<typeof StravaSyncResultSchema>
 
 // ─── API Responses ────────────────────────────────────────────────────────────
 

@@ -1,13 +1,5 @@
 import { API_BASE, expect, mockGet, mockPost, mockStream, test } from "./fixtures"
 
-const STRAVA_CONNECTED = {
-  connected: true,
-  athleteId: 12345678,
-  lastSynced: "2026-04-01T07:00:00.000Z",
-}
-
-const STRAVA_DISCONNECTED = { connected: false, athleteId: null, lastSynced: null }
-
 const PROFILE_FULL = {
   sex: "male",
   weightKg: 72.5,
@@ -26,7 +18,6 @@ const PROFILE_EMPTY = {
 
 test.describe("Settings", () => {
   test.beforeEach(async ({ authedPage }) => {
-    await mockGet(authedPage, "/strava/status", STRAVA_DISCONNECTED)
     await mockGet(authedPage, "/settings/apikey", { providers: [] })
     await mockGet(authedPage, "/settings/profile", PROFILE_EMPTY)
   })
@@ -35,52 +26,8 @@ test.describe("Settings", () => {
     test("renders all settings sections", async ({ authedPage }) => {
       await authedPage.goto("/settings")
       // Use heading roles to avoid strict mode violations
-      await expect(authedPage.getByRole("heading", { name: "Strava" })).toBeVisible()
       await expect(authedPage.getByRole("heading", { name: "Claude API Key" })).toBeVisible()
       await expect(authedPage.getByRole("heading", { name: "Athlete Profile" })).toBeVisible()
-    })
-  })
-
-  test.describe("Strava connection", () => {
-    test("shows Connect Strava button when not connected", async ({ authedPage }) => {
-      await authedPage.goto("/settings")
-      await expect(authedPage.getByRole("link", { name: /Connect Strava/i })).toBeVisible()
-    })
-
-    test("shows connected state with athlete ID", async ({ authedPage }) => {
-      await authedPage.unroute(`${API_BASE}/strava/status`)
-      await mockGet(authedPage, "/strava/status", STRAVA_CONNECTED)
-      await authedPage.goto("/settings")
-      await expect(authedPage.getByText("Athlete #12345678")).toBeVisible()
-    })
-
-    test("shows disconnect button when connected", async ({ authedPage }) => {
-      await authedPage.unroute(`${API_BASE}/strava/status`)
-      await mockGet(authedPage, "/strava/status", STRAVA_CONNECTED)
-      await authedPage.goto("/settings")
-      await expect(authedPage.getByRole("button", { name: /Disconnect/i })).toBeVisible()
-    })
-
-    test("disconnect calls DELETE /strava/disconnect", async ({ authedPage }) => {
-      await authedPage.unroute(`${API_BASE}/strava/status`)
-      await mockGet(authedPage, "/strava/status", STRAVA_CONNECTED)
-      let disconnectCalled = false
-      await authedPage.route(`${API_BASE}/strava/disconnect`, (route) => {
-        if (route.request().method() === "DELETE") {
-          disconnectCalled = true
-          route.fulfill({
-            status: 200,
-            contentType: "application/json",
-            body: JSON.stringify({ ok: true }),
-          })
-        } else {
-          route.continue()
-        }
-      })
-      await authedPage.goto("/settings")
-      await authedPage.getByRole("button", { name: /Disconnect/i }).click()
-      await authedPage.waitForTimeout(300)
-      expect(disconnectCalled).toBe(true)
     })
   })
 
@@ -254,26 +201,6 @@ test.describe("Settings", () => {
       await authedPage.waitForTimeout(400)
       // The page doesn't display error text, but the "Saved" success indicator should not appear
       await expect(authedPage.getByText("Saved")).not.toBeVisible()
-    })
-  })
-
-  test.describe("Strava callback handling", () => {
-    test("shows Connected badge after Strava connects (?strava=connected)", async ({
-      authedPage,
-    }) => {
-      await authedPage.unroute(`${API_BASE}/strava/status`)
-      await mockGet(authedPage, "/strava/status", STRAVA_CONNECTED)
-      await authedPage.goto("/settings?strava=connected")
-      // The Connected badge in the Strava section is visible
-      await expect(authedPage.getByText("Connected")).toBeVisible()
-    })
-
-    test("still shows Connect button after Strava auth fails (?strava=error)", async ({
-      authedPage,
-    }) => {
-      // The settings page doesn't parse the error param — Strava stays disconnected
-      await authedPage.goto("/settings?strava=error")
-      await expect(authedPage.getByRole("link", { name: /Connect Strava/i })).toBeVisible()
     })
   })
 })

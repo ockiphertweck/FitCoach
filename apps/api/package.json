@@ -10,6 +10,7 @@
     "dev": "NODE_OPTIONS=--no-deprecation tsx watch src/index.ts",
     "build": "tsup src/index.ts --format esm --out-dir dist",
     "test": "vitest run",
+    "purge-legacy-data": "tsx scripts/purge-legacy-data.ts",
     "garmin:probe": "tsx scripts/garmin-probe.ts",
     "test:coverage": "vitest run --coverage",
     "db:generate": "drizzle-kit generate",

@@ -2,10 +2,9 @@ import { and, asc, count, desc, eq, gte, lte } from "drizzle-orm"
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod"
 import { z } from "zod"
 import { db } from "../db/index.js"
-import { activities, userProfiles } from "../db/schema.js"
+import { activities } from "../db/schema.js"
 import { authMiddleware } from "../middleware/auth.js"
 import { calculateTrainingLoad } from "../services/atl-ctl.js"
-import { getActivityStreams, getFreshAccessToken } from "../services/strava-client.js"
 
 const activitiesRoutes: FastifyPluginAsyncZod = async (fastify) => {
   fastify.addHook("preHandler", authMiddleware)
@@ -119,6 +118,7 @@ const activitiesRoutes: FastifyPluginAsyncZod = async (fastify) => {
             points: z.array(streamPoint),
             hrZones: hrZonesSchema.nullable(),
             maxHrUsed: z.number().nullable(),
+            polyline: z.string().nullable(),
           }),
           404: z.object({ error: z.string() }),
         },
@@ -134,24 +134,8 @@ const activitiesRoutes: FastifyPluginAsyncZod = async (fastify) => {
         .limit(1)
 
       if (!activity) return reply.code(404).send({ error: "Activity not found" })
-      if (activity.source !== "strava") {
-        return reply.code(404).send({ error: "Streams only available for Strava activities" })
-      }
-
-      // Return stored stream data if available (populated during sync)
-      if (activity.streamData) {
-        return activity.streamData
-      }
-
-      // Fall back to live Strava fetch
-      const [profile] = await db
-        .select({ maxHeartRate: userProfiles.maxHeartRate })
-        .from(userProfiles)
-        .where(eq(userProfiles.userId, userId))
-        .limit(1)
-
-      const token = await getFreshAccessToken(userId, db)
-      return await getActivityStreams(token, activity.externalId, profile?.maxHeartRate ?? null)
+      const stored = (activity.streamData ?? {}) as Record<string, unknown>
+      return { points: [], hrZones: null, maxHrUsed: null, polyline: null, ...stored }
     }
   )
 }
