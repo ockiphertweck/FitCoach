@@ -1,5 +1,5 @@
 // Inputs Task 4 (sync) must feed into mapWellnessDay, one day each:
-//  parts.sleep       = sleep-service dailySleep response for the date (flat, epoch-ms sleep*TimestampGMT)
+//  parts.sleep       = the element of sleep-service dailySleepSummariesByDate for the date (same flat shape as dailySleep)
 //  parts.hrv         = one element of hrv-service hrv/daily `hrvSummaries` (flat; one range call covers many days)
 //  parts.bodyBattery = the element of wellness-service bodyBattery/reports/daily for the date
 //  parts.stress      = the element of usersummary-service stats/stress/daily for the date (fallback for summary.stress)

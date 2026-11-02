@@ -215,6 +215,29 @@ describe("runGarminSync", () => {
     warn.mockRestore()
   })
 
+  it("initial import fetches sleep per range, not per day (avoids Garmin 429)", async () => {
+    const day = new Date().toISOString().slice(0, 10)
+    const paths: string[] = []
+    getMock.mockImplementation(async (path: string) => {
+      paths.push(path)
+      if (path.includes("activities/search")) return []
+      if (path.includes("hrv/daily")) return { hrvSummaries: [] }
+      if (path.includes("dailySleepSummariesByDate"))
+        return [
+          { calendarDate: day, sleepTimeSeconds: 25200, sleepScores: { overall: { value: 81 } } },
+        ]
+      return []
+    })
+    const { db, ops } = makeDb([keyRow, [{ lastSyncedAt: null }]])
+    await runGarminSync(db, "u1", { initial: true })
+    expect(paths.filter((p) => p.endsWith("/dailySleep"))).toEqual([])
+    expect(paths.length).toBeLessThan(40)
+    const today = ops.find(
+      (o) => o.table === "daily_wellness" && (o.values as { date?: string })?.date === day
+    )
+    expect(today?.values).toMatchObject({ sleepScore: 81, sleepSeconds: 25200 })
+  })
+
   const emptyDay = () =>
     getMock.mockImplementation(async (path: string) => (path.includes("dailySleep") ? {} : []))
 

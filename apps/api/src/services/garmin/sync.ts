@@ -156,9 +156,15 @@ async function syncWellness(
   const battery = new Map<string, unknown>()
   const stress = new Map<string, unknown>()
   const summary = new Map<string, unknown>()
-  // Sequential on purpose: no parallel bursts against Garmin.
+  const sleep = new Map<string, unknown>()
+  // Sequential on purpose: no parallel bursts against Garmin. Range calls only — one call per day
+  // (dailySleep) hit Garmin's 429 during the 90-day import.
   for (const [a, b] of dateChunks(from, to, CHUNK_DAYS)) {
     const range = { startDate: a, endDate: b }
+    const sl = await noData(
+      client.get<unknown>("/sleep-service/sleep/dailySleepSummariesByDate", range)
+    )
+    for (const [k, v] of byDate(sl, "calendarDate")) sleep.set(k, v)
     const h = await noData(
       client.get<{ hrvSummaries?: unknown }>(`/hrv-service/hrv/daily/${a}/${b}`)
     )
@@ -177,11 +183,10 @@ async function syncWellness(
     for (const [k, v] of byDate(su?.data, "calendarDate")) summary.set(k, v)
   }
   for (const [a] of dateChunks(from, to, 1)) {
-    const sleep = await noData(client.get<unknown>("/sleep-service/sleep/dailySleep", { date: a }))
     let row: ReturnType<typeof mapWellnessDay>
     try {
       row = mapWellnessDay(a, {
-        sleep,
+        sleep: sleep.get(a),
         hrv: hrv.get(a),
         bodyBattery: battery.get(a),
         stress: stress.get(a),
