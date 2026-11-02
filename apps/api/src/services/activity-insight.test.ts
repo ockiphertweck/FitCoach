@@ -1,7 +1,8 @@
-import { describe, expect, it } from "vitest"
+import type { Anthropic } from "@posthog/ai"
+import { describe, expect, it, vi } from "vitest"
 import type { Activity } from "../db/schema.js"
 import { buildActivityInsightPrompt } from "../prompts/activity-insight.js"
-import { computeInsightHash } from "./activity-insight.js"
+import { computeInsightHash, generateActivityInsight } from "./activity-insight.js"
 
 const act = (rawData: Record<string, unknown>) =>
   ({ sportType: "Ride", startDate: new Date("2026-01-01"), rawData }) as unknown as Activity
@@ -38,5 +39,14 @@ describe("buildActivityInsightPrompt (Garmin fields)", () => {
     expect(p).not.toContain("Power")
     expect(p).not.toContain("Training Effect")
     expect(p).not.toContain("[object Object]")
+  })
+})
+
+describe("generateActivityInsight language", () => {
+  it("passes the language instruction in the system prompt", async () => {
+    const create = vi.fn().mockResolvedValue({ content: [{ type: "text", text: "ok" }] })
+    const mock = { messages: { create } } as unknown as Anthropic
+    await generateActivityInsight(mock, act({}), null, "u1", "de")
+    expect(create.mock.calls[0][0].system.endsWith("Antworte immer auf Deutsch.")).toBe(true)
   })
 })

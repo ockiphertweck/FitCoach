@@ -1,8 +1,9 @@
 import { createHash } from "node:crypto"
+import type { Lang } from "@fitcoach/shared"
 import type { Anthropic } from "@posthog/ai"
 import type { Activity, UserProfile } from "../db/schema.js"
 import { buildActivityInsightPrompt } from "../prompts/activity-insight.js"
-import { SYSTEM_PROMPT } from "../prompts/system.js"
+import { SYSTEM_PROMPT, withLanguage } from "../prompts/system.js"
 
 type RawData = Record<string, unknown>
 
@@ -35,12 +36,13 @@ export async function generateActivityInsight(
   anthropic: Anthropic,
   activity: Activity,
   profile: UserProfile | null = null,
-  userId?: string
+  userId?: string,
+  lang: Lang = "en"
 ): Promise<string> {
   const response = await anthropic.messages.create({
     model: "claude-sonnet-4-6",
     max_tokens: 512,
-    system: SYSTEM_PROMPT,
+    system: withLanguage(SYSTEM_PROMPT, lang),
     messages: [{ role: "user", content: buildActivityInsightPrompt(activity, profile) }],
     ...(userId && { posthogDistinctId: userId }),
   })

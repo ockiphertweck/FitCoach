@@ -1,3 +1,4 @@
+import { LangSchema } from "@fitcoach/shared"
 import { and, asc, desc, eq, gte, lte } from "drizzle-orm"
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod"
 import { z } from "zod"
@@ -7,7 +8,7 @@ import { env } from "../env.js"
 import { authMiddleware } from "../middleware/auth.js"
 import { buildChatMessages, buildChatSystemPrompt } from "../prompts/chat.js"
 import { buildRecapRequest, buildRecommendationPrompt } from "../prompts/recommendation.js"
-import { SYSTEM_PROMPT } from "../prompts/system.js"
+import { SYSTEM_PROMPT, withLanguage } from "../prompts/system.js"
 import { buildWeeklyReportPrompt } from "../prompts/weekly-report.js"
 import { computeInsightHash, generateActivityInsight } from "../services/activity-insight.js"
 import { hasAnthropicKey, requireAnthropicClient } from "../services/anthropic-client.js"
@@ -153,10 +154,10 @@ const aiRoutes: FastifyPluginAsyncZod = async (fastify) => {
 
   fastify.post(
     "/ai/recommendation",
-    { schema: { body: recapDateSchema } },
+    { schema: { body: recapDateSchema.extend({ lang: LangSchema.default("en") }) } },
     async (request, reply) => {
       const userId = request.user.sub
-      const { date } = request.body
+      const { date, lang } = request.body
       const anthropic = await requireAnthropicClient(userId)
       // Hash before calling Claude so it reflects the data the prompt is built from.
       const inputs = await loadRecapInputs(db, userId, date)
@@ -176,7 +177,7 @@ const aiRoutes: FastifyPluginAsyncZod = async (fastify) => {
 
       try {
         const stream = await anthropic.messages.create({
-          ...buildRecapRequest(userMessage),
+          ...buildRecapRequest(userMessage, lang),
           stream: true,
           posthogDistinctId: userId,
         })
@@ -214,13 +215,14 @@ const aiRoutes: FastifyPluginAsyncZod = async (fastify) => {
         body: z.object({
           message: z.string().min(1).max(4000),
           sessionId: z.string().uuid(),
+          lang: LangSchema.default("en"),
         }),
         response: { 404: notFound },
       },
     },
     async (request, reply) => {
       const userId = request.user.sub
-      const { message, sessionId } = request.body
+      const { message, sessionId, lang } = request.body
       fastify.log.info(
         { userId, sessionId, messageLength: message.length },
         "chat: building prompt"
@@ -269,7 +271,7 @@ const aiRoutes: FastifyPluginAsyncZod = async (fastify) => {
         const stream = await anthropic.messages.create({
           model: "claude-sonnet-4-6",
           max_tokens: 2048,
-          system: systemPrompt,
+          system: withLanguage(systemPrompt, lang),
           messages,
           stream: true,
           posthogDistinctId: userId,
@@ -310,7 +312,7 @@ const aiRoutes: FastifyPluginAsyncZod = async (fastify) => {
                 messages: [
                   {
                     role: "user",
-                    content: `User asked: "${message.slice(0, 300)}"\n\nReply in 3–5 words max with a short chat title. No punctuation. No quotes. Examples: "Zone 2 training plan", "Race week recovery", "Improve FTP cycling"`,
+                    content: `User asked: "${message.slice(0, 300)}"\n\nReply in 3–5 words max with a short chat title. No punctuation. No quotes. Examples: "Zone 2 training plan", "Race week recovery", "Improve FTP cycling" Write the title in ${lang === "de" ? "German" : "English"}.`,
                   },
                 ],
                 posthogDistinctId: userId,
@@ -385,13 +387,13 @@ const aiRoutes: FastifyPluginAsyncZod = async (fastify) => {
     "/ai/activity-insight",
     {
       schema: {
-        body: z.object({ activityId: z.string().uuid() }),
+        body: z.object({ activityId: z.string().uuid(), lang: LangSchema.default("en") }),
         response: { 200: z.object({ insight: z.string() }), 404: notFound },
       },
     },
     async (request, reply) => {
       const userId = request.user.sub
-      const { activityId } = request.body
+      const { activityId, lang } = request.body
       const anthropic = await requireAnthropicClient(userId)
 
       const [[activity], profileRows] = await Promise.all([
@@ -417,7 +419,7 @@ const aiRoutes: FastifyPluginAsyncZod = async (fastify) => {
         "activity-insight: generating"
       )
       const newHash = computeInsightHash(activity)
-      const insight = await generateActivityInsight(anthropic, activity, profile, userId)
+      const insight = await generateActivityInsight(anthropic, activity, profile, userId, lang)
 
       await db
         .update(activities)
@@ -430,91 +432,98 @@ const aiRoutes: FastifyPluginAsyncZod = async (fastify) => {
 
   // ─── Weekly Report ────────────────────────────────────────────────────────
 
-  fastify.post("/ai/weekly-report", { schema: {} }, async (request, _reply) => {
-    const userId = request.user.sub
-    const anthropic = await requireAnthropicClient(userId)
+  fastify.post(
+    "/ai/weekly-report",
+    { schema: { body: z.object({ lang: LangSchema.default("en") }).default({}) } },
+    async (request, _reply) => {
+      const { lang } = request.body
+      const userId = request.user.sub
+      const anthropic = await requireAnthropicClient(userId)
 
-    const now = new Date()
-    const daysToMonday = now.getDay() === 0 ? 6 : now.getDay() - 1
-    const weekStart = new Date(now)
-    weekStart.setDate(now.getDate() - daysToMonday)
-    weekStart.setHours(0, 0, 0, 0)
+      const now = new Date()
+      const daysToMonday = now.getDay() === 0 ? 6 : now.getDay() - 1
+      const weekStart = new Date(now)
+      weekStart.setDate(now.getDate() - daysToMonday)
+      weekStart.setHours(0, 0, 0, 0)
 
-    const weekEnd = new Date(weekStart)
-    weekEnd.setDate(weekStart.getDate() + 7)
+      const weekEnd = new Date(weekStart)
+      weekEnd.setDate(weekStart.getDate() + 7)
 
-    const [weekActivities, allActivities, profileRows] = await Promise.all([
-      db
-        .select()
-        .from(activities)
-        .where(
-          and(
-            eq(activities.userId, userId),
-            gte(activities.startDate, weekStart),
-            lte(activities.startDate, weekEnd)
+      const [weekActivities, allActivities, profileRows] = await Promise.all([
+        db
+          .select()
+          .from(activities)
+          .where(
+            and(
+              eq(activities.userId, userId),
+              gte(activities.startDate, weekStart),
+              lte(activities.startDate, weekEnd)
+            )
           )
-        )
-        .orderBy(asc(activities.startDate)),
-      db.select().from(activities).where(eq(activities.userId, userId)),
-      db.select().from(userProfiles).where(eq(userProfiles.userId, userId)).limit(1),
-    ])
+          .orderBy(asc(activities.startDate)),
+        db.select().from(activities).where(eq(activities.userId, userId)),
+        db.select().from(userProfiles).where(eq(userProfiles.userId, userId)).limit(1),
+      ])
 
-    const totalDistance = weekActivities.reduce((s, a) => s + (a.distanceMeters ?? 0), 0)
-    const totalDuration = weekActivities.reduce((s, a) => s + (a.durationSeconds ?? 0), 0)
-    const hrValues = weekActivities.map((a) => a.averageHeartRate).filter(Boolean) as number[]
-    const avgHR =
-      hrValues.length > 0 ? Math.round(hrValues.reduce((a, b) => a + b, 0) / hrValues.length) : null
+      const totalDistance = weekActivities.reduce((s, a) => s + (a.distanceMeters ?? 0), 0)
+      const totalDuration = weekActivities.reduce((s, a) => s + (a.durationSeconds ?? 0), 0)
+      const hrValues = weekActivities.map((a) => a.averageHeartRate).filter(Boolean) as number[]
+      const avgHR =
+        hrValues.length > 0
+          ? Math.round(hrValues.reduce((a, b) => a + b, 0) / hrValues.length)
+          : null
 
-    const load = calculateTrainingLoad(allActivities)
-    const profile = profileRows[0] ?? null
+      const load = calculateTrainingLoad(allActivities)
+      const profile = profileRows[0] ?? null
 
-    const metrics = {
-      totalDistance,
-      totalDuration,
-      avgHR,
-      sessions: weekActivities.length,
-      atl: load.atl,
-      ctl: load.ctl,
-    }
+      const metrics = {
+        totalDistance,
+        totalDuration,
+        avgHR,
+        sessions: weekActivities.length,
+        atl: load.atl,
+        ctl: load.ctl,
+      }
 
-    const prompt = buildWeeklyReportPrompt({
-      weekStart,
-      weekActivities,
-      totalDistance,
-      totalDuration,
-      avgHR,
-      atl: load.atl,
-      ctl: load.ctl,
-      tsb: load.tsb,
-      profile,
-    })
-
-    const response = await anthropic.messages.create({
-      model: "claude-sonnet-4-6",
-      max_tokens: 1024,
-      system: SYSTEM_PROMPT,
-      messages: [{ role: "user", content: prompt }],
-      posthogDistinctId: userId,
-    })
-
-    const summary =
-      "content" in response && response.content[0]?.type === "text"
-        ? response.content[0].text
-        : "Unable to generate summary."
-
-    const weekStartStr = weekStart.toISOString().slice(0, 10)
-
-    const [report] = await db
-      .insert(weeklyReports)
-      .values({ userId, weekStart: weekStartStr, summary, metrics })
-      .onConflictDoUpdate({
-        target: [weeklyReports.userId, weeklyReports.weekStart],
-        set: { summary, metrics, generatedAt: new Date() },
+      const prompt = buildWeeklyReportPrompt({
+        weekStart,
+        weekActivities,
+        totalDistance,
+        totalDuration,
+        avgHR,
+        atl: load.atl,
+        ctl: load.ctl,
+        tsb: load.tsb,
+        profile,
       })
-      .returning()
 
-    return report
-  })
+      const response = await anthropic.messages.create({
+        model: "claude-sonnet-4-6",
+        max_tokens: 1024,
+        system: withLanguage(SYSTEM_PROMPT, lang),
+        messages: [{ role: "user", content: prompt }],
+        posthogDistinctId: userId,
+      })
+
+      const summary =
+        "content" in response && response.content[0]?.type === "text"
+          ? response.content[0].text
+          : "Unable to generate summary."
+
+      const weekStartStr = weekStart.toISOString().slice(0, 10)
+
+      const [report] = await db
+        .insert(weeklyReports)
+        .values({ userId, weekStart: weekStartStr, summary, metrics })
+        .onConflictDoUpdate({
+          target: [weeklyReports.userId, weeklyReports.weekStart],
+          set: { summary, metrics, generatedAt: new Date() },
+        })
+        .returning()
+
+      return report
+    }
+  )
 }
 
 export default aiRoutes

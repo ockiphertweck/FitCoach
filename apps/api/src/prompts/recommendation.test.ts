@@ -10,6 +10,7 @@ import {
   buildRecommendationPrompt,
   formatActivityLine,
 } from "./recommendation.js"
+import { withLanguage } from "./system.js"
 
 const w: RecapWellness = {
   date: "2024-03-02",
@@ -28,15 +29,30 @@ const w: RecapWellness = {
 
 describe("buildRecapRequest", () => {
   it("is short and uses the German recap system prompt", () => {
-    const r = buildRecapRequest("x")
+    const r = buildRecapRequest("x", "de")
     expect(r.max_tokens).toBe(300)
-    expect(r.system).toBe(RECAP_SYSTEM_PROMPT)
+    expect(r.system).toBe(RECAP_SYSTEM_PROMPT.de)
     expect(r.model).toBe("claude-sonnet-4-6")
     expect(r.messages).toEqual([{ role: "user", content: "x" }])
   })
+  it("uses the English recap prompt for en", () => {
+    const r = buildRecapRequest("x", "en")
+    expect(r.max_tokens).toBe(300)
+    expect(r.system).toContain("in English")
+    expect(r.system).toContain("Easy day")
+  })
   it("system prompt fixes the output format", () => {
-    expect(RECAP_SYSTEM_PROMPT).toContain("###")
-    expect(RECAP_SYSTEM_PROMPT).toContain("→")
+    for (const p of Object.values(RECAP_SYSTEM_PROMPT)) {
+      expect(p).toContain("###")
+      expect(p).toContain("→")
+    }
+  })
+})
+
+describe("withLanguage", () => {
+  it("appends the language instruction", () => {
+    expect(withLanguage("S", "de")).toBe("S\n\nAntworte immer auf Deutsch.")
+    expect(withLanguage("S", "en")).toBe("S\n\nAlways answer in English.")
   })
 })
 
