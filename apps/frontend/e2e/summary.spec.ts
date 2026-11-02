@@ -343,9 +343,17 @@ test.describe("Summary", () => {
       await mockGarmin(authedPage, { status: { ...STATUS_OK, status: "importing" } })
       await mockGet(authedPage, /\/ai\/recommendation\?date=/, { hasKey: true, recap: null })
       await authedPage.goto("/")
+      let recapGets = 0
+      authedPage.on("request", (r) => {
+        if (r.url().includes("/ai/recommendation?date=")) recapGets++
+      })
       await expect(authedPage.getByText("Waiting for Garmin import…")).toBeVisible()
+      await expect(authedPage.getByText("Importing from Garmin…")).toBeVisible()
+      await expect(authedPage.getByTestId("recovery-skeleton")).toBeVisible()
+      await expect(authedPage.getByText("No data")).toHaveCount(0)
       await authedPage.waitForTimeout(500)
       pwExpect(posts).toHaveLength(0)
+      pwExpect(recapGets).toBe(0)
     })
 
     test("sync completes before recap GET; one sync POST and one recap POST", async ({

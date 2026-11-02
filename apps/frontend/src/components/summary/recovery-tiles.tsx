@@ -105,16 +105,31 @@ function Spark({ values, className }: { values: number[]; className: string }) {
 export function RecoveryTiles({
   data,
   loading,
-}: { data: WellnessData | undefined; loading: boolean }) {
-  const t = loading ? null : (data?.today ?? null)
+  importing = false,
+}: { data: WellnessData | undefined; loading: boolean; importing?: boolean }) {
+  if (loading || importing)
+    return (
+      <div>
+        {importing && <p className="pb-2 text-sm text-muted-foreground">Importing from Garmin…</p>}
+        <div
+          data-testid="recovery-skeleton"
+          className="grid grid-cols-2 gap-3 lg:grid-cols-[repeat(5,minmax(0,1fr))]"
+        >
+          {["a", "b", "c", "d", "e"].map((k) => (
+            <Card key={k} className="h-[120px] animate-pulse" />
+          ))}
+        </div>
+      </div>
+    )
+  const t = data?.today ?? null
   const hrv = (data?.days ?? []).flatMap((d) => (d.hrvLastNight === null ? [] : [d.hrvLastNight]))
   const stages = (
     t
       ? [
-          { n: t.deepSleepSeconds ?? 0, className: "bg-[#3634a3]" },
-          { n: t.remSleepSeconds ?? 0, className: "bg-[#5ac8fa]" },
-          { n: t.lightSleepSeconds ?? 0, className: "bg-[#a5a3f5]" },
-          { n: t.awakeSeconds ?? 0, className: "bg-[#ff9f0a]" },
+          { n: t.deepSleepSeconds ?? 0, className: "bg-stage-deep" },
+          { n: t.remSleepSeconds ?? 0, className: "bg-stage-rem" },
+          { n: t.lightSleepSeconds ?? 0, className: "bg-stage-light" },
+          { n: t.awakeSeconds ?? 0, className: "bg-stage-awake" },
         ]
       : []
   ).filter((s) => s.n > 0)

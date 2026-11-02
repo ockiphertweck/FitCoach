@@ -11,7 +11,9 @@ import { api } from "@/lib/api"
 import { syncNow, useGarminSync } from "@/lib/garmin"
 import { localDate } from "@/lib/utils"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { RefreshCw } from "lucide-react"
 import Link from "next/link"
+import { useState } from "react"
 
 interface TrainingLoad {
   atl: number
@@ -35,6 +37,8 @@ export default function Summary() {
     queryFn: () => api.get(`/wellness?date=${date}`),
     enabled: settled && connected,
   })
+  const importing = status?.status === "importing"
+  const [syncing, setSyncing] = useState(false)
   const busy = status?.status === "importing" || status?.status === "syncing"
   const { data: stats } = useQuery<TrainingLoad>({
     queryKey: ["stats"],
@@ -55,7 +59,7 @@ export default function Summary() {
         </Link>
       ) : (
         <>
-          {status?.lastError && (
+          {status?.lastError && GARMIN_ERRORS[status.lastError] && (
             <p className="text-sm text-destructive">
               {GARMIN_ERRORS[status.lastError]}
               {status.lastError === "key_invalid" && (
@@ -68,13 +72,20 @@ export default function Summary() {
               )}
             </p>
           )}
-          <RecoveryTiles data={wellness} loading={!settled || wellnessLoading} />
+          <RecoveryTiles
+            data={wellness}
+            loading={!settled || wellnessLoading}
+            importing={importing}
+          />
         </>
       )}
 
       <div className="grid gap-3 lg:grid-cols-[2fr_1fr]">
         <div data-testid="main-col" className="space-y-3">
-          <CoachTile enabled={settled && status?.status !== "importing"} />
+          <CoachTile
+            enabled={settled && !!status && status.status !== "importing"}
+            importing={importing}
+          />
           <Card>
             <div className="flex items-center justify-between pb-1">
               <h2 className="font-semibold">Recent</h2>
@@ -109,10 +120,14 @@ export default function Summary() {
           </Card>
           <button
             type="button"
-            disabled={!settled || busy}
-            onClick={() => void syncNow(qc)}
-            className="w-full rounded-full bg-card px-4 py-2 text-sm font-semibold disabled:opacity-50"
+            disabled={!settled || busy || syncing}
+            onClick={() => {
+              setSyncing(true)
+              void syncNow(qc).finally(() => setSyncing(false))
+            }}
+            className="flex w-full items-center justify-center gap-2 rounded-full bg-card px-4 py-2 text-sm font-semibold disabled:opacity-50"
           >
+            {syncing && <RefreshCw className="h-4 w-4 animate-spin" />}
             Sync now
           </button>
         </div>

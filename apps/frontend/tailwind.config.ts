@@ -29,6 +29,12 @@ const config: Config = {
           stress: "hsl(var(--metric-stress))",
           calories: "hsl(var(--metric-calories))",
         },
+        stage: {
+          deep: "hsl(var(--stage-deep))",
+          rem: "hsl(var(--stage-rem))",
+          light: "hsl(var(--stage-light))",
+          awake: "hsl(var(--stage-awake))",
+        },
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",

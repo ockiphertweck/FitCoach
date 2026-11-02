@@ -33,6 +33,10 @@
     --metric-battery: 176 100% 33%; /* #00a69c */
     --metric-stress: 16 100% 60%; /* #ff6b35 */
     --metric-calories: 345 100% 59%; /* #ff2d55 */
+    --stage-deep: 241 51% 42%;
+    --stage-rem: 199 94% 67%;
+    --stage-light: 241 85% 80%;
+    --stage-awake: 35 100% 52%;
     --chart-distance: 175 70% 38%;
     --chart-duration: 239 84% 60%;
     --chart-hr: 340 82% 52%;
@@ -67,6 +71,10 @@
     --metric-battery: 176 80% 42%;
     --metric-stress: 16 100% 65%;
     --metric-calories: 345 100% 66%;
+    --stage-deep: 241 55% 55%;
+    --stage-rem: 199 80% 60%;
+    --stage-light: 241 60% 75%;
+    --stage-awake: 35 100% 58%;
     --chart-distance: 175 65% 50%;
     --chart-duration: 239 90% 74%;
     --chart-hr: 340 85% 64%;

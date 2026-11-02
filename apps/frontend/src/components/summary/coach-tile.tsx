@@ -24,7 +24,10 @@ const autoStarted = new Set<string>()
 const MAX_AUTO_STREAMS = 2
 const autoStreams = new Map<string, number>()
 
-export function CoachTile({ enabled }: { enabled: boolean }) {
+export function CoachTile({
+  enabled,
+  importing = false,
+}: { enabled: boolean; importing?: boolean }) {
   const qc = useQueryClient()
   const date = localDate()
   const [streamed, setStreamed] = useState("")
@@ -146,7 +149,13 @@ export function CoachTile({ enabled }: { enabled: boolean }) {
           </div>
         ) : (
           <p className="text-muted-foreground">
-            {!enabled ? "Waiting for Garmin import…" : data ? "Writing your recap…" : "Loading…"}
+            {!enabled
+              ? importing
+                ? "Waiting for Garmin import…"
+                : "Syncing…"
+              : data
+                ? "Writing your recap…"
+                : "Loading…"}
           </p>
         )}
       </div>
