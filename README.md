@@ -6,7 +6,7 @@
 
 **Self-hosted AI training coach powered by Garmin and Claude.**
 
-FitCoach connects to your Garmin account, computes training load metrics (ATL/CTL/TSB), and uses the Anthropic Claude API to deliver personalised coaching — a daily recap, an interactive chat, and weekly reports. Everything runs on your own hardware. Your data never leaves your server.
+FitCoach connects to your Garmin account, computes training load metrics (ATL/CTL/TSB), and uses the Anthropic Claude API to deliver personalised coaching — a daily recap, an interactive chat, and weekly reports. Everything runs on your own hardware: your data is stored in your own database, and only the context needed for a coaching answer is sent to the Claude API (see [Data Privacy](#data-privacy)).
 
 > A self-hosted alternative to TrainingPeaks AI features — no subscription, no vendor lock-in, bring your own Claude API key.
 
@@ -14,12 +14,12 @@ FitCoach connects to your Garmin account, computes training load metrics (ATL/CT
 
 ## Features
 
-- **Daily recap** — a "train or rest today?" recap that loads automatically on the Summary screen, streamed from Claude, and refreshes when your training data changes (new activity, profile edit)
+- **Daily recap** — a "train or rest today?" recap that loads automatically on the Home screen, streamed from Claude, and refreshes when your training data changes (new activity, profile edit)
 - **AI Coach chat** — persistent multi-turn conversation with Claude, aware of your activity history and athlete profile
 - **Weekly reports** — AI-generated summary with distance, duration, HR, ATL/CTL, and coaching notes
 - **Trends** — interactive weekly trend charts for distance, duration, and heart rate
 - **Training load** — ATL / CTL / TSB computed from TRIMP (same methodology as TrainingPeaks)
-- **Garmin data source** — activities, sleep, HRV, Body Battery, stress and calories via the Garmin Personal API, pulled automatically when you open the Summary
+- **Garmin data source** — activities, sleep, HRV, Body Battery, stress and calories via the Garmin Personal API, pulled automatically when you open Home
 - **Athlete profile** — weight, height, max HR, FTP, sex — passed to Claude for personalised advice
 - **BYOK** — Claude API key stored AES-256-GCM encrypted; set it in Settings without redeploying
 - **Appearance** — light, dark or system theme
@@ -29,31 +29,66 @@ FitCoach connects to your Garmin account, computes training load metrics (ATL/CT
 
 ## Screenshots
 
-| Dashboard | Coach |
+| Home | Coach |
 |---|---|
-| ![Dashboard](screenshots/dashboard.png) | ![Coach](screenshots/coach.png) |
+| ![Home](screenshots/home.png) | ![Coach](screenshots/coach.png) |
 
 | Trends | Settings |
 |---|---|
-| ![Trends](screenshots/analytics.png) | ![Settings](screenshots/settings.png) |
+| ![Trends](screenshots/trends.png) | ![Settings](screenshots/settings.png) |
 
 ---
 
-## Quick Start
+## Getting Started
 
-**Prerequisites:** Docker, pnpm ≥ 9, Node.js 22
+**Prerequisites:** Git and Docker with Compose v2 for both options. For local development also Node.js ≥ 22 and pnpm ≥ 10 (`corepack enable` gives you the pinned pnpm version).
+
+### 1. Clone and configure
 
 ```bash
-git clone https://github.com/ockiphertweck/FitCoach
-cd fitcoach
-cp .env.example .env   # fill in the required values (see below)
-docker compose up postgres -d
-pnpm install
-pnpm --filter api db:migrate
-pnpm dev
+git clone https://github.com/ockiphertweck/FitCoach.git
+cd FitCoach
+cp .env.example .env
 ```
 
-Open **http://localhost:3001** and create your account.
+Fill in three values in `.env` (everything else can stay as it is):
+
+```bash
+openssl rand -base64 32   # → JWT_SECRET
+openssl rand -base64 32   # → API_KEY_ENCRYPTION_KEY
+openssl rand -hex 16      # → DB_PASSWORD, and put the same value in place of "changeme" in DATABASE_URL
+```
+
+`DB_PASSWORD` is embedded in a URL, so stick to letters and digits. Postgres applies it only when its volume is first created; changing it later needs `docker compose down -v`, which wipes the data.
+
+### 2a. Local development (hot reload)
+
+```bash
+docker compose up postgres -d    # Postgres on 127.0.0.1:5432
+pnpm install
+pnpm --filter api db:migrate
+pnpm dev                         # API on :3000, frontend on :3001
+```
+
+`pnpm dev` builds `packages/shared` first, then starts both apps. If port 5432 is already used by another Postgres, stop that one or change the published port in `docker-compose.yml` and `DATABASE_URL`.
+
+### 2b. Full Docker stack
+
+```bash
+docker compose up -d --build     # or ./setup.sh, which checks Docker and .env first
+```
+
+The API container applies pending database migrations on every start (`docker compose logs api` shows "Migrations applied"). Postgres is published on `127.0.0.1` only.
+
+The browser calls the API at `NEXT_PUBLIC_API_URL`, which is **baked into the frontend at build time** and defaults to `http://localhost:3000`. To use FitCoach from another machine or under a domain, set `NEXT_PUBLIC_API_URL` (e.g. `https://fitcoach-api.example.com`) and `FRONTEND_URL` (e.g. `https://fitcoach.example.com`, used for CORS) in `.env`, then rebuild with `docker compose up -d --build`. The Docker API runs with `NODE_ENV=production`, so the session cookie is `Secure`: anything other than `localhost` must be served over HTTPS.
+
+### 3. First run
+
+1. Open **http://localhost:3001**. You are sent to **/setup** to create your account. The first account locks the instance: FitCoach is single-user and refuses further sign-ups.
+2. **Settings → Claude API Key**: paste your Anthropic key (stored encrypted). Alternatively set `CLAUDE_API_KEY` in `.env` as an instance-wide fallback.
+3. **Settings → Garmin**: connect your account (see [Connecting Garmin](#connecting-garmin)).
+4. **Settings → Athlete Profile**: fill in weight, height, max HR, FTP and sex so Claude can personalise its advice.
+5. Open **Home**: once the Garmin import has finished, the daily recap appears.
 
 ---
 
@@ -61,13 +96,15 @@ Open **http://localhost:3001** and create your account.
 
 | Variable | Required | Description |
 |---|---|---|
-| `JWT_SECRET` | ✅ | JWT signing secret — `openssl rand -base64 32` |
+| `JWT_SECRET` | ✅ | JWT signing secret (≥ 32 chars) — `openssl rand -base64 32` |
 | `API_KEY_ENCRYPTION_KEY` | ✅ | AES-256-GCM key (≥ 32 chars) — `openssl rand -base64 32` |
-| `DB_PASSWORD` | ✅ | PostgreSQL password |
-| `DATABASE_URL` | ✅ | Full postgres connection string |
-| `CLAUDE_API_KEY` | optional | Default Claude key; can be set per-user in Settings |
+| `DB_PASSWORD` | ✅ | PostgreSQL password — letters and digits only, e.g. `openssl rand -hex 16` |
+| `DATABASE_URL` | ✅ | Postgres connection string for `pnpm dev` / `db:migrate` on the host (`localhost:5432`). The Docker API container overrides it to reach the `postgres` service. |
+| `CLAUDE_API_KEY` | optional | Instance-wide fallback Claude key; usually set in Settings instead |
 | `POSTHOG_API_KEY` | optional | Usage analytics — disabled if omitted |
-| `FRONTEND_URL` | optional | Defaults to `http://localhost:3001` |
+| `POSTHOG_HOST` | optional | Defaults to `https://eu.i.posthog.com` |
+| `FRONTEND_URL` | optional | Frontend origin allowed by CORS — defaults to `http://localhost:3001` |
+| `NEXT_PUBLIC_API_URL` | optional | API URL the browser calls, read when the frontend is **built** — defaults to `http://localhost:3000` |
 
 The Garmin key is **not** an environment variable: you paste it in Settings (see below). `GARMIN_API_KEY` in `.env.example` is only read by the dev script `pnpm --filter api garmin:probe`, which prints Garmin response shapes.
 
@@ -77,9 +114,9 @@ The Garmin key is **not** an environment variable: you paste it in Settings (see
 
 1. Create a personal API key at [connect.garmin.com/app/settings/personalApiToken](https://connect.garmin.com/app/settings/personalApiToken)
 2. Open FitCoach → **Settings** → **Garmin**, paste the key and click **Connect**. It is stored AES-256-GCM encrypted.
-3. The first import pulls the last **12 months of activities** and **90 days of recovery data** (sleep, HRV, Body Battery, stress, calories). It runs in the background; the Summary shows "Importing from Garmin…" until it is done.
+3. The first import pulls the last **12 months of activities** and **90 days of recovery data** (sleep, HRV, Body Battery, stress, calories). It runs in the background; Home shows "Importing from Garmin…" until it is done.
 
-After that, data is pulled whenever you open the Summary (or return to the tab), **at most every 15 minutes**; **Sync now** forces it. When the key expires, Settings shows "Key invalid or expired" with a field to paste a new one — your data is kept and the reconnect runs a normal incremental sync, not a full re-import.
+After that, data is pulled whenever you open Home (or return to the tab), **at most every 15 minutes**; **Sync now** forces it. When the key expires, Settings shows "Key invalid or expired" with a field to paste a new one — your data is kept and the reconnect runs a normal incremental sync, not a full re-import.
 
 ---
 
@@ -127,7 +164,7 @@ It deletes all Strava activities, chat history and sessions, daily recaps and we
 3. Queries Postgres for 42 days of activities, computes ATL/CTL/TSB, builds a structured prompt
 4. Opens an Anthropic streaming request, forwards `data:` SSE chunks on the same HTTP response
 5. Frontend reads via `ReadableStream`, appends each delta to React state → `react-markdown` renders live
-6. After stream ends, full response + token counts written to `chat_history` (fire-and-forget)
+6. After stream ends, the recap + token counts are stored in `daily_recommendations` (keyed by date and an input hash, so it is only regenerated when your data changes)
 
 ---
 
@@ -153,8 +190,7 @@ fitcoach/
 │   └── shared/            # Zod schemas shared between API and frontend
 ├── db/
 │   └── init.sql           # pgvector / pgcrypto bootstrap
-├── docker-compose.yml
-└── docker-compose.override.yml  # dev overlay (pgAdmin)
+└── docker-compose.yml
 ```
 
 ---
@@ -287,9 +323,6 @@ pnpm dev
 
 # Full Docker stack
 docker compose up -d --build
-
-# With pgAdmin
-docker compose -f docker-compose.yml -f docker-compose.override.yml up -d
 ```
 
 **Other tools:**
@@ -301,8 +334,6 @@ pnpm --filter api db:studio     # Drizzle Studio — visual DB browser (localhos
 pnpm --filter api test          # run unit tests
 pnpm --filter api test:coverage # coverage report → apps/api/coverage/index.html
 ```
-
-pgAdmin is available at `http://localhost:5050` when running the override compose file.
 
 ---
 
