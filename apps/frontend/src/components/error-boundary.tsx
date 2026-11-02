@@ -2,6 +2,7 @@
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
+import { translateApiError } from "@/lib/i18n"
 import { useI18n } from "@/lib/i18n/client"
 import { AlertCircle } from "lucide-react"
 
@@ -21,7 +22,7 @@ export function ErrorBoundary({ error, reset, title, fullScreen }: Props) {
       <Alert variant="destructive" className="max-w-md">
         <AlertCircle className="h-4 w-4" />
         <AlertTitle>{title}</AlertTitle>
-        <AlertDescription>{error.message}</AlertDescription>
+        <AlertDescription>{translateApiError(error.message, t)}</AlertDescription>
       </Alert>
       <Button onClick={reset} variant="outline">
         {t.errors.tryAgain}
