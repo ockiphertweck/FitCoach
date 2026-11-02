@@ -14,8 +14,7 @@ export class GarminError extends Error {
 
 // Base URL: DEFAULT_BASE_URL in garmin/connect-personal-api-python src/garmin_personal_api/constants.py
 export const GARMIN_API_BASE = "https://personal.connectapi.garmin.com"
-export const GARMIN_TOKEN_URL =
-  "https://personal.connectapi.garmin.com/personalapitoken-service/personal-api/personal-api-key/token"
+export const GARMIN_TOKEN_URL = `${GARMIN_API_BASE}/personalapitoken-service/personal-api/personal-api-key/token`
 
 const REFRESH_WINDOW_MS = 3600_000
 
@@ -26,6 +25,8 @@ function fromStatus(status: number): GarminError {
   if (status === 429) return new GarminError("rate_limited", "Garmin rate limit hit (429)")
   return new GarminError("garmin_unavailable", `Garmin request failed (${status})`)
 }
+
+const unreadable = () => new GarminError("garmin_unavailable", "Garmin response unreadable")
 
 async function send(url: string, init: RequestInit): Promise<Response> {
   try {
@@ -91,10 +92,20 @@ export function createGarminClient(key: string) {
 
   return {
     async get<T>(path: string, params?: Record<string, string | number>): Promise<T> {
-      return (await (await request(path, "application/json", params)).json()) as T
+      const res = await request(path, "application/json", params)
+      try {
+        return (await res.json()) as T
+      } catch {
+        throw unreadable()
+      }
     },
     async getBytes(path: string): Promise<Uint8Array> {
-      return new Uint8Array(await (await request(path, "*/*")).arrayBuffer())
+      const res = await request(path, "*/*")
+      try {
+        return new Uint8Array(await res.arrayBuffer())
+      } catch {
+        throw unreadable()
+      }
     },
   }
 }

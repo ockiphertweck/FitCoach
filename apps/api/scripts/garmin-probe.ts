@@ -11,9 +11,23 @@ if (!key) {
   process.exit(1)
 }
 
+// Record status + rate-limit-looking headers of every HTTP call (client contract stays unchanged).
+const calls: string[] = []
+const realFetch = globalThis.fetch
+globalThis.fetch = async (input, init) => {
+  const res = await realFetch(input, init)
+  const hdrs = [...res.headers].filter(([k]) => /rate|limit|retry|remaining|reset/i.test(k))
+  const path = new URL(String(input instanceof Request ? input.url : input)).pathname
+  calls.push(`${res.status} ${path} ${hdrs.map(([k, v]) => `${k}=${v}`).join(" ")}`.trimEnd())
+  return res
+}
+const flushCalls = () => {
+  for (const c of calls.splice(0)) console.log(`http: ${c}`)
+}
+
 function shape(v: unknown): unknown {
   if (v === null) return "null"
-  if (Array.isArray(v)) return v.length ? `array<${JSON.stringify(shape(v[0]))}>` : "array<empty>"
+  if (Array.isArray(v)) return v.length ? { "[]": shape(v[0]) } : "array<empty>"
   if (typeof v === "object") {
     return Object.fromEntries(Object.entries(v as object).map(([k, x]) => [k, shape(x)]))
   }
@@ -27,8 +41,11 @@ const d7 = day(-7)
 async function show(label: string, fn: () => Promise<unknown>) {
   console.log(`\n=== ${label}`)
   try {
-    console.log(JSON.stringify(shape(await fn()), null, 2))
+    const out = shape(await fn())
+    flushCalls()
+    console.log(JSON.stringify(out, null, 2))
   } catch (e) {
+    flushCalls()
     console.log(`ERROR: ${e instanceof Error ? e.message : "unknown"}`)
   }
 }
@@ -55,6 +72,7 @@ async function main() {
     console.log("\n=== download-service/files/activity/{id}")
     try {
       const bytes = await c.getBytes(`/download-service/files/activity/${firstId}`)
+      flushCalls()
       console.log(`bytes: ${bytes.length}`)
       console.log(`zip entries: ${Object.keys(unzipSync(bytes)).join(", ")}`)
     } catch (e) {

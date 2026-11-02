@@ -30,6 +30,13 @@ describe("exchangeKey", () => {
     expect(out.keyExpiresAt).toBeNull()
   })
 
+  it("maps a malformed token response to garmin_unavailable without echoing it", async () => {
+    fetchMock.mockResolvedValueOnce(res(200, "not-a-jwt-body"))
+    const err = await exchangeKey(KEY).catch((e) => e)
+    expect(err).toMatchObject({ code: "garmin_unavailable" })
+    expect(String(err)).not.toContain("not-a-jwt-body")
+  })
+
   it.each([401, 403])("maps %i to key_invalid", async (status) => {
     fetchMock.mockResolvedValueOnce(res(status))
     await expect(exchangeKey(KEY)).rejects.toMatchObject({ code: "key_invalid" })
@@ -47,7 +54,9 @@ describe("client.get", () => {
       code: "garmin_unavailable",
     })
     fetchMock.mockRejectedValueOnce(new Error("boom"))
-    await expect(createGarminClient(KEY).get("/x")).rejects.toBeInstanceOf(GarminError)
+    await expect(createGarminClient(KEY).get("/x")).rejects.toMatchObject({
+      code: "garmin_unavailable",
+    })
   })
 
   it("reuses the cached token for a second call (token endpoint called once)", async () => {
@@ -84,6 +93,18 @@ describe("client.get", () => {
       .mockResolvedValueOnce(ok({ done: true }))
     await expect(createGarminClient(KEY).get("/x")).resolves.toEqual({ done: true })
     expect(fetchMock.mock.calls[3][1].headers.Authorization).toBe(`Bearer ${t2}`)
+  })
+
+  it("maps a 200 with a non-JSON body to garmin_unavailable without echoing it", async () => {
+    fetchMock
+      .mockResolvedValueOnce(res(200, jwt(inHours(24))))
+      .mockResolvedValueOnce(res(200, "<html>secret-body</html>"))
+    const err = await createGarminClient(KEY)
+      .get("/x")
+      .catch((e) => e)
+    expect(err).toBeInstanceOf(GarminError)
+    expect(err).toMatchObject({ code: "garmin_unavailable" })
+    expect(String(err)).not.toContain("secret-body")
   })
 
   it("getBytes returns raw bytes", async () => {
