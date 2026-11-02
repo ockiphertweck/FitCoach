@@ -17,7 +17,9 @@ import {
   refreshData,
   syncNow,
 } from "@/lib/garmin"
+import { setLangCookie, useI18n } from "@/lib/i18n/client"
 import { type Theme, parseTheme, setThemeCookie } from "@/lib/theme"
+import { LANG_COOKIE, type Lang, parseLang } from "@fitcoach/shared"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Activity, CheckCircle, Key, LogOut, Palette, User } from "lucide-react"
 import { useRouter } from "next/navigation"
@@ -81,6 +83,13 @@ export default function SettingsPage() {
   const [theme, setTheme] = useState<Theme>("system")
   // Server renders "system"; sync to what the layout actually applied.
   useEffect(() => setTheme(parseTheme(document.documentElement.dataset.theme)), [])
+  const { t } = useI18n()
+  const [langChoice, setLangChoice] = useState<Lang | "auto">("auto")
+  // Cookie absent = automatic; read after mount like the theme above.
+  useEffect(() => {
+    const value = document.cookie.match(new RegExp(`(?:^|; )${LANG_COOKIE}=([^;]*)`))?.[1]
+    setLangChoice(parseLang(value) ?? "auto")
+  }, [])
   const { saved: keySaved, flash: flashKeySaved } = useFlashSaved()
 
   const [profileForm, setProfileForm] = useState<Profile>({
@@ -198,30 +207,49 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-4 lg:mx-auto lg:w-full lg:max-w-[640px]">
-      <PageHeader title="Settings" subtitle="MANAGE YOUR FITCOACH CONFIGURATION" />
+      <PageHeader title={t.settings.title} subtitle={t.settings.subtitle} />
 
       {/* Appearance */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base font-medium">
-            <Palette className="h-4 w-4 text-primary" /> Appearance
+            <Palette className="h-4 w-4 text-primary" /> {t.settings.appearance}
           </CardTitle>
         </CardHeader>
-        <CardContent className="flex items-center justify-between gap-3">
-          <span className="text-sm">Theme</span>
-          <Segmented
-            aria-label="Appearance"
-            value={theme}
-            options={[
-              { value: "system", label: "System" },
-              { value: "light", label: "Light" },
-              { value: "dark", label: "Dark" },
-            ]}
-            onChange={(t) => {
-              setTheme(t)
-              setThemeCookie(t)
-            }}
-          />
+        <CardContent className="space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-sm">{t.settings.theme}</span>
+            <Segmented
+              aria-label={t.settings.appearance}
+              value={theme}
+              options={[
+                { value: "system", label: t.settings.themeSystem },
+                { value: "light", label: t.settings.themeLight },
+                { value: "dark", label: t.settings.themeDark },
+              ]}
+              onChange={(v) => {
+                setTheme(v)
+                setThemeCookie(v)
+              }}
+            />
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-sm">{t.settings.language}</span>
+            <Segmented
+              aria-label={t.settings.language}
+              value={langChoice}
+              options={[
+                { value: "auto", label: t.settings.languageAuto },
+                { value: "de", label: "Deutsch" },
+                { value: "en", label: "English" },
+              ]}
+              onChange={(v) => {
+                setLangChoice(v)
+                setLangCookie(v)
+                router.refresh()
+              }}
+            />
+          </div>
         </CardContent>
       </Card>
 

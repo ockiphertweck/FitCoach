@@ -1,0 +1,45 @@
+export const en = {
+  nav: {},
+  home: {},
+  coach: {},
+  activities: {},
+  trends: {},
+  settings: {
+    title: "Settings",
+    subtitle: "MANAGE YOUR FITCOACH CONFIGURATION",
+    appearance: "Appearance",
+    theme: "Theme",
+    themeSystem: "System",
+    themeLight: "Light",
+    themeDark: "Dark",
+    language: "Language",
+    languageAuto: "Automatic",
+  },
+  auth: {
+    welcomeBack: "Welcome back",
+    signInSubtitle: "Sign in to your FitCoach account",
+    email: "Email",
+    emailPlaceholder: "you@example.com",
+    password: "Password",
+    passwordPlaceholder: "Your password",
+    signIn: "Sign in",
+    signingIn: "Signing in…",
+  },
+  errors: {
+    invalidCredentials: "Invalid email or password",
+    userExists: "An account already exists. FitCoach is single-user.",
+    recapFailed: "Recap generation failed",
+    keyInvalid: "Key invalid or expired",
+    notConnected: "Garmin is not connected",
+    activityNotFound: "Activity not found",
+    sessionNotFound: "Chat not found",
+    userNotFound: "User not found",
+    generic: "Something went wrong. Please try again.",
+  },
+  sports: {},
+  common: {
+    appDescription: "Self-hosted AI training coach powered by Garmin and Claude",
+  },
+}
+
+export type Dict = typeof en

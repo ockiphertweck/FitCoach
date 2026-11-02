@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { api } from "@/lib/api"
+import { translateApiError } from "@/lib/i18n"
+import { useI18n } from "@/lib/i18n/client"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { Dumbbell, Eye, EyeOff } from "lucide-react"
 import { useRouter } from "next/navigation"
@@ -12,6 +14,7 @@ import { useEffect, useState } from "react"
 
 export default function LoginPage() {
   const router = useRouter()
+  const { t } = useI18n()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
@@ -44,21 +47,21 @@ export default function LoginPage() {
           <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-white mb-4">
             <Dumbbell className="h-7 w-7" />
           </div>
-          <h1 className="text-3xl font-bold tracking-tight">Welcome back</h1>
-          <p className="text-sm text-muted-foreground mt-1">Sign in to your FitCoach account</p>
+          <h1 className="text-3xl font-bold tracking-tight">{t.auth.welcomeBack}</h1>
+          <p className="text-sm text-muted-foreground mt-1">{t.auth.signInSubtitle}</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="email" className="text-sm text-foreground/80">
-              Email
+              {t.auth.email}
             </Label>
             <Input
               id="email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
+              placeholder={t.auth.emailPlaceholder}
               required
               autoFocus
             />
@@ -66,7 +69,7 @@ export default function LoginPage() {
 
           <div className="space-y-1.5">
             <Label htmlFor="password" className="text-sm text-foreground/80">
-              Password
+              {t.auth.password}
             </Label>
             <div className="relative">
               <Input
@@ -74,7 +77,7 @@ export default function LoginPage() {
                 type={showPassword ? "text" : "password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Your password"
+                placeholder={t.auth.passwordPlaceholder}
                 required
                 className="pr-10"
               />
@@ -91,13 +94,15 @@ export default function LoginPage() {
 
           {status.isError && (
             <Alert variant="destructive">
-              <AlertDescription>{status.error.message}</AlertDescription>
+              <AlertDescription>{translateApiError(status.error.message, t)}</AlertDescription>
             </Alert>
           )}
 
           {loginMutation.isError && (
             <Alert variant="destructive">
-              <AlertDescription>{loginMutation.error.message}</AlertDescription>
+              <AlertDescription>
+                {translateApiError(loginMutation.error.message, t)}
+              </AlertDescription>
             </Alert>
           )}
 
@@ -106,7 +111,7 @@ export default function LoginPage() {
             className="w-full mt-2 h-11"
             disabled={loginMutation.isPending || !email || !password}
           >
-            {loginMutation.isPending ? "Signing in…" : "Sign in"}
+            {loginMutation.isPending ? t.auth.signingIn : t.auth.signIn}
           </Button>
         </form>
       </div>

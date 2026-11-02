@@ -144,7 +144,7 @@ test.describe("Authentication", () => {
         })
       )
       await page.goto("/login")
-      await expect(page.getByText("Status check failed")).toBeVisible()
+      await expect(page.getByText("Something went wrong. Please try again.")).toBeVisible()
       await expect(page).toHaveURL(/\/login/)
     })
 

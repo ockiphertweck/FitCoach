@@ -1,0 +1,45 @@
+import type { Dict } from "./en"
+
+export const de: Dict = {
+  nav: {},
+  home: {},
+  coach: {},
+  activities: {},
+  trends: {},
+  settings: {
+    title: "Einstellungen",
+    subtitle: "FITCOACH KONFIGURIEREN",
+    appearance: "Darstellung",
+    theme: "Design",
+    themeSystem: "System",
+    themeLight: "Hell",
+    themeDark: "Dunkel",
+    language: "Sprache",
+    languageAuto: "Automatisch",
+  },
+  auth: {
+    welcomeBack: "Willkommen zurück",
+    signInSubtitle: "Melde dich bei deinem FitCoach-Konto an",
+    email: "E-Mail",
+    emailPlaceholder: "du@beispiel.de",
+    password: "Passwort",
+    passwordPlaceholder: "Dein Passwort",
+    signIn: "Anmelden",
+    signingIn: "Anmelden…",
+  },
+  errors: {
+    invalidCredentials: "E-Mail oder Passwort ist falsch",
+    userExists: "Es gibt bereits ein Konto. FitCoach ist für eine Person.",
+    recapFailed: "Tagesempfehlung konnte nicht erstellt werden",
+    keyInvalid: "Schlüssel ungültig oder abgelaufen",
+    notConnected: "Garmin ist nicht verbunden",
+    activityNotFound: "Aktivität nicht gefunden",
+    sessionNotFound: "Chat nicht gefunden",
+    userNotFound: "Nutzer nicht gefunden",
+    generic: "Etwas ist schiefgelaufen. Bitte versuche es erneut.",
+  },
+  sports: {},
+  common: {
+    appDescription: "Selbst gehosteter KI-Trainingscoach mit Garmin und Claude",
+  },
+}
