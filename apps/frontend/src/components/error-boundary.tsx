@@ -2,6 +2,7 @@
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
+import { useI18n } from "@/lib/i18n/client"
 import { AlertCircle } from "lucide-react"
 
 interface Props {
@@ -12,6 +13,7 @@ interface Props {
 }
 
 export function ErrorBoundary({ error, reset, title, fullScreen }: Props) {
+  const { t } = useI18n()
   const inner = (
     <div
       className={`flex flex-col items-center ${fullScreen ? "" : "min-h-[400px]"} justify-center gap-4`}
@@ -22,7 +24,7 @@ export function ErrorBoundary({ error, reset, title, fullScreen }: Props) {
         <AlertDescription>{error.message}</AlertDescription>
       </Alert>
       <Button onClick={reset} variant="outline">
-        Try again
+        {t.errors.tryAgain}
       </Button>
     </div>
   )

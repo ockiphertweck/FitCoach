@@ -1,3 +1,4 @@
+import { useI18n } from "@/lib/i18n/client"
 import { Activity, Bike, Dumbbell, Footprints, MonitorPlay, Waves } from "lucide-react"
 import Link from "next/link"
 
@@ -45,20 +46,25 @@ export function ActivityRow({
   activity: a,
   wide = false,
 }: Readonly<{ activity: ActivityItem; wide?: boolean }>) {
+  const { t, locale } = useI18n()
   const sport = a.sportType.toLowerCase()
   const Icon = ICONS[sport as keyof typeof ICONS] ?? Activity
   const tint = TINTS[sport] ?? "bg-muted text-muted-foreground"
-  const date = new Date(a.startDate).toLocaleDateString("en-GB", { day: "numeric", month: "short" })
+  const date = new Date(a.startDate).toLocaleDateString(locale, { day: "numeric", month: "short" })
   return (
     <Link href={`/activities/${a.id}`} className="flex items-center gap-3 py-2.5">
       <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${tint}`}>
         <Icon className="h-5 w-5" />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block truncate font-semibold">{a.name ?? a.sportType}</span>
+        <span className="block truncate font-semibold">
+          {a.name ?? t.sports[sport] ?? a.sportType}
+        </span>
         <span className="block text-xs text-muted-foreground">
           {date}
-          {a.distanceMeters ? ` · ${(a.distanceMeters / 1000).toFixed(1)} km` : ""}
+          {a.distanceMeters
+            ? ` · ${(a.distanceMeters / 1000).toLocaleString(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} km`
+            : ""}
         </span>
       </span>
       {wide && (

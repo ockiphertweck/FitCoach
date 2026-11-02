@@ -117,7 +117,32 @@ test.describe("Summary", () => {
       await pwExpect.poll(() => gets).toBeGreaterThanOrEqual(2)
       await authedPage.waitForTimeout(300)
       pwExpect(posts).toHaveLength(1)
-      pwExpect(JSON.parse(posts[0])).toEqual({ date: localDate() })
+      pwExpect(JSON.parse(posts[0])).toEqual({ date: localDate(), lang: "en" })
+    })
+
+    test("switching to Deutsch with a stored recap sends no recap POST", async ({
+      authedPage: page,
+    }) => {
+      const posts = trackPosts(page)
+      await mockGet(page, "/settings/apikey", { providers: [] })
+      await mockGet(page, "/settings/profile", {
+        sex: null,
+        weightKg: null,
+        heightCm: null,
+        maxHeartRate: null,
+        ftpWatts: null,
+      })
+      await page.goto("/settings")
+      await page
+        .getByRole("radiogroup", { name: "Language" })
+        .getByRole("radio", { name: "Deutsch" })
+        .click()
+      await expect(page.getByRole("heading", { name: "Einstellungen" })).toBeVisible()
+      await page.getByRole("link", { name: "Übersicht" }).first().click()
+      await expect(page.getByRole("heading", { name: "Übersicht" })).toBeVisible()
+      await expect(page.getByText("Cached.")).toBeVisible()
+      await page.waitForTimeout(500)
+      pwExpect(posts).toHaveLength(0)
     })
 
     test("refresh button sends exactly one POST", async ({ authedPage }) => {

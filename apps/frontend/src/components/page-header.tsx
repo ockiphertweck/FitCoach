@@ -1,13 +1,14 @@
 "use client"
 
+import { useI18n } from "@/lib/i18n/client"
 import { Settings } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { type ReactNode, useEffect, useState } from "react"
 
-const today = () =>
+const today = (locale: string) =>
   new Date()
-    .toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "short" })
+    .toLocaleDateString(locale, { weekday: "long", day: "numeric", month: "short" })
     .replace(",", "")
     .toUpperCase()
 
@@ -16,8 +17,9 @@ export function PageHeader({
   subtitle,
   action,
 }: Readonly<{ title: string; subtitle?: string; action?: ReactNode }>) {
+  const { t, locale } = useI18n()
   const [now, setNow] = useState<string>()
-  useEffect(() => setNow(today()), [])
+  useEffect(() => setNow(today(locale)), [locale])
   const onSettings = usePathname().startsWith("/settings")
   return (
     <header className="flex items-end justify-between gap-3 pb-4 pt-2">
@@ -32,7 +34,7 @@ export function PageHeader({
         {!onSettings && (
           <Link
             href="/settings"
-            aria-label="Settings"
+            aria-label={t.nav.settings}
             className="md:hidden rounded-full p-2 text-muted-foreground hover:text-foreground"
           >
             <Settings className="h-5 w-5" />
