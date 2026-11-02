@@ -20,9 +20,17 @@ export interface ChartActivity {
 
 export interface WeeklyPoint {
   week: string
+  weekStart: string // Monday key, yyyy-mm-dd
   distance: number
   duration: number
   avgHR: number | null
+}
+
+function mondayKey(date: Date): string {
+  const diff = date.getDay() === 0 ? -6 : 1 - date.getDay()
+  const monday = new Date(date)
+  monday.setDate(date.getDate() + diff)
+  return monday.toISOString().slice(0, 10)
 }
 
 export function buildWeeklyChartData(activities: ChartActivity[]): WeeklyPoint[] {
@@ -32,12 +40,7 @@ export function buildWeeklyChartData(activities: ChartActivity[]): WeeklyPoint[]
   >()
 
   for (const a of activities) {
-    const date = new Date(a.startDate)
-    const day = date.getDay()
-    const diff = day === 0 ? -6 : 1 - day
-    const monday = new Date(date)
-    monday.setDate(date.getDate() + diff)
-    const key = monday.toISOString().slice(0, 10)
+    const key = mondayKey(new Date(a.startDate))
 
     const existing = weeks.get(key) ?? { distance: 0, duration: 0, hrSum: 0, hrCount: 0 }
     existing.distance += (a.distanceMeters ?? 0) / 1000
@@ -54,6 +57,7 @@ export function buildWeeklyChartData(activities: ChartActivity[]): WeeklyPoint[]
     .slice(-8)
     .map(([week, data]) => ({
       week: new Date(week).toLocaleDateString("en-GB", { month: "short", day: "numeric" }),
+      weekStart: week,
       distance: Math.round(data.distance * 10) / 10,
       duration: Math.round(data.duration),
       avgHR: data.hrCount > 0 ? Math.round(data.hrSum / data.hrCount) : null,
@@ -68,17 +72,30 @@ export function WeeklyChart({
   data,
   color,
   format,
+  error = false,
 }: {
   title: string
   dataKey: "distance" | "duration" | "avgHR"
   data: WeeklyPoint[]
   color: string
   format: (v: number) => string
+  error?: boolean
 }) {
   const rows = dataKey === "avgHR" ? data.filter((d) => d.avgHR !== null) : data
-  const last = rows.at(-1)?.[dataKey] ?? null
-  const prev = rows.at(-2)?.[dataKey] ?? null
+  const latest = rows.at(-1)
+  const last = latest?.[dataKey] ?? null
+  // Compare with the calendar week directly before the latest week, not the previous week with data.
+  const prevStart = latest
+    ? new Date(new Date(latest.weekStart).getTime() - 7 * 864e5).toISOString().slice(0, 10)
+    : null
+  const prev = rows.find((d) => d.weekStart === prevStart)?.[dataKey] ?? null
   const delta = last !== null && prev ? Math.round(((last - prev) / prev) * 100) : null
+  const label = !latest
+    ? ""
+    : latest.weekStart === mondayKey(new Date())
+      ? "This week"
+      : `Week of ${new Date(latest.weekStart).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" })}`
+  const seriesName = { distance: "Distance", duration: "Duration", avgHR: "Avg HR" }[dataKey]
   const gid = `grad-${dataKey}`
 
   return (
@@ -99,43 +116,51 @@ export function WeeklyChart({
             </span>
           )}
         </div>
+        {label && <p className="text-xs text-muted-foreground">{label}</p>}
       </CardHeader>
       <CardContent>
-        <ResponsiveContainer width="100%" height={160}>
-          <AreaChart data={rows} margin={{ top: 4, right: 4, left: -28, bottom: 0 }}>
-            <defs>
-              <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor={color} stopOpacity={0.35} />
-                <stop offset="95%" stopColor={color} stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" vertical={false} />
-            <XAxis dataKey="week" tick={tick} axisLine={false} tickLine={false} />
-            <YAxis
-              tick={tick}
-              axisLine={false}
-              tickLine={false}
-              domain={dataKey === "avgHR" ? ["auto", "auto"] : undefined}
-            />
-            <Tooltip
-              contentStyle={{
-                background: "hsl(var(--popover))",
-                color: "hsl(var(--popover-foreground))",
-                border: "1px solid hsl(var(--border))",
-                borderRadius: 12,
-                fontSize: 12,
-              }}
-            />
-            <Area
-              type="monotone"
-              dataKey={dataKey}
-              stroke={color}
-              fill={`url(#${gid})`}
-              strokeWidth={2}
-              dot={false}
-            />
-          </AreaChart>
-        </ResponsiveContainer>
+        {error || rows.length === 0 ? (
+          <p className="py-12 text-center text-sm text-muted-foreground">
+            {error ? "Couldn't load activities" : "No activities yet"}
+          </p>
+        ) : (
+          <ResponsiveContainer width="100%" height={160}>
+            <AreaChart data={rows} margin={{ top: 4, right: 4, left: -28, bottom: 0 }}>
+              <defs>
+                <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor={color} stopOpacity={0.35} />
+                  <stop offset="95%" stopColor={color} stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="week" tick={tick} axisLine={false} tickLine={false} />
+              <YAxis
+                tick={tick}
+                axisLine={false}
+                tickLine={false}
+                domain={dataKey === "avgHR" ? ["auto", "auto"] : undefined}
+              />
+              <Tooltip
+                formatter={(v) => [format(Number(v)), seriesName]}
+                contentStyle={{
+                  background: "hsl(var(--popover))",
+                  color: "hsl(var(--popover-foreground))",
+                  border: "1px solid hsl(var(--border))",
+                  borderRadius: 12,
+                  fontSize: 12,
+                }}
+              />
+              <Area
+                type="monotone"
+                dataKey={dataKey}
+                stroke={color}
+                fill={`url(#${gid})`}
+                strokeWidth={2}
+                dot={false}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        )}
       </CardContent>
     </Card>
   )

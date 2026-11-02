@@ -51,6 +51,48 @@ test.describe("Trends", () => {
       }
       // latest week 10 km vs previous 22.5 km => −56%
       await expect(authedPage.getByTestId("delta-distance")).toHaveText("−56%")
+      await expect(authedPage.getByText("Week of 30 Mar").first()).toBeVisible()
+    })
+
+    test("hides delta when the calendar week before the latest is empty", async ({
+      authedPage,
+    }) => {
+      const act = (d: string) => ({
+        startDate: d,
+        durationSeconds: 3600,
+        distanceMeters: 10000,
+        averageHeartRate: 140,
+      })
+      // weeks of 9 Mar and 23 Mar, nothing in between
+      await mockGet(authedPage, /\/activities\?limit=200/, {
+        items: [act("2026-03-10T07:00:00.000Z"), act("2026-03-24T07:00:00.000Z")],
+        total: 2,
+      })
+      await authedPage.goto("/trends")
+      await expect(authedPage.getByText("Week of 23 Mar").first()).toBeVisible()
+      await expect(authedPage.getByTestId("delta-distance")).toHaveCount(0)
+    })
+
+    test("labels the current calendar week as This week", async ({ authedPage }) => {
+      const day = (n: number) => new Date(Date.now() - n * 864e5).toISOString()
+      const act = (d: string) => ({
+        startDate: d,
+        durationSeconds: 3600,
+        distanceMeters: 10000,
+        averageHeartRate: 140,
+      })
+      await mockGet(authedPage, /\/activities\?limit=200/, {
+        items: [act(day(0)), act(day(7))],
+        total: 2,
+      })
+      await authedPage.goto("/trends")
+      await expect(authedPage.getByText("This week").first()).toBeVisible()
+    })
+
+    test("shows empty state without activities", async ({ authedPage }) => {
+      await mockGet(authedPage, /\/activities\?limit=200/, { items: [], total: 0 })
+      await authedPage.goto("/trends")
+      await expect(authedPage.getByText("No activities yet")).toHaveCount(3)
     })
   })
 

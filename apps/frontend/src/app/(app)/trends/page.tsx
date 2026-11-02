@@ -33,7 +33,7 @@ export default function TrendsPage() {
     mutationFn: () => api.post<WeeklyReport>("/ai/weekly-report"),
   })
 
-  const { data: activities } = useQuery<{ items: ChartActivity[] }>({
+  const { data: activities, isError } = useQuery<{ items: ChartActivity[] }>({
     queryKey: ["chart-activities"],
     queryFn: () => api.get("/activities?limit=200"),
   })
@@ -47,6 +47,7 @@ export default function TrendsPage() {
         title="Distance"
         dataKey="distance"
         data={weekly}
+        error={isError}
         color="hsl(var(--chart-distance))"
         format={(v) => `${v} km`}
       />
@@ -54,6 +55,7 @@ export default function TrendsPage() {
         title="Duration"
         dataKey="duration"
         data={weekly}
+        error={isError}
         color="hsl(var(--chart-duration))"
         format={(v) => `${v} min`}
       />
@@ -61,6 +63,7 @@ export default function TrendsPage() {
         title="Avg Heart Rate"
         dataKey="avgHR"
         data={weekly}
+        error={isError}
         color="hsl(var(--chart-hr))"
         format={(v) => `${v} bpm`}
       />
