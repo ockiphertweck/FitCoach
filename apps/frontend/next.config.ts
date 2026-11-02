@@ -17,6 +17,7 @@ if (!process.env.JWT_SECRET) {
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  redirects: async () => [{ source: "/analytics", destination: "/trends", permanent: true }],
   env: {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000",
     NEXT_PUBLIC_POSTHOG_KEY: process.env.POSTHOG_API_KEY ?? "",

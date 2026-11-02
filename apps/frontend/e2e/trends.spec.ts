@@ -36,10 +36,10 @@ const WEEKLY_REPORT = {
   generatedAt: "2026-04-01T12:00:00.000Z",
 }
 
-test.describe("Analytics", () => {
+test.describe("Trends", () => {
   test.describe("Page structure", () => {
     test("renders page heading", async ({ authedPage }) => {
-      await authedPage.goto("/analytics")
+      await authedPage.goto("/trends")
       await expect(authedPage.getByRole("heading", { name: "Weekly Report" })).toBeVisible()
     })
   })
@@ -50,7 +50,7 @@ test.describe("Analytics", () => {
     })
 
     test("shows generate report button", async ({ authedPage }) => {
-      await authedPage.goto("/analytics")
+      await authedPage.goto("/trends")
       await expect(
         authedPage.getByRole("button", { name: "Generate this week's report" })
       ).toBeVisible()
@@ -58,7 +58,7 @@ test.describe("Analytics", () => {
 
     test("generates report and shows metrics and summary", async ({ authedPage }) => {
       await mockPost(authedPage, "/ai/weekly-report", WEEKLY_REPORT)
-      await authedPage.goto("/analytics")
+      await authedPage.goto("/trends")
       await authedPage.getByRole("button", { name: "Generate this week's report" }).click()
       // Metrics grid
       await expect(authedPage.getByText("32.5 km")).toBeVisible()
@@ -78,7 +78,7 @@ test.describe("Analytics", () => {
           body: JSON.stringify(WEEKLY_REPORT),
         })
       })
-      await authedPage.goto("/analytics")
+      await authedPage.goto("/trends")
       await authedPage.getByRole("button", { name: "Generate this week's report" }).click()
       await expect(authedPage.getByRole("button", { name: "Generating…" })).toBeVisible()
     })
@@ -90,7 +90,7 @@ test.describe("Analytics", () => {
         { error: "No API key configured. Add one in Settings." },
         400
       )
-      await authedPage.goto("/analytics")
+      await authedPage.goto("/trends")
       await authedPage.getByRole("button", { name: "Generate this week's report" }).click()
       await expect(authedPage.getByText("No API key configured.")).toBeVisible()
     })
@@ -100,7 +100,7 @@ test.describe("Analytics", () => {
         ...WEEKLY_REPORT,
         metrics: { ...WEEKLY_REPORT.metrics, avgHR: null },
       })
-      await authedPage.goto("/analytics")
+      await authedPage.goto("/trends")
       await authedPage.getByRole("button", { name: "Generate this week's report" }).click()
       await expect(authedPage.getByText("N/A")).toBeVisible()
     })

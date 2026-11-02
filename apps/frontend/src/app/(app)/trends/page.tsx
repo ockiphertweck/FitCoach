@@ -22,7 +22,7 @@ interface WeeklyReport {
   generatedAt: string
 }
 
-export default function ReportsPage() {
+export default function TrendsPage() {
   const reportMutation = useMutation({
     mutationFn: () => api.post<WeeklyReport>("/ai/weekly-report"),
   })
