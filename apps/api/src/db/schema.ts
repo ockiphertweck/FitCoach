@@ -130,6 +130,22 @@ export const weeklyReports = pgTable(
   (table) => [unique().on(table.userId, table.weekStart)]
 )
 
+export const dailyRecommendations = pgTable(
+  "daily_recommendations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    date: date("date").notNull(),
+    inputHash: text("input_hash").notNull(),
+    content: text("content").notNull(),
+    tokensUsed: integer("tokens_used"),
+    generatedAt: timestamp("generated_at").defaultNow().notNull(),
+  },
+  (table) => [unique().on(table.userId, table.date)]
+)
+
 export type UserProfile = typeof userProfiles.$inferSelect
 export type User = typeof users.$inferSelect
 export type NewUser = typeof users.$inferInsert
@@ -140,3 +156,4 @@ export type NewActivity = typeof activities.$inferInsert
 export type ChatSession = typeof chatSessions.$inferSelect
 export type ChatHistoryEntry = typeof chatHistory.$inferSelect
 export type WeeklyReport = typeof weeklyReports.$inferSelect
+export type DailyRecommendation = typeof dailyRecommendations.$inferSelect

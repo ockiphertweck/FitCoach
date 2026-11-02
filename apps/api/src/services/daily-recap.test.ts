@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from "vitest"
 import type { Activity, UserProfile } from "../db/schema.js"
-import { type RecapStreamEvent, computeRecapHash, streamAndSaveRecap } from "./daily-recap.js"
+import {
+  type RecapStreamEvent,
+  computeRecapHash,
+  recapDateSchema,
+  streamAndSaveRecap,
+} from "./daily-recap.js"
 
 function makeActivity(overrides: Partial<Activity> = {}): Activity {
   return {
@@ -126,5 +131,14 @@ describe("streamAndSaveRecap", () => {
       "boom"
     )
     expect(save).not.toHaveBeenCalled()
+  })
+})
+
+describe("recapDateSchema", () => {
+  it("accepts a valid date", () => {
+    expect(recapDateSchema.safeParse({ date: "2026-11-02" }).success).toBe(true)
+  })
+  it.each([{ date: "2026-13-01" }, { date: "today" }, {}])("rejects %j", (v) => {
+    expect(recapDateSchema.safeParse(v).success).toBe(false)
   })
 })

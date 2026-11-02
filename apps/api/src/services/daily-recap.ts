@@ -1,9 +1,19 @@
 import { createHash } from "node:crypto"
-import type { Activity, UserProfile } from "../db/schema.js"
+import { and, eq, gte } from "drizzle-orm"
+import { z } from "zod"
+import type { DB } from "../db/index.js"
+import {
+  type Activity,
+  type DailyRecommendation,
+  type UserProfile,
+  activities,
+  dailyRecommendations,
+  userProfiles,
+} from "../db/schema.js"
 import { computeInsightHash } from "./activity-insight.js"
 
 /** Subset of Anthropic stream events used for the recap. */
-export type RecapStreamEvent = { type: string; delta?: { type: string; text?: string } }
+export type RecapStreamEvent = { type: string; delta?: unknown }
 
 /** Hash of everything that drives the recap; a change means the stored recap is stale. */
 export function computeRecapHash(input: {
@@ -29,8 +39,10 @@ export async function streamAndSaveRecap(opts: {
   let full = ""
   let clientGone = false
   for await (const event of opts.stream) {
-    if (event.type !== "content_block_delta" || event.delta?.type !== "text_delta") continue
-    const text = event.delta.text ?? ""
+    if (event.type !== "content_block_delta") continue
+    const delta = event.delta as { type?: string; text?: string } | undefined
+    if (delta?.type !== "text_delta") continue
+    const text = delta.text ?? ""
     full += text
     if (clientGone) continue
     try {
@@ -42,4 +54,49 @@ export async function streamAndSaveRecap(opts: {
   }
   await opts.save(full)
   return full
+}
+
+export const recapDateSchema = z.object({ date: z.string().date() })
+
+/** Activities in the 42-day window plus the profile — the inputs that drive the recap. */
+export async function loadRecapInputs(
+  db: DB,
+  userId: string
+): Promise<{ activities: Activity[]; profile: UserProfile | null }> {
+  const since = new Date()
+  since.setDate(since.getDate() - 42)
+  const [acts, profileRows] = await Promise.all([
+    db
+      .select()
+      .from(activities)
+      .where(and(eq(activities.userId, userId), gte(activities.startDate, since))),
+    db.select().from(userProfiles).where(eq(userProfiles.userId, userId)).limit(1),
+  ])
+  return { activities: acts, profile: profileRows[0] ?? null }
+}
+
+export async function getStoredRecap(
+  db: DB,
+  userId: string,
+  date: string
+): Promise<DailyRecommendation | null> {
+  const [row] = await db
+    .select()
+    .from(dailyRecommendations)
+    .where(and(eq(dailyRecommendations.userId, userId), eq(dailyRecommendations.date, date)))
+    .limit(1)
+  return row ?? null
+}
+
+export async function upsertRecap(
+  db: DB,
+  row: { userId: string; date: string; inputHash: string; content: string }
+): Promise<void> {
+  await db
+    .insert(dailyRecommendations)
+    .values(row)
+    .onConflictDoUpdate({
+      target: [dailyRecommendations.userId, dailyRecommendations.date],
+      set: { content: row.content, inputHash: row.inputHash, generatedAt: new Date() },
+    })
 }

@@ -4,7 +4,11 @@ import { activities, chatHistory, userProfiles } from "../db/schema.js"
 import { calculateTrainingLoad } from "../services/atl-ctl.js"
 import { formatDistance, formatDuration, formatPace, formatProfileSection } from "./_format.js"
 
-export async function buildRecommendationPrompt(userId: string, db: DB): Promise<string> {
+export async function buildRecommendationPrompt(
+  userId: string,
+  db: DB,
+  date: string
+): Promise<string> {
   const fourteenDaysAgo = new Date()
   fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14)
 
@@ -38,7 +42,7 @@ export async function buildRecommendationPrompt(userId: string, db: DB): Promise
   const lines: string[] = [
     "# Athlete Training Context",
     "",
-    `**Date**: ${new Date().toISOString().slice(0, 10)}`,
+    `**Date**: ${date}`,
     "",
     ...formatProfileSection(profile),
     "## Training Load (TRIMP-based)",

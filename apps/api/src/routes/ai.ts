@@ -10,8 +10,16 @@ import { buildRecommendationPrompt } from "../prompts/recommendation.js"
 import { SYSTEM_PROMPT } from "../prompts/system.js"
 import { buildWeeklyReportPrompt } from "../prompts/weekly-report.js"
 import { computeInsightHash, generateActivityInsight } from "../services/activity-insight.js"
-import { requireAnthropicClient } from "../services/anthropic-client.js"
+import { getAnthropicClient, requireAnthropicClient } from "../services/anthropic-client.js"
 import { calculateTrainingLoad } from "../services/atl-ctl.js"
+import {
+  computeRecapHash,
+  getStoredRecap,
+  loadRecapInputs,
+  recapDateSchema,
+  streamAndSaveRecap,
+  upsertRecap,
+} from "../services/daily-recap.js"
 
 const notFound = z.object({ error: z.string() })
 
@@ -121,14 +129,39 @@ const aiRoutes: FastifyPluginAsyncZod = async (fastify) => {
 
   // ─── Recommendation ───────────────────────────────────────────────────────
 
+  fastify.get(
+    "/ai/recommendation",
+    { schema: { querystring: recapDateSchema } },
+    async (request) => {
+      const userId = request.user.sub
+      const { date } = request.query
+      const [client, stored, inputs] = await Promise.all([
+        getAnthropicClient(userId),
+        getStoredRecap(db, userId, date),
+        loadRecapInputs(db, userId),
+      ])
+      const recap = stored
+        ? {
+            content: stored.content,
+            generatedAt: stored.generatedAt.toISOString(),
+            stale: stored.inputHash !== computeRecapHash({ date, ...inputs }),
+          }
+        : null
+      return { hasKey: client !== null, recap }
+    }
+  )
+
   fastify.post(
     "/ai/recommendation",
-    { schema: { body: z.object({}).optional() } },
+    { schema: { body: recapDateSchema } },
     async (request, reply) => {
       const userId = request.user.sub
+      const { date } = request.body
       const anthropic = await requireAnthropicClient(userId)
+      // Hash before calling Claude so it reflects the data the prompt is built from.
+      const inputHash = computeRecapHash({ date, ...(await loadRecapInputs(db, userId)) })
       fastify.log.info({ userId }, "recommendation: building prompt")
-      const userMessage = await buildRecommendationPrompt(userId, db)
+      const userMessage = await buildRecommendationPrompt(userId, db, date)
 
       const origin = request.headers.origin ?? env.FRONTEND_URL
       reply.raw.writeHead(200, {
@@ -150,14 +183,21 @@ const aiRoutes: FastifyPluginAsyncZod = async (fastify) => {
           posthogDistinctId: userId,
         })
 
-        for await (const event of stream) {
-          if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
-            const text = event.delta.text
+        await streamAndSaveRecap({
+          stream,
+          onText: (text) => {
+            if (reply.raw.destroyed) throw new Error("client disconnected")
             reply.raw.write(`data: ${JSON.stringify({ text })}\n\n`)
-          }
-        }
+          },
+          save: (content) => upsertRecap(db, { userId, date, inputHash, content }),
+        })
 
         reply.raw.write("data: [DONE]\n\n")
+      } catch (err) {
+        fastify.log.error(
+          { userId, err: err instanceof Error ? err.message : "unknown" },
+          "recommendation: stream or save failed"
+        )
       } finally {
         reply.raw.end()
       }
