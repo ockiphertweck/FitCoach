@@ -122,6 +122,31 @@ test.describe("Summary", () => {
       pwExpect(posts).toHaveLength(2)
     })
 
+    test("always-stale recap stops after 2 automatic streams", async ({ authedPage }) => {
+      const posts = trackPosts(authedPage)
+      let gets = 0
+      await authedPage.route(/\/ai\/recommendation\?date=/, (route) => {
+        gets++
+        route.fulfill({
+          json: {
+            hasKey: true,
+            recap: {
+              content: "Stored text",
+              stale: true,
+              generatedAt: `2026-02-01T00:00:${gets}Z`,
+            },
+          },
+        })
+      })
+      await mockStream(authedPage, "/ai/recommendation", ["Streamed"])
+      await authedPage.goto("/")
+      await pwExpect.poll(() => gets).toBeGreaterThanOrEqual(3)
+      await authedPage.waitForTimeout(1000)
+      pwExpect(posts).toHaveLength(2)
+      await expect(authedPage.getByText("Stored text")).toBeVisible()
+      await expect(authedPage.getByText("Updating…")).toHaveCount(0)
+    })
+
     test("navigating away and back mid-stream still sends one POST", async ({ authedPage }) => {
       const posts = trackPosts(authedPage)
       await mockGet(authedPage, /\/ai\/recommendation\?date=/, { hasKey: true, recap: null })

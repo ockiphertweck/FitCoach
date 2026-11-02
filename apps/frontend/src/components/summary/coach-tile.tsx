@@ -17,6 +17,11 @@ interface RecapResponse {
 // Module-level so a remounted tile joins a stream that is still running.
 const inflight = new Map<string, Promise<void>>()
 
+// Hard cap on automatic (non-click) streams per date per page load: guards against billing
+// loops if the server keeps reporting a just-saved recap as stale.
+const MAX_AUTO_STREAMS = 2
+const autoStreams = new Map<string, number>()
+
 export function CoachTile() {
   const qc = useQueryClient()
   const date = localDate()
@@ -68,8 +73,11 @@ export function CoachTile() {
     // and no double stream under StrictMode.
     if (!needsStream || key === null || started.current === key) return
     started.current = key
+    const used = autoStreams.get(date) ?? 0
+    if (used >= MAX_AUTO_STREAMS) return
+    autoStreams.set(date, used + 1)
     void generate()
-  }, [needsStream, key, generate])
+  }, [needsStream, key, date, generate])
 
   const old = data?.recap?.content
   const shown = streamed || old
