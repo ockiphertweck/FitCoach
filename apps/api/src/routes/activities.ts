@@ -2,9 +2,10 @@ import { and, asc, count, desc, eq, gte, lte } from "drizzle-orm"
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod"
 import { z } from "zod"
 import { db } from "../db/index.js"
-import { activities } from "../db/schema.js"
+import { activities, userProfiles } from "../db/schema.js"
 import { authMiddleware } from "../middleware/auth.js"
 import { calculateTrainingLoad } from "../services/atl-ctl.js"
+import { loadActivityStreams } from "../services/garmin/fit.js"
 
 const activitiesRoutes: FastifyPluginAsyncZod = async (fastify) => {
   fastify.addHook("preHandler", authMiddleware)
@@ -134,8 +135,12 @@ const activitiesRoutes: FastifyPluginAsyncZod = async (fastify) => {
         .limit(1)
 
       if (!activity) return reply.code(404).send({ error: "Activity not found" })
-      const stored = (activity.streamData ?? {}) as Record<string, unknown>
-      return { points: [], hrZones: null, maxHrUsed: null, polyline: null, ...stored }
+      const [profile] = await db
+        .select({ maxHeartRate: userProfiles.maxHeartRate })
+        .from(userProfiles)
+        .where(eq(userProfiles.userId, userId))
+        .limit(1)
+      return loadActivityStreams(db, activity, profile?.maxHeartRate ?? null)
     }
   )
 }

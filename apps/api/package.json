@@ -24,6 +24,7 @@
     "@fastify/sensible": "^6.0.1",
     "@fitcoach/shared": "workspace:*",
     "@garmin/fitsdk": "^21.218.0",
+    "@mapbox/polyline": "^1.2.1",
     "@posthog/ai": "^7.13.0",
     "@t3-oss/env-core": "^0.11.1",
     "bcryptjs": "^2.4.3",
@@ -39,6 +40,7 @@
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
+    "@types/mapbox__polyline": "^1.0.5",
     "@types/node": "^22.10.2",
     "@vitest/coverage-v8": "^2.1.9",
     "drizzle-kit": "^0.30.1",

@@ -24,17 +24,14 @@ export function buildActivityInsightPrompt(
     const s = activity.averagePaceSecondsPerKm % 60
     lines.push(`Avg Pace: ${m}:${String(s).padStart(2, "0")}/km`)
   }
-  if (raw.average_watts)
-    lines.push(
-      `Avg Power: ${raw.average_watts} W${raw.device_watts ? " (power meter)" : " (estimated)"}`
-    )
-  if (raw.weighted_average_watts) lines.push(`Normalized Power: ${raw.weighted_average_watts} W`)
-  if (raw.kilojoules) lines.push(`Energy: ${raw.kilojoules} kJ`)
+  if (raw.avgPower) lines.push(`Avg Power: ${raw.avgPower} W`)
+  if (raw.normPower) lines.push(`Normalized Power: ${raw.normPower} W`)
+  if (raw.aerobicTrainingEffect) lines.push(`Aerobic Training Effect: ${raw.aerobicTrainingEffect}`)
+  if (raw.anaerobicTrainingEffect)
+    lines.push(`Anaerobic Training Effect: ${raw.anaerobicTrainingEffect}`)
   if (activity.calories) lines.push(`Calories: ${activity.calories} kcal`)
   if (activity.sufferScore) lines.push(`Suffer Score: ${activity.sufferScore}`)
   if (activity.perceivedExertion) lines.push(`RPE: ${activity.perceivedExertion}/10`)
-  if (raw.pr_count) lines.push(`PRs: ${raw.pr_count}`)
-  if (raw.trainer) lines.push("Indoor: yes")
 
   lines.push("")
   lines.push(`Athlete Sex: ${profile?.sex ?? "not set"}`)
