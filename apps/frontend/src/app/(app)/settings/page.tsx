@@ -173,7 +173,7 @@ export default function SettingsPage() {
   const hasAnthropicKey = apiKeyStatus?.providers.includes("anthropic")
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 lg:mx-auto lg:w-full lg:max-w-[640px]">
       <PageHeader title="Settings" subtitle="MANAGE YOUR FITCOACH CONFIGURATION" />
 
       {/* Appearance */}

@@ -9,6 +9,8 @@ export interface ActivityItem {
   durationSeconds: number | null
   distanceMeters: number | null
   averageHeartRate: number | null
+  elevationMeters?: number | null
+  averagePaceSecondsPerKm?: number | null
 }
 
 const ICONS = {
@@ -33,7 +35,16 @@ function formatDuration(seconds: number): string {
   return `${h}:${m}`
 }
 
-export function ActivityRow({ activity: a }: { activity: ActivityItem }) {
+function formatPace(secPerKm: number): string {
+  const m = Math.floor(secPerKm / 60)
+  return `${m}:${String(Math.round(secPerKm % 60)).padStart(2, "0")} /km`
+}
+
+// `wide` adds Elevation and Pace columns from lg up (Activities list only).
+export function ActivityRow({
+  activity: a,
+  wide = false,
+}: { activity: ActivityItem; wide?: boolean }) {
   const sport = a.sportType.toLowerCase()
   const Icon = ICONS[sport as keyof typeof ICONS] ?? Activity
   const tint = TINTS[sport] ?? "bg-muted text-muted-foreground"
@@ -50,6 +61,22 @@ export function ActivityRow({ activity: a }: { activity: ActivityItem }) {
           {a.distanceMeters ? ` · ${(a.distanceMeters / 1000).toFixed(1)} km` : ""}
         </span>
       </span>
+      {wide && (
+        <>
+          <span
+            data-testid="row-elevation"
+            className="hidden w-24 text-right text-sm tabular-nums text-muted-foreground lg:block"
+          >
+            {a.elevationMeters != null ? `${Math.round(a.elevationMeters)} m` : "—"}
+          </span>
+          <span
+            data-testid="row-pace"
+            className="hidden w-24 text-right text-sm tabular-nums text-muted-foreground lg:block"
+          >
+            {a.averagePaceSecondsPerKm ? formatPace(a.averagePaceSecondsPerKm) : "—"}
+          </span>
+        </>
+      )}
       <span className="text-right">
         <span className="block font-bold tabular-nums">
           {a.durationSeconds ? formatDuration(a.durationSeconds) : "—"}

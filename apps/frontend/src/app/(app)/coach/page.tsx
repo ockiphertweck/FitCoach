@@ -250,7 +250,7 @@ export default function CoachPage() {
             <Button
               variant="secondary"
               size="sm"
-              className="hidden md:inline-flex"
+              className="hidden md:inline-flex lg:hidden"
               aria-expanded={listOpen}
               onClick={() => setListOpen((o) => !o)}
             >
@@ -263,7 +263,9 @@ export default function CoachPage() {
 
       {/* ≥ md: collapsible sessions tile */}
       {listOpen && (
-        <Card className="hidden md:flex flex-col gap-2 max-h-52 mb-3 shrink-0">{sessionList}</Card>
+        <Card className="hidden md:flex lg:hidden flex-col gap-2 max-h-52 mb-3 shrink-0">
+          {sessionList}
+        </Card>
       )}
 
       {/* Phone: bottom sheet */}
@@ -280,108 +282,119 @@ export default function CoachPage() {
         </Dialog.Portal>
       </Dialog.Root>
 
-      {/* Messages */}
-      <div className="flex-1 min-h-0 overflow-y-auto py-2">
-        <div className="space-y-3">
-          {messages.length === 0 && !isStreaming && (
-            <div className="text-center text-muted-foreground py-16">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-metric-coach/15 mx-auto mb-4">
-                <Bot className="h-7 w-7 text-metric-coach" />
-              </div>
-              <p className="text-base font-medium text-foreground">Start a conversation</p>
-              <p className="text-sm mt-1">Ask about your training, recovery, or goals</p>
-            </div>
-          )}
+      <div className="flex flex-1 min-h-0 gap-4">
+        {/* ≥ lg: permanent sessions column */}
+        <Card
+          data-testid="coach-sessions"
+          className="hidden lg:flex w-64 shrink-0 flex-col gap-2 self-start max-h-full"
+        >
+          {sessionList}
+        </Card>
+        <div className="flex flex-1 min-w-0 min-h-0 flex-col">
+          {/* Messages */}
+          <div className="flex-1 min-h-0 overflow-y-auto py-2">
+            <div className="space-y-3">
+              {messages.length === 0 && !isStreaming && (
+                <div className="text-center text-muted-foreground py-16">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-metric-coach/15 mx-auto mb-4">
+                    <Bot className="h-7 w-7 text-metric-coach" />
+                  </div>
+                  <p className="text-base font-medium text-foreground">Start a conversation</p>
+                  <p className="text-sm mt-1">Ask about your training, recovery, or goals</p>
+                </div>
+              )}
 
-          {messages.map((msg, i) => (
-            <div key={msg.id} className={cn("flex", msg.role === "user" && "justify-end")}>
-              <div
-                className={cn(
-                  "max-w-[85%] rounded-[20px] px-4 py-3 text-sm",
-                  msg.role === "user" ? "bg-metric-coach/15 text-foreground" : "bg-card"
-                )}
-              >
-                {msg.role === "assistant" ? (
-                  <div className="prose prose-sm max-w-none text-foreground">
-                    <Markdown>{msg.content}</Markdown>
-                  </div>
-                ) : (
-                  <p className="whitespace-pre-wrap">{msg.content}</p>
-                )}
-                {/* Retry button on last user message when request failed */}
-                {msg.role === "user" && failedMessage && i === messages.length - 1 ? (
-                  <div className="flex items-center justify-end gap-2 mt-2">
-                    <span className="text-xs text-muted-foreground">Failed to send</span>
-                    <button
-                      type="button"
-                      onClick={() => handleSend(failedMessage)}
-                      className="flex items-center gap-1 text-xs text-foreground bg-foreground/10 hover:bg-foreground/15 rounded-lg px-2 py-1 transition-colors"
-                    >
-                      <RefreshCw className="h-3 w-3" /> Retry
-                    </button>
-                  </div>
-                ) : (
-                  <p
+              {messages.map((msg, i) => (
+                <div key={msg.id} className={cn("flex", msg.role === "user" && "justify-end")}>
+                  <div
                     className={cn(
-                      "text-xs mt-1.5 text-muted-foreground",
-                      msg.role === "user" ? "text-right" : ""
+                      "max-w-[85%] rounded-[20px] px-4 py-3 text-sm",
+                      msg.role === "user" ? "bg-metric-coach/15 text-foreground" : "bg-card"
                     )}
                   >
-                    {new Date(msg.createdAt).toLocaleTimeString()}
-                  </p>
-                )}
-              </div>
-            </div>
-          ))}
-
-          {(isStreaming || streamingMessage) && (
-            <div className="flex">
-              <div className="max-w-[85%] rounded-[20px] px-4 py-3 text-sm bg-card">
-                {streamingMessage ? (
-                  <div>
-                    <div className="prose prose-sm max-w-none text-foreground">
-                      <Markdown>{streamingMessage}</Markdown>
-                    </div>
-                    {isStreaming && <span className="animate-pulse text-metric-coach">▋</span>}
+                    {msg.role === "assistant" ? (
+                      <div className="prose prose-sm max-w-none text-foreground">
+                        <Markdown>{msg.content}</Markdown>
+                      </div>
+                    ) : (
+                      <p className="whitespace-pre-wrap">{msg.content}</p>
+                    )}
+                    {/* Retry button on last user message when request failed */}
+                    {msg.role === "user" && failedMessage && i === messages.length - 1 ? (
+                      <div className="flex items-center justify-end gap-2 mt-2">
+                        <span className="text-xs text-muted-foreground">Failed to send</span>
+                        <button
+                          type="button"
+                          onClick={() => handleSend(failedMessage)}
+                          className="flex items-center gap-1 text-xs text-foreground bg-foreground/10 hover:bg-foreground/15 rounded-lg px-2 py-1 transition-colors"
+                        >
+                          <RefreshCw className="h-3 w-3" /> Retry
+                        </button>
+                      </div>
+                    ) : (
+                      <p
+                        className={cn(
+                          "text-xs mt-1.5 text-muted-foreground",
+                          msg.role === "user" ? "text-right" : ""
+                        )}
+                      >
+                        {new Date(msg.createdAt).toLocaleTimeString()}
+                      </p>
+                    )}
                   </div>
-                ) : (
-                  <div className="flex gap-1.5 items-center h-5">
-                    {[0, 150, 300].map((d) => (
-                      <span
-                        key={d}
-                        className="animate-bounce w-1.5 h-1.5 bg-metric-coach rounded-full"
-                        style={{ animationDelay: `${d}ms` }}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
+                </div>
+              ))}
 
-          <div ref={bottomRef} />
+              {(isStreaming || streamingMessage) && (
+                <div className="flex">
+                  <div className="max-w-[85%] rounded-[20px] px-4 py-3 text-sm bg-card">
+                    {streamingMessage ? (
+                      <div>
+                        <div className="prose prose-sm max-w-none text-foreground">
+                          <Markdown>{streamingMessage}</Markdown>
+                        </div>
+                        {isStreaming && <span className="animate-pulse text-metric-coach">▋</span>}
+                      </div>
+                    ) : (
+                      <div className="flex gap-1.5 items-center h-5">
+                        {[0, 150, 300].map((d) => (
+                          <span
+                            key={d}
+                            className="animate-bounce w-1.5 h-1.5 bg-metric-coach rounded-full"
+                            style={{ animationDelay: `${d}ms` }}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <div ref={bottomRef} />
+            </div>
+          </div>
+
+          {/* Input — column bottom; on phone the layout's bottom padding keeps it above the tab bar */}
+          <div className="glass flex shrink-0 items-end gap-2 p-1.5 mt-2">
+            <Textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Ask your coach anything… (Enter to send, Shift+Enter for newline)"
+              className="min-h-[44px] max-h-[200px] resize-none rounded-3xl bg-transparent placeholder:text-muted-foreground"
+              disabled={isStreaming || !activeSessionId}
+            />
+            <Button
+              onClick={() => handleSend()}
+              disabled={!input.trim() || isStreaming || !activeSessionId}
+              size="icon"
+              aria-label="Send"
+              className="h-11 w-11 shrink-0 rounded-full"
+            >
+              <Send className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
-      </div>
-
-      {/* Input — column bottom; on phone the layout's bottom padding keeps it above the tab bar */}
-      <div className="glass flex shrink-0 items-end gap-2 p-1.5 mt-2">
-        <Textarea
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Ask your coach anything… (Enter to send, Shift+Enter for newline)"
-          className="min-h-[44px] max-h-[200px] resize-none rounded-3xl bg-transparent placeholder:text-muted-foreground"
-          disabled={isStreaming || !activeSessionId}
-        />
-        <Button
-          onClick={() => handleSend()}
-          disabled={!input.trim() || isStreaming || !activeSessionId}
-          size="icon"
-          aria-label="Send"
-          className="h-11 w-11 shrink-0 rounded-full"
-        >
-          <Send className="h-4 w-4" />
-        </Button>
       </div>
     </div>
   )
