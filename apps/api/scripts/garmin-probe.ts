@@ -53,8 +53,6 @@ async function show(label: string, fn: () => Promise<unknown>) {
 async function main() {
   const c = createGarminClient(key as string)
   console.log(`base: ${GARMIN_API_BASE}`)
-  // shortcut: client exposes no status/headers, so errors show as GarminError codes only; add a header dump if rate limits need study.
-  console.log("token response: string (bare JWT with exp claim)")
 
   let firstId: string | number | undefined
   await show("activity search (30d, limit 5)", async () => {
@@ -76,6 +74,7 @@ async function main() {
       console.log(`bytes: ${bytes.length}`)
       console.log(`zip entries: ${Object.keys(unzipSync(bytes)).join(", ")}`)
     } catch (e) {
+      flushCalls()
       console.log(`ERROR: ${e instanceof Error ? e.message : "unknown"}`)
     }
   }

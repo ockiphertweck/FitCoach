@@ -107,6 +107,20 @@ describe("client.get", () => {
     expect(String(err)).not.toContain("secret-body")
   })
 
+  it("getBytes maps an unreadable body to garmin_unavailable", async () => {
+    const broken = {
+      ok: true,
+      status: 200,
+      arrayBuffer: () => Promise.reject(new Error("secret-body")),
+    }
+    fetchMock.mockResolvedValueOnce(res(200, jwt(inHours(24)))).mockResolvedValueOnce(broken)
+    const err = await createGarminClient(KEY)
+      .getBytes("/f")
+      .catch((e) => e)
+    expect(err).toMatchObject({ code: "garmin_unavailable" })
+    expect(String(err)).not.toContain("secret-body")
+  })
+
   it("getBytes returns raw bytes", async () => {
     fetchMock
       .mockResolvedValueOnce(res(200, jwt(inHours(24))))
