@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, MetricLabel } from "@/components/ui/card"
 import { api } from "@/lib/api"
+import { translateApiError } from "@/lib/i18n"
+import { useI18n } from "@/lib/i18n/client"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import {
   Activity,
@@ -107,8 +109,11 @@ function fmt(seconds: number) {
   return `${s}s`
 }
 
-function fmtSpeed(ms: number) {
-  return `${(ms * 3.6).toFixed(1)} km/h`
+const dec = (v: number, locale: string, digits: number) =>
+  v.toLocaleString(locale, { minimumFractionDigits: digits, maximumFractionDigits: digits })
+
+function fmtSpeed(ms: number, locale: string) {
+  return `${dec(ms * 3.6, locale, 1)} km/h`
 }
 
 function StatCard({
@@ -194,6 +199,8 @@ const chartMargin = { top: 4, right: 20, left: 0, bottom: 0 }
 
 export default function ActivityDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
+  const { t, lang, locale } = useI18n()
+  const a = t.activities
 
   const { data: activity, isLoading } = useQuery<ActivityDetail>({
     queryKey: ["activity", id],
@@ -208,7 +215,8 @@ export default function ActivityDetailPage({ params }: { params: Promise<{ id: s
   })
 
   const insightsMutation = useMutation({
-    mutationFn: () => api.post<{ insight: string }>("/ai/activity-insight", { activityId: id }),
+    mutationFn: () =>
+      api.post<{ insight: string }>("/ai/activity-insight", { activityId: id, lang }),
   })
 
   if (isLoading) {
@@ -223,6 +231,7 @@ export default function ActivityDetailPage({ params }: { params: Promise<{ id: s
 
   if (!activity) return null
 
+  const sportName = t.sports[activity.sportType] ?? activity.sportType
   const raw = activity.rawData ?? {}
   const polyline = streams?.polyline
   const movingTime = raw.moving_time
@@ -248,11 +257,11 @@ export default function ActivityDetailPage({ params }: { params: Promise<{ id: s
         href="/activities"
         className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
       >
-        <ArrowLeft className="h-3 w-3" /> Activities
+        <ArrowLeft className="h-3 w-3" /> {a.back}
       </Link>
       <PageHeader
-        title={activity.name ?? activity.sportType}
-        subtitle={new Date(activity.startDate).toLocaleDateString("en-GB", {
+        title={activity.name ?? sportName}
+        subtitle={new Date(activity.startDate).toLocaleDateString(locale, {
           weekday: "long",
           day: "numeric",
           month: "long",
@@ -261,10 +270,10 @@ export default function ActivityDetailPage({ params }: { params: Promise<{ id: s
       />
       <div className="-mt-2 flex flex-wrap items-center gap-2">
         <Badge variant="outline" className="capitalize">
-          {activity.sportType}
+          {sportName}
         </Badge>
-        {isIndoor && <Badge variant="secondary">Indoor</Badge>}
-        {raw.commute && <Badge variant="secondary">Commute</Badge>}
+        {isIndoor && <Badge variant="secondary">{a.indoor}</Badge>}
+        {raw.commute && <Badge variant="secondary">{a.commute}</Badge>}
         {raw.pr_count != null && raw.pr_count > 0 && (
           <span className="inline-flex items-center gap-1 text-xs font-medium">
             <Trophy className="h-4 w-4 text-yellow-500" /> {raw.pr_count} PR
@@ -276,7 +285,9 @@ export default function ActivityDetailPage({ params }: { params: Promise<{ id: s
           </span>
         )}
         {raw.device_name && (
-          <span className="text-xs text-muted-foreground">via {raw.device_name}</span>
+          <span className="text-xs text-muted-foreground">
+            {a.via} {raw.device_name}
+          </span>
         )}
       </div>
 
@@ -285,22 +296,22 @@ export default function ActivityDetailPage({ params }: { params: Promise<{ id: s
         {movingTime != null && (
           <StatCard
             icon={Timer}
-            label="Moving Time"
+            label={a.movingTime}
             value={fmt(movingTime)}
-            sub={stopTime ? `+${fmt(stopTime)} stopped` : undefined}
+            sub={stopTime ? `+${fmt(stopTime)} ${a.stopped}` : undefined}
           />
         )}
         {activity.distanceMeters != null && (
           <StatCard
             icon={Activity}
-            label="Distance"
-            value={`${(activity.distanceMeters / 1000).toFixed(2)} km`}
+            label={a.distance}
+            value={`${dec(activity.distanceMeters / 1000, locale, 2)} km`}
           />
         )}
         {activity.elevationMeters != null && activity.elevationMeters > 0 && (
           <StatCard
             icon={Mountain}
-            label="Elevation Gain"
+            label={a.elevationGain}
             value={`${Math.round(activity.elevationMeters)} m`}
             sub={
               raw.elev_low != null && raw.elev_high != null
@@ -312,19 +323,19 @@ export default function ActivityDetailPage({ params }: { params: Promise<{ id: s
         {activity.averageHeartRate != null && (
           <StatCard
             icon={Heart}
-            label="Avg Heart Rate"
+            label={a.avgHeartRate}
             value={`${activity.averageHeartRate} bpm`}
-            sub={activity.maxHeartRate ? `max ${activity.maxHeartRate} bpm` : undefined}
+            sub={activity.maxHeartRate ? `${a.max} ${activity.maxHeartRate} bpm` : undefined}
           />
         )}
         {activity.averagePaceSecondsPerKm != null && (
           <StatCard
             icon={Gauge}
-            label="Avg Speed"
-            value={`${(3600 / activity.averagePaceSecondsPerKm).toFixed(1)} km/h`}
+            label={a.avgSpeed}
+            value={`${dec(3600 / activity.averagePaceSecondsPerKm, locale, 1)} km/h`}
             sub={
               raw.max_speed != null && raw.max_speed > 0
-                ? `max ${fmtSpeed(raw.max_speed)}`
+                ? `${a.max} ${fmtSpeed(raw.max_speed, locale)}`
                 : undefined
             }
           />
@@ -332,22 +343,22 @@ export default function ActivityDetailPage({ params }: { params: Promise<{ id: s
         {hasPower && (
           <StatCard
             icon={Zap}
-            label="Avg Power"
+            label={a.avgPower}
             value={`${Math.round(raw.average_watts ?? 0)} W`}
-            sub={raw.device_watts ? "power meter" : "estimated"}
+            sub={raw.device_watts ? a.powerMeter : a.estimated}
           />
         )}
         {raw.weighted_average_watts != null && (
           <StatCard
             icon={Zap}
-            label="Normalized Power"
+            label={a.normalizedPower}
             value={`${Math.round(raw.weighted_average_watts)} W`}
           />
         )}
         {(raw.kilojoules != null || kcal != null) && (
           <StatCard
             icon={Flame}
-            label="Energy"
+            label={a.energy}
             value={kcal != null ? `${kcal} kcal` : `${Math.round(raw.kilojoules ?? 0)} kJ`}
             sub={
               kcal != null && raw.kilojoules != null
@@ -357,10 +368,10 @@ export default function ActivityDetailPage({ params }: { params: Promise<{ id: s
           />
         )}
         {activity.sufferScore != null && (
-          <StatCard icon={Heart} label="Suffer Score" value={String(activity.sufferScore)} />
+          <StatCard icon={Heart} label={a.sufferScore} value={String(activity.sufferScore)} />
         )}
         {activity.perceivedExertion != null && (
-          <StatCard icon={Gauge} label="RPE" value={`${activity.perceivedExertion} / 10`} />
+          <StatCard icon={Gauge} label={a.rpe} value={`${activity.perceivedExertion} / 10`} />
         )}
       </div>
 
@@ -376,7 +387,7 @@ export default function ActivityDetailPage({ params }: { params: Promise<{ id: s
               <Card>
                 <CardHeader>
                   <CardTitle className="text-sm font-medium text-muted-foreground">
-                    Heart Rate <span className="font-normal text-xs ml-1">bpm</span>
+                    {a.heartRate} <span className="font-normal text-xs ml-1">bpm</span>
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -402,7 +413,7 @@ export default function ActivityDetailPage({ params }: { params: Promise<{ id: s
                       />
                       <YAxis tick={tick} width={36} axisLine={false} tickLine={false} />
                       <Tooltip
-                        formatter={(v: number) => [`${v} bpm`, "HR"]}
+                        formatter={(v: number) => [`${v} bpm`, a.hr]}
                         labelFormatter={(v) => `${v} km`}
                         contentStyle={chartTooltipStyle}
                       />
@@ -426,7 +437,7 @@ export default function ActivityDetailPage({ params }: { params: Promise<{ id: s
               <Card>
                 <CardHeader>
                   <CardTitle className="text-sm font-medium text-muted-foreground">
-                    Speed <span className="font-normal text-xs ml-1">km/h</span>
+                    {a.speed} <span className="font-normal text-xs ml-1">km/h</span>
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -459,7 +470,7 @@ export default function ActivityDetailPage({ params }: { params: Promise<{ id: s
                       />
                       <YAxis tick={tick} width={36} axisLine={false} tickLine={false} />
                       <Tooltip
-                        formatter={(v: number) => [`${v} km/h`, "Speed"]}
+                        formatter={(v: number) => [`${v} km/h`, a.speed]}
                         labelFormatter={(v) => `${v} km`}
                         contentStyle={chartTooltipStyle}
                       />
@@ -483,7 +494,7 @@ export default function ActivityDetailPage({ params }: { params: Promise<{ id: s
               <Card>
                 <CardHeader>
                   <CardTitle className="text-sm font-medium text-muted-foreground">
-                    Elevation <span className="font-normal text-xs ml-1">m</span>
+                    {a.elevation} <span className="font-normal text-xs ml-1">m</span>
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -516,7 +527,7 @@ export default function ActivityDetailPage({ params }: { params: Promise<{ id: s
                       />
                       <YAxis tick={tick} width={40} axisLine={false} tickLine={false} />
                       <Tooltip
-                        formatter={(v: number) => [`${Math.round(v)} m`, "Altitude"]}
+                        formatter={(v: number) => [`${Math.round(v)} m`, a.altitude]}
                         labelFormatter={(v) => `${v} km`}
                         contentStyle={chartTooltipStyle}
                       />
@@ -540,10 +551,10 @@ export default function ActivityDetailPage({ params }: { params: Promise<{ id: s
               <Card>
                 <CardHeader>
                   <CardTitle className="text-sm font-medium text-muted-foreground">
-                    Heart Rate Zones
+                    {a.heartRateZones}
                     {streams.maxHrUsed && (
                       <span className="ml-2 font-normal text-xs">
-                        (max HR: {streams.maxHrUsed} bpm)
+                        ({a.maxHrUsed}: {streams.maxHrUsed} bpm)
                       </span>
                     )}
                   </CardTitle>
@@ -560,7 +571,7 @@ export default function ActivityDetailPage({ params }: { params: Promise<{ id: s
       {/* AI Insight */}
       <Card>
         <CardHeader>
-          <MetricLabel color="coach">AI Insight</MetricLabel>
+          <MetricLabel color="coach">{a.aiInsight}</MetricLabel>
         </CardHeader>
         <CardContent className="space-y-3">
           {insightsMutation.data ? (
@@ -575,13 +586,15 @@ export default function ActivityDetailPage({ params }: { params: Promise<{ id: s
             size="sm"
           >
             {insightsMutation.isPending
-              ? "Analysing…"
+              ? a.analysing
               : activity.aiInsight
-                ? "Re-analyse"
-                : "Analyse this activity"}
+                ? a.reanalyse
+                : a.analyse}
           </Button>
           {insightsMutation.isError && (
-            <p className="text-sm text-destructive">{insightsMutation.error.message}</p>
+            <p className="text-sm text-destructive">
+              {translateApiError(insightsMutation.error.message, t)}
+            </p>
           )}
         </CardContent>
       </Card>

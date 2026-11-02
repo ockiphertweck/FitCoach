@@ -328,7 +328,7 @@ test.describe("Activity detail page", () => {
       await mockPost(authedPage, "/ai/activity-insight", { error: "No API key configured" }, 400)
       await authedPage.goto(`/activities/${MOCK_ACTIVITY.id}`)
       await authedPage.getByRole("button", { name: "Analyse this activity" }).click()
-      await expect(authedPage.getByText("No API key configured")).toBeVisible()
+      await expect(authedPage.getByText("Something went wrong. Please try again.")).toBeVisible()
     })
 
     test("Re-analyse replaces existing insight", async ({ authedPage }) => {
@@ -438,4 +438,48 @@ test.describe("Activity detail page", () => {
       await expect(authedPage.getByText(/> \d+ bpm/)).toBeVisible()
     })
   })
+})
+
+test.describe("Activities in German", () => {
+  test.use({ locale: "de-DE" })
+
+  test("translates filters and sends lang with the insight request", async ({ authedPage }) => {
+    await mockGet(authedPage, "/activities?limit=20&offset=0", { items: [], total: 0 })
+    await mockGet(authedPage, `/activities/${MOCK_ACTIVITY.id}`, MOCK_ACTIVITY)
+    let body: unknown = null
+    await authedPage.route(`${API_BASE}/ai/activity-insight`, (route) => {
+      body = route.request().postDataJSON()
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ insight: "Gut gelaufen." }),
+      })
+    })
+    await authedPage.goto("/activities")
+    await expect(authedPage.getByRole("radio", { name: "Laufen" })).toBeVisible()
+    await expect(authedPage.getByRole("radio", { name: "Alle" })).toBeVisible()
+    await expect(authedPage.getByText("0 Aktivitäten insgesamt")).toBeVisible()
+    await authedPage.goto(`/activities/${MOCK_ACTIVITY.id}`)
+    await expect(authedPage.getByText("Bewegungszeit")).toBeVisible()
+    await authedPage.getByRole("button", { name: "Aktivität analysieren" }).click()
+    await expect(authedPage.getByText("Gut gelaufen.")).toBeVisible()
+    expect(body).toEqual({ activityId: MOCK_ACTIVITY.id, lang: "de" })
+  })
+})
+
+test("English insight request carries lang en", async ({ authedPage }) => {
+  await mockGet(authedPage, `/activities/${MOCK_ACTIVITY.id}`, MOCK_ACTIVITY)
+  let body: unknown = null
+  await authedPage.route(`${API_BASE}/ai/activity-insight`, (route) => {
+    body = route.request().postDataJSON()
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ insight: "Nice." }),
+    })
+  })
+  await authedPage.goto(`/activities/${MOCK_ACTIVITY.id}`)
+  await authedPage.getByRole("button", { name: "Analyse this activity" }).click()
+  await expect(authedPage.getByText("Nice.")).toBeVisible()
+  expect(body).toEqual({ activityId: MOCK_ACTIVITY.id, lang: "en" })
 })
