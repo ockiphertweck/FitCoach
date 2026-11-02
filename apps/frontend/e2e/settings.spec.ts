@@ -202,8 +202,11 @@ test.describe("Settings", () => {
       // PROFILE_EMPTY has sex: null — wait for the useEffect to initialise the form
       // so the profile data doesn't race and reset the field after selectOption.
       await expect(sexField).toHaveValue("")
-      await sexField.selectOption("female")
-      await expect(sexField).toHaveValue("female")
+      // selectOption before hydration is reverted by React's controlled value; retry until it sticks.
+      await expect(async () => {
+        await sexField.selectOption("female")
+        await expect(sexField).toHaveValue("female", { timeout: 500 })
+      }).toPass()
     })
 
     test("shows no Saved indicator when profile save fails", async ({ authedPage }) => {
