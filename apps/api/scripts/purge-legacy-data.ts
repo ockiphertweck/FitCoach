@@ -26,8 +26,16 @@ console.log(`  weekly_reports: ${await n(db.select({ c: count() }).from(weeklyRe
 console.log("Kept: users, api_keys, user_profiles.")
 
 if (!process.argv.includes("--yes")) {
+  if (!process.stdin.isTTY) {
+    console.error("Not an interactive terminal; pass --yes to confirm. Aborted.")
+    process.exit(1)
+  }
   const rl = createInterface({ input: process.stdin, output: process.stdout })
-  const answer = await rl.question('Type "yes" to delete: ')
+  // A closed stdin (Ctrl-D) resolves as "" = not confirmed.
+  const answer = await new Promise<string>((res) => {
+    rl.once("close", () => res(""))
+    rl.question('Type "yes" to delete: ').then(res)
+  })
   rl.close()
   if (answer.trim() !== "yes") {
     console.log("Aborted.")

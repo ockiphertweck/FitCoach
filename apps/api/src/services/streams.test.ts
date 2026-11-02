@@ -41,4 +41,12 @@ describe("buildStreams", () => {
     expect(r.points[0]?.speedKmh).toBe(36)
     expect(r.hrZones).toBeNull()
   })
+
+  it.each([501, 999])("keeps %i points within 500", (n) => {
+    const r = buildStreams(
+      { distanceM: Array.from({ length: n }, (_, i) => i), heartrate: null, ...base },
+      null
+    )
+    expect(r.points.length).toBeLessThanOrEqual(500)
+  })
 })

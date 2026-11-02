@@ -1,6 +1,8 @@
-import { getTableName } from "drizzle-orm"
+import { eq, getTableName } from "drizzle-orm"
+import { PgDialect } from "drizzle-orm/pg-core"
 import { describe, expect, it, vi } from "vitest"
 import type { DB } from "../db/index.js"
+import { activities } from "../db/schema.js"
 import { purgeLegacyData } from "./purge.js"
 
 function makeDb() {
@@ -57,7 +59,13 @@ describe("purgeLegacyData", () => {
   it("restricts activities deletion to source = 'strava' and others are unconditional", async () => {
     const { db, deleted } = makeDb()
     await purgeLegacyData(db)
-    expect(deleted.find((d) => d.table === "activities")?.where).toBeDefined()
+    const where = deleted.find((d) => d.table === "activities")?.where as Parameters<
+      PgDialect["sqlToQuery"]
+    >[0]
+    const dialect = new PgDialect()
+    expect(dialect.sqlToQuery(where)).toEqual(dialect.sqlToQuery(eq(activities.source, "strava")))
+    expect(dialect.sqlToQuery(where).params).toEqual(["strava"])
+    expect(dialect.sqlToQuery(where).sql).toContain('"source"')
     for (const d of deleted.filter((x) => x.table !== "activities")) {
       expect(d.where).toBeUndefined()
     }
