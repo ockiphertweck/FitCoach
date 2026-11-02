@@ -1,3 +1,5 @@
+"use client"
+
 import { Card, MetricLabel } from "@/components/ui/card"
 import type { Dict } from "@/lib/i18n"
 import { useI18n } from "@/lib/i18n/client"
@@ -162,7 +164,8 @@ export function RecoveryTiles({
         value={t?.hrvLastNight}
         unit="ms"
         caption={[
-          t?.hrvStatus && (dict.home.hrvStatus[t.hrvStatus] ?? cap(t.hrvStatus)),
+          t?.hrvStatus &&
+            ((dict.home.hrvStatus as Record<string, string>)[t.hrvStatus] ?? cap(t.hrvStatus)),
           t?.hrvWeeklyAvg != null && dict.home.sevenDayAvg(t.hrvWeeklyAvg),
         ]
           .filter(Boolean)

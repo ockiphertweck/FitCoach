@@ -23,7 +23,7 @@ interface TrainingLoad {
 }
 
 export default function HomePage() {
-  const { t } = useI18n()
+  const { t, locale } = useI18n()
   const garminErrors = {
     key_invalid: t.home.keyInvalid,
     rate_limited: t.home.garminBusy,
@@ -131,13 +131,13 @@ export default function HomePage() {
           <MetricTile
             label={t.home.fatigue}
             color="fatigue"
-            value={stats?.atl}
+            value={stats?.atl.toLocaleString(locale)}
             caption={t.home.load7}
           />
           <MetricTile
             label={t.home.fitness}
             color="fitness"
-            value={stats?.ctl}
+            value={stats?.ctl.toLocaleString(locale)}
             caption={t.home.load42}
           />
           <Card>
@@ -145,7 +145,9 @@ export default function HomePage() {
               <MetricLabel color="form">{t.home.form}</MetricLabel>
               {stats && <span className="text-sm font-semibold">{formLabel(stats.tsb, t)}</span>}
             </div>
-            <p className="mt-1 text-4xl font-bold tabular-nums">{stats?.tsb ?? "—"}</p>
+            <p className="mt-1 text-4xl font-bold tabular-nums">
+              {stats?.tsb.toLocaleString(locale) ?? "—"}
+            </p>
             <div className="mt-3">
               <FormScale tsb={stats?.tsb ?? 0} />
             </div>

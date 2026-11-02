@@ -143,8 +143,14 @@ test.describe("Language", () => {
       })
     }
 
+    test("unknown URL shows the German not-found page", async ({ authedPage: page }) => {
+      await page.goto("/does-not-exist")
+      await expect(page.getByRole("heading", { name: "Seite nicht gefunden" })).toBeVisible()
+      await expect(page.getByRole("link", { name: "Zurück zur Übersicht" })).toBeVisible()
+    })
+
     const PAGES: { path: string; german: string; authed: boolean }[] = [
-      { path: "/", german: "Zuletzt", authed: true },
+      { path: "/", german: "Letzte Aktivitäten", authed: true },
       { path: "/coach", german: "Starte eine Unterhaltung", authed: true },
       { path: "/activities", german: "Aktivitäten", authed: true },
       { path: `/activities/${MOCK_ACTIVITY.id}`, german: "Distanz", authed: true },

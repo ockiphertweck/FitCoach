@@ -312,7 +312,7 @@ const aiRoutes: FastifyPluginAsyncZod = async (fastify) => {
                 messages: [
                   {
                     role: "user",
-                    content: `User asked: "${message.slice(0, 300)}"\n\nReply in 3–5 words max with a short chat title. No punctuation. No quotes. Examples: "Zone 2 training plan", "Race week recovery", "Improve FTP cycling" Write the title in ${lang === "de" ? "German" : "English"}.`,
+                    content: `User asked: "${message.slice(0, 300)}"\n\nReply in 3–5 words max with a short chat title. No punctuation. No quotes. Examples: "Zone 2 training plan", "Race week recovery", "Improve FTP cycling"\nWrite the title in ${lang === "de" ? "German" : "English"}.`,
                   },
                 ],
                 posthogDistinctId: userId,

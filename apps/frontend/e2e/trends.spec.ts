@@ -223,6 +223,18 @@ test.describe("Trends — language", () => {
       await expect(authedPage.getByText("Avg HR")).toHaveCount(0)
     })
 
+    test("formats report ATL and CTL with a decimal comma", async ({ authedPage }) => {
+      await mockGet(authedPage, /\/activities\?limit=200/, { items: ACTIVITIES_8W, total: 3 })
+      await mockPost(authedPage, "/ai/weekly-report", {
+        ...WEEKLY_REPORT,
+        metrics: { ...WEEKLY_REPORT.metrics, atl: 45.3, ctl: 51.7 },
+      })
+      await authedPage.goto("/trends")
+      await authedPage.getByRole("button", { name: "Bericht erstellen" }).click()
+      await expect(authedPage.getByText("45,3", { exact: true })).toBeVisible()
+      await expect(authedPage.getByText("51,7", { exact: true })).toBeVisible()
+    })
+
     test("shows translated API error", async ({ authedPage }) => {
       await mockGet(authedPage, /\/activities\?limit=200/, { items: ACTIVITIES_8W, total: 3 })
       await mockPost(
@@ -237,7 +249,7 @@ test.describe("Trends — language", () => {
       )
       await authedPage.goto("/trends")
       await authedPage.getByRole("button", { name: "Bericht erstellen" }).click()
-      await expect(authedPage.getByText("Kein Claude-API-Key hinterlegt")).toBeVisible()
+      await expect(authedPage.getByText("Kein Claude-API-Schlüssel hinterlegt")).toBeVisible()
     })
   })
 })

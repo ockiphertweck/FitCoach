@@ -1,3 +1,5 @@
+import type { SportType } from "@fitcoach/shared"
+
 export const en = {
   nav: {
     main: "Main",
@@ -38,7 +40,7 @@ export const en = {
       UNBALANCED: "Unbalanced",
       LOW: "Low",
       POOR: "Poor",
-    } as Record<string, string>,
+    } satisfies Record<"BALANCED" | "UNBALANCED" | "LOW" | "POOR", string>,
     sevenDayAvg: (n: number) => `7-day avg ${n}`,
     bodyBattery: "Body Battery",
     chargedOvernight: (n: number) => `+${n} charged overnight`,
@@ -220,6 +222,8 @@ export const en = {
     userNotFound: "User not found",
     tryAgain: "Try again",
     pageFailed: "Something went wrong",
+    notFound: "Page not found",
+    backHome: "Back to Home",
     coachUnavailable: "Coach unavailable",
     activitiesFailed: "Failed to load activities",
     trendsFailed: "Failed to load trends",
@@ -238,7 +242,7 @@ export const en = {
     workout: "Workout",
     crossfit: "CrossFit",
     other: "Other",
-  } as Record<string, string>,
+  } satisfies Record<SportType, string>,
   common: {
     appDescription: "Self-hosted AI training coach powered by Garmin and Claude",
   },

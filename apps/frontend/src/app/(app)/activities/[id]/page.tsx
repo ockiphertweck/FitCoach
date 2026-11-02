@@ -231,7 +231,7 @@ export default function ActivityDetailPage({ params }: { params: Promise<{ id: s
 
   if (!activity) return null
 
-  const sportName = t.sports[activity.sportType] ?? activity.sportType
+  const sportName = (t.sports as Record<string, string>)[activity.sportType] ?? activity.sportType
   const raw = activity.rawData ?? {}
   const polyline = streams?.polyline
   const movingTime = raw.moving_time

@@ -513,7 +513,9 @@ test.describe("Missing Claude key in German", () => {
     await authedPage.goto(`/activities/${MOCK_ACTIVITY.id}`)
     await authedPage.getByRole("button", { name: "Aktivität analysieren" }).click()
     await expect(
-      authedPage.getByText("Kein Claude-API-Key hinterlegt. Füge ihn in den Einstellungen hinzu.")
+      authedPage.getByText(
+        "Kein Claude-API-Schlüssel hinterlegt. Füge ihn in den Einstellungen hinzu."
+      )
     ).toBeVisible()
   })
 })

@@ -82,6 +82,18 @@ test.describe("Summary", () => {
     await expect(authedPage.getByText("14", { exact: true })).toBeVisible()
   })
 
+  test.describe("German", () => {
+    test.use({ locale: "de-DE" })
+
+    test("formats ATL, CTL and TSB with a decimal comma", async ({ authedPage }) => {
+      await mockGet(authedPage, "/activities/stats", { atl: 45.3, ctl: 52.1, tsb: 6.8 })
+      await authedPage.goto("/")
+      await expect(authedPage.getByText("45,3", { exact: true })).toBeVisible()
+      await expect(authedPage.getByText("52,1", { exact: true })).toBeVisible()
+      await expect(authedPage.getByText("6,8", { exact: true })).toBeVisible()
+    })
+  })
+
   for (const [stats, label] of [
     [STATS_FRESH, "Fresh"],
     [STATS_FATIGUED, "Fatigued"],

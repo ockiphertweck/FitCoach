@@ -127,8 +127,8 @@ export default function TrendsPage() {
                         ? `${reportMutation.data.metrics.avgHR} bpm`
                         : t.trends.notAvailable,
                     },
-                    { label: "ATL", value: String(reportMutation.data.metrics.atl) },
-                    { label: "CTL", value: String(reportMutation.data.metrics.ctl) },
+                    { label: "ATL", value: reportMutation.data.metrics.atl.toLocaleString(locale) },
+                    { label: "CTL", value: reportMutation.data.metrics.ctl.toLocaleString(locale) },
                   ].map(({ label, value }) => (
                     <div key={label} className="rounded-xl bg-muted px-4 py-3">
                       <p className="text-muted-foreground text-xs mb-0.5">{label}</p>

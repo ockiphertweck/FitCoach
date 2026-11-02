@@ -62,6 +62,18 @@ describe("ai routes language", () => {
     expect((await post("/ai/weekly-report", { lang: "fr" })).statusCode).toBe(400)
   })
 
+  it("rejects an unknown lang on chat and activity-insight", async () => {
+    expect((await post("/ai/chat", { message: "hi", lang: "fr" })).statusCode).toBe(400)
+    expect(
+      (
+        await post("/ai/activity-insight", {
+          activityId: "00000000-0000-4000-8000-000000000000",
+          lang: "fr",
+        })
+      ).statusCode
+    ).toBe(400)
+  })
+
   it("activity-insight works without lang (defaults)", async () => {
     const res = await post("/ai/activity-insight", {
       activityId: "00000000-0000-4000-8000-000000000000",

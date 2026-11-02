@@ -70,7 +70,8 @@ export default function ActivitiesPage() {
             value={sport}
             options={SPORTS.map((s) => ({
               value: s,
-              label: s === "all" ? t.activities.all : (t.sports[s] ?? s),
+              label:
+                s === "all" ? t.activities.all : ((t.sports as Record<string, string>)[s] ?? s),
             }))}
             onChange={(v) => {
               setSport(v)

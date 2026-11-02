@@ -1,3 +1,5 @@
+"use client"
+
 import { useI18n } from "@/lib/i18n/client"
 import { Activity, Bike, Dumbbell, Footprints, MonitorPlay, Waves } from "lucide-react"
 import Link from "next/link"
@@ -58,7 +60,7 @@ export function ActivityRow({
       </span>
       <span className="min-w-0 flex-1">
         <span className="block truncate font-semibold">
-          {a.name ?? t.sports[sport] ?? a.sportType}
+          {a.name ?? (t.sports as Record<string, string>)[sport] ?? a.sportType}
         </span>
         <span className="block text-xs text-muted-foreground">
           {date}
