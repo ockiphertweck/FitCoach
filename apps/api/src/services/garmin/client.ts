@@ -19,7 +19,7 @@ export class GarminError extends Error {
 export const GARMIN_API_BASE = "https://personal.connectapi.garmin.com"
 export const GARMIN_TOKEN_URL = `${GARMIN_API_BASE}/personalapitoken-service/personal-api/personal-api-key/token`
 
-const REFRESH_WINDOW_MS = 3600_000
+const REFRESH_WINDOW_MS = 3_600_000
 // A 429 with a Retry-After up to this long is waited out in place (at most MAX_RATE_RETRIES times);
 // longer waits end the sync and the caller backs off.
 const MAX_INLINE_WAIT_MS = 60_000
@@ -68,7 +68,7 @@ export async function exchangeKey(
   const accessToken = (await res.text()).trim()
   try {
     const payload = JSON.parse(Buffer.from(accessToken.split(".")[1] ?? "", "base64url").toString())
-    if (typeof payload.exp !== "number") throw new Error()
+    if (typeof payload.exp !== "number") throw new Error("token payload has no numeric exp")
     return { accessToken, expiresAt: new Date(payload.exp * 1000), keyExpiresAt: null }
   } catch {
     throw new GarminError("garmin_unavailable", "Garmin token response unreadable")

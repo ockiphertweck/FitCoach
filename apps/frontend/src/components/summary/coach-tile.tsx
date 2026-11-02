@@ -44,22 +44,14 @@ function claimAutoStream(date: string, key: string): boolean {
   return true
 }
 
-export function CoachTile({
-  enabled,
-  importing = false,
-}: Readonly<{ enabled: boolean; importing?: boolean }>) {
+// Streamed recap text for `date`. `key` = (date, generatedAt) of the stored recap; a new key
+// drops the streamed copy so the newly stored content shows instead.
+function useRecapStream(date: string, key: string | null) {
   const qc = useQueryClient()
-  const date = localDate()
   const [streamed, setStreamed] = useState("")
   const [streaming, setStreaming] = useState(false)
   const [failed, setFailed] = useState(false)
   const streamedRef = useRef("")
-
-  const { data, isFetching, isError, refetch } = useQuery<RecapResponse>({
-    queryKey: ["recap", date],
-    queryFn: () => api.get(`/ai/recommendation?date=${date}`),
-    enabled,
-  })
 
   const generate = useCallback(async () => {
     setStreamed("")
@@ -83,8 +75,6 @@ export function CoachTile({
     }
   }, [date, qc])
 
-  // A new generatedAt means new stored content: show it instead of the streamed copy.
-  const key = data ? `${date}:${data.recap?.generatedAt ?? "none"}` : null
   const lastKey = useRef<string | null>(null)
   useEffect(() => {
     if (key === null || key === lastKey.current) return
@@ -97,6 +87,22 @@ export function CoachTile({
   useEffect(() => {
     if (inflight.has(date)) void generate()
   }, [date, generate])
+
+  return { streamed, streaming, failed, generate }
+}
+
+export function CoachTile({
+  enabled,
+  importing = false,
+}: Readonly<{ enabled: boolean; importing?: boolean }>) {
+  const date = localDate()
+  const { data, isFetching, isError, refetch } = useQuery<RecapResponse>({
+    queryKey: ["recap", date],
+    queryFn: () => api.get(`/ai/recommendation?date=${date}`),
+    enabled,
+  })
+  const key = data ? `${date}:${data.recap?.generatedAt ?? "none"}` : null
+  const { streamed, streaming, failed, generate } = useRecapStream(date, key)
 
   const needsStream = !!data?.hasKey && (!data.recap || data.recap.stale)
   useEffect(() => {

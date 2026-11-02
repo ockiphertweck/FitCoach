@@ -4,6 +4,14 @@ import { zipSync } from "fflate"
 import { describe, expect, it, vi } from "vitest"
 import { loadActivityStreams, parseFitActivity } from "./fit.js"
 
+// Module scope: vi.mock is hoisted anyway; only loadActivityStreams uses these.
+const { getBytes } = vi.hoisted(() => ({ getBytes: vi.fn() }))
+vi.mock("./client.js", async (orig) => ({
+  ...(await orig<typeof import("./client.js")>()),
+  createGarminClient: () => ({ getBytes }),
+}))
+vi.mock("../encryption.js", () => ({ decrypt: () => "key" }))
+
 const DEG = 2 ** 31 / 180
 const zip = (fit: Uint8Array) => zipSync({ "123_ACTIVITY.fit": fit })
 
@@ -62,13 +70,6 @@ describe("parseFitActivity", () => {
 })
 
 describe("loadActivityStreams", () => {
-  const { getBytes } = vi.hoisted(() => ({ getBytes: vi.fn() }))
-  vi.mock("./client.js", async (orig) => ({
-    ...(await orig<typeof import("./client.js")>()),
-    createGarminClient: () => ({ getBytes }),
-  }))
-  vi.mock("../encryption.js", () => ({ decrypt: () => "key" }))
-
   const fakeDb = (keyRows: unknown[]) => {
     const set = vi.fn(() => ({ where: vi.fn() }))
     return {

@@ -24,11 +24,15 @@ export function buildActivityInsightPrompt(
     const s = activity.averagePaceSecondsPerKm % 60
     lines.push(`Avg Pace: ${m}:${String(s).padStart(2, "0")}/km`)
   }
-  if (raw.avgPower) lines.push(`Avg Power: ${raw.avgPower} W`)
-  if (raw.normPower) lines.push(`Normalized Power: ${raw.normPower} W`)
-  if (raw.aerobicTrainingEffect) lines.push(`Aerobic Training Effect: ${raw.aerobicTrainingEffect}`)
-  if (raw.anaerobicTrainingEffect)
-    lines.push(`Anaerobic Training Effect: ${raw.anaerobicTrainingEffect}`)
+  // rawData is untyped provider JSON: print only real numbers, never objects or strings.
+  const rawNum = (label: string, key: string, unit = "") => {
+    const v = raw[key]
+    if (typeof v === "number" && v) lines.push(`${label}: ${v}${unit}`)
+  }
+  rawNum("Avg Power", "avgPower", " W")
+  rawNum("Normalized Power", "normPower", " W")
+  rawNum("Aerobic Training Effect", "aerobicTrainingEffect")
+  rawNum("Anaerobic Training Effect", "anaerobicTrainingEffect")
   if (activity.calories) lines.push(`Calories: ${activity.calories} kcal`)
   if (activity.sufferScore) lines.push(`Suffer Score: ${activity.sufferScore}`)
   if (activity.perceivedExertion) lines.push(`RPE: ${activity.perceivedExertion}/10`)

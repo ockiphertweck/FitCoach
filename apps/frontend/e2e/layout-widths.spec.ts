@@ -27,6 +27,7 @@ test.describe("Desktop layout (1280px)", () => {
       await mockData(authedPage)
       await authedPage.goto(path)
       await expect.poll(() => pageWidth(authedPage)).toBeGreaterThan(1000)
+      expect(await pageWidth(authedPage)).toBeGreaterThan(1000)
     })
   }
 
@@ -97,10 +98,13 @@ test.describe("Phone layout (390px)", () => {
 
   test("pages stay in the narrow column", async ({ authedPage }) => {
     await mockData(authedPage)
+    const widths: number[] = []
     for (const path of ["/", "/trends", "/activities"]) {
       await authedPage.goto(path)
       await expect.poll(() => pageWidth(authedPage)).toBeLessThanOrEqual(390)
+      widths.push(await pageWidth(authedPage))
     }
+    expect(widths.every((w) => w > 0 && w <= 390)).toBe(true)
   })
 
   test("trends charts stack", async ({ authedPage }) => {

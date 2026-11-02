@@ -75,9 +75,7 @@ export function formatRecoverySection(w: RecapWellness[], date: string): string[
       `- Yesterday: avg stress ${val(prev.stressAvg)}, resting HR ${val(prev.restingHeartRate, " bpm")}`
     )
   }
-  lines.push(
-    `- Trend (date sleep score/HRV): ${w.map((r) => `${r.date.slice(5)} ${val(r.sleepScore)}/${val(r.hrvLastNight)}`).join(", ")}`,
-    ""
-  )
+  const trend = w.map((r) => `${r.date.slice(5)} ${val(r.sleepScore)}/${val(r.hrvLastNight)}`)
+  lines.push(`- Trend (date sleep score/HRV): ${trend.join(", ")}`, "")
   return lines
 }

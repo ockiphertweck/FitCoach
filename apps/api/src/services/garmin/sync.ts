@@ -8,10 +8,11 @@ import { type GarminClient, loadGarminClient } from "./load-client.js"
 import { mapGarminActivity, mapWellnessDay } from "./mappers.js"
 
 export const SYNC_GATE_MS = 15 * 60_000
-const DAY = 86400_000
+const DAY = 86_400_000
 const PAGE = 100
 const CHUNK_DAYS = 28 // the shapes note shows no explicit range cap; stay conservative
 const DEDUPE_MS = 2 * 60_000
+const ACTIVITY_SEARCH = "/activitylist-service/activities/search/activities"
 
 export const garminStatusSchema = z.object({
   connected: z.boolean(),
@@ -99,13 +100,11 @@ async function syncActivities(
   from: Date,
   to: string
 ) {
+  // Sequential on purpose: one page at a time, no parallel bursts against Garmin (rate limits).
   for (let start = 0; ; start += PAGE) {
-    const page = await client.get<unknown[]>("/activitylist-service/activities/search/activities", {
-      start,
-      limit: PAGE,
-      startDate: ymd(from),
-      endDate: to,
-    })
+    const query = { start, limit: PAGE, startDate: ymd(from), endDate: to }
+    const page = await client.get<unknown[]>(ACTIVITY_SEARCH, query) // NOSONAR
+    // Row by row: each upsert must land before its Strava-duplicate delete; pages are small.
     for (const raw of page ?? []) {
       let row: ReturnType<typeof mapGarminActivity>
       try {
@@ -115,7 +114,7 @@ async function syncActivities(
         continue
       }
       const { userId: _u, source: _s, externalId: _e, ...update } = row
-      await db
+      await db // NOSONAR
         .insert(activities)
         .values(row)
         .onConflictDoUpdate({
@@ -124,7 +123,7 @@ async function syncActivities(
         })
       // Garmin supersedes the same workout imported earlier from Strava.
       const t = (row.startDate as Date).getTime()
-      await db
+      await db // NOSONAR
         .delete(activities)
         .where(
           and(
@@ -157,31 +156,23 @@ async function syncWellness(
   const stress = new Map<string, unknown>()
   const summary = new Map<string, unknown>()
   const sleep = new Map<string, unknown>()
+  const get = <T>(path: string, q?: Record<string, string>) => noData(client.get<T>(path, q))
   // Sequential on purpose: no parallel bursts against Garmin. Range calls only — one call per day
   // (dailySleep) hit Garmin's 429 during the 90-day import.
   for (const [a, b] of dateChunks(from, to, CHUNK_DAYS)) {
     const range = { startDate: a, endDate: b }
-    const sl = await noData(
-      client.get<unknown>("/sleep-service/sleep/dailySleepSummariesByDate", range)
-    )
+    const sl = await get("/sleep-service/sleep/dailySleepSummariesByDate", range) // NOSONAR
     for (const [k, v] of byDate(sl, "calendarDate")) sleep.set(k, v)
-    const h = await noData(
-      client.get<{ hrvSummaries?: unknown }>(`/hrv-service/hrv/daily/${a}/${b}`)
-    )
+    const h = await get<{ hrvSummaries?: unknown }>(`/hrv-service/hrv/daily/${a}/${b}`) // NOSONAR
     for (const [k, v] of byDate(h?.hrvSummaries, "calendarDate")) hrv.set(k, v)
-    const bb = await noData(
-      client.get<unknown>("/wellness-service/wellness/bodyBattery/reports/daily", range)
-    )
+    const bb = await get("/wellness-service/wellness/bodyBattery/reports/daily", range) // NOSONAR
     for (const [k, v] of byDate(bb, "date")) battery.set(k, v)
-    const st = await noData(
-      client.get<unknown>(`/usersummary-service/stats/stress/daily/${a}/${b}`)
-    )
+    const st = await get(`/usersummary-service/stats/stress/daily/${a}/${b}`) // NOSONAR
     for (const [k, v] of byDate(st, "calendarDate")) stress.set(k, v)
-    const su = await noData(
-      client.get<{ data?: unknown }>("/usersummary-service/v2/dailysummaries", range)
-    )
+    const su = await get<{ data?: unknown }>("/usersummary-service/v2/dailysummaries", range) // NOSONAR
     for (const [k, v] of byDate(su?.data, "calendarDate")) summary.set(k, v)
   }
+  // One upsert per day (at most ~90 on the initial import); sequential keeps DB load flat.
   for (const [a] of dateChunks(from, to, 1)) {
     let row: ReturnType<typeof mapWellnessDay>
     try {
@@ -200,7 +191,7 @@ async function syncWellness(
     const update = Object.fromEntries(
       Object.entries(row).filter(([k, v]) => k !== "date" && v != null)
     )
-    await db
+    await db // NOSONAR
       .insert(dailyWellness)
       .values({ ...row, userId })
       .onConflictDoUpdate({
@@ -251,7 +242,7 @@ export async function runGarminSync(
 }
 
 const BACKOFF_BASE_MS = 15 * 60_000
-const BACKOFF_MAX_MS = 6 * 3600_000
+const BACKOFF_MAX_MS = 6 * 3_600_000
 
 /** How long to leave Garmin alone after the n-th 429 in a row: its Retry-After, else 15 min doubling up to 6 h. */
 export function rateLimitBackoffMs(strikes: number, retryAfterMs?: number): number {

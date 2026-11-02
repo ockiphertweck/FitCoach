@@ -34,17 +34,15 @@ function garminLine(s: GarminStatus) {
   if (s.lastError === "key_invalid") return "Key invalid or expired"
   if (!s.lastSyncedAt) return "Connected"
   const mins = Math.round((Date.now() - new Date(s.lastSyncedAt).getTime()) / 60_000)
-  const [n, unit] =
-    mins < 60
-      ? [mins, "minute"]
-      : mins < 1440
-        ? [Math.round(mins / 60), "hour"]
-        : [Math.round(mins / 1440), "day"]
-  const rel = new Intl.RelativeTimeFormat("en", { numeric: "auto" }).format(
-    -n,
-    unit as Intl.RelativeTimeFormatUnit
-  )
+  const [n, unit] = relativeUnit(mins)
+  const rel = new Intl.RelativeTimeFormat("en", { numeric: "auto" }).format(-n, unit)
   return `Connected · Last sync ${rel}`
+}
+
+function relativeUnit(mins: number): [number, Intl.RelativeTimeFormatUnit] {
+  if (mins < 60) return [mins, "minute"]
+  if (mins < 1440) return [Math.round(mins / 60), "hour"]
+  return [Math.round(mins / 1440), "day"]
 }
 
 function useFlashSaved(duration = 3000) {

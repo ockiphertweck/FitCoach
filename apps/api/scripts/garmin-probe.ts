@@ -18,7 +18,8 @@ globalThis.fetch = async (input, init) => {
   const res = await realFetch(input, init)
   const hdrs = [...res.headers].filter(([k]) => /rate|limit|retry|remaining|reset/i.test(k))
   const path = new URL(String(input instanceof Request ? input.url : input)).pathname
-  calls.push(`${res.status} ${path} ${hdrs.map(([k, v]) => `${k}=${v}`).join(" ")}`.trimEnd())
+  const limits = hdrs.map(([k, v]) => `${k}=${v}`).join(" ")
+  calls.push(`${res.status} ${path} ${limits}`.trimEnd())
   return res
 }
 const flushCalls = () => {
@@ -34,7 +35,8 @@ function shape(v: unknown): unknown {
   return typeof v
 }
 
-const day = (offset: number) => new Date(Date.now() + offset * 86400_000).toISOString().slice(0, 10)
+const day = (offset: number) =>
+  new Date(Date.now() + offset * 86_400_000).toISOString().slice(0, 10)
 const yesterday = day(-1)
 const d7 = day(-7)
 
@@ -94,7 +96,9 @@ async function main() {
   await show("v2/dailysummaries", () => c.get("/usersummary-service/v2/dailysummaries", range))
 }
 
-main().catch((e) => {
+try {
+  await main()
+} catch (e) {
   console.error(e instanceof Error ? e.message : "probe failed")
   process.exit(1)
-})
+}

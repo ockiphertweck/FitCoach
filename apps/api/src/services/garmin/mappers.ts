@@ -52,14 +52,14 @@ const ActivityIn = z
   })
   .passthrough()
 
-const PACED: SportType[] = ["run", "walk", "hike"]
+const PACED = new Set<SportType>(["run", "walk", "hike"])
 
 /** raw = one element of activitylist-service activities/search/activities. */
 export function mapGarminActivity(raw: unknown, userId: string): NewActivity {
   const a = ActivityIn.parse(raw)
   const sportType = mapSportType(a.activityType.typeKey)
   const pace =
-    PACED.includes(sportType) && a.distance && a.distance > 0 && a.duration != null
+    PACED.has(sportType) && a.distance && a.distance > 0 && a.duration != null
       ? Math.round(a.duration / (a.distance / 1000))
       : null
   return {
@@ -168,7 +168,7 @@ export function mapWellnessDay(
           (sum, r, i) => (i > 0 ? sum + Math.max(0, r.level - night[i - 1].level) : 0),
           0
         )
-  const atWake = sleepEnd == null ? undefined : readings.filter((r) => r.t <= sleepEnd).at(-1)
+  const atWake = sleepEnd == null ? undefined : readings.findLast((r) => r.t <= sleepEnd)
 
   return {
     date,

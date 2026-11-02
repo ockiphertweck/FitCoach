@@ -28,9 +28,20 @@ type Color = ComponentProps<typeof MetricLabel>["color"]
 
 const hm = (s: number) => `${Math.floor(s / 3600)}h ${Math.round((s % 3600) / 60)}m`
 // Garmin's sleep score bands.
-const sleepLabel = (n: number) =>
-  n >= 90 ? "Excellent" : n >= 80 ? "Good" : n >= 60 ? "Fair" : "Poor"
+function sleepLabel(n: number): string {
+  if (n >= 90) return "Excellent"
+  if (n >= 80) return "Good"
+  if (n >= 60) return "Fair"
+  return "Poor"
+}
 const cap = (s: string) => s.charAt(0) + s.slice(1).toLowerCase()
+
+// No sleep score (spec Fallbacks): show duration + stages instead.
+function sleepTile(t: WellnessDay | null) {
+  const duration = t?.sleepSeconds == null ? undefined : hm(t.sleepSeconds)
+  if (t?.sleepScore == null) return { value: duration ?? null, caption: "Duration" }
+  return { value: t.sleepScore, unit: sleepLabel(t.sleepScore), caption: duration }
+}
 
 function Tile({
   id,
@@ -41,7 +52,7 @@ function Tile({
   caption,
   className,
   children,
-}: {
+}: Readonly<{
   id: string
   label: string
   color: Color
@@ -50,7 +61,7 @@ function Tile({
   caption?: string
   className?: string
   children?: ReactNode
-}) {
+}>) {
   const has = value !== null && value !== undefined
   return (
     <Card data-testid={`tile-${id}`} className={className}>
@@ -67,7 +78,7 @@ function Tile({
   )
 }
 
-function Bar({ parts }: { parts: { n: number; className: string }[] }) {
+function Bar({ parts }: Readonly<{ parts: { n: number; className: string }[] }>) {
   return (
     <div className="mt-2 flex h-2 overflow-hidden rounded" aria-hidden="true">
       {parts.map((p) => (
@@ -77,7 +88,7 @@ function Bar({ parts }: { parts: { n: number; className: string }[] }) {
   )
 }
 
-function Spark({ values, className }: { values: number[]; className: string }) {
+function Spark({ values, className }: Readonly<{ values: number[]; className: string }>) {
   if (values.length < 2) return null
   const min = Math.min(...values)
   const range = Math.max(...values) - min || 1
@@ -106,7 +117,7 @@ export function RecoveryTiles({
   data,
   loading,
   importing = false,
-}: { data: WellnessData | undefined; loading: boolean; importing?: boolean }) {
+}: Readonly<{ data: WellnessData | undefined; loading: boolean; importing?: boolean }>) {
   if (loading || importing)
     return (
       <div>
@@ -136,21 +147,7 @@ export function RecoveryTiles({
   const cal = t?.caloriesTotal
   return (
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-[repeat(5,minmax(0,1fr))]">
-      <Tile
-        id="sleep"
-        label="Sleep"
-        color="sleep"
-        // No sleep score (spec Fallbacks): show duration + stages instead.
-        value={t?.sleepScore ?? (t?.sleepSeconds != null ? hm(t.sleepSeconds) : null)}
-        unit={t?.sleepScore != null ? sleepLabel(t.sleepScore) : undefined}
-        caption={
-          t?.sleepScore == null
-            ? "Duration"
-            : t.sleepSeconds != null
-              ? hm(t.sleepSeconds)
-              : undefined
-        }
-      >
+      <Tile id="sleep" label="Sleep" color="sleep" {...sleepTile(t)}>
         {stages.length > 0 && <Bar parts={stages} />}
       </Tile>
       <Tile
