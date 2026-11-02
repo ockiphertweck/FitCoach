@@ -14,7 +14,16 @@ const config: Config = {
       screens: { "2xl": "1400px" },
     },
     extend: {
+      fontFamily: {
+        sans: ["-apple-system", '"SF Pro Display"', "system-ui", "sans-serif"],
+      },
       colors: {
+        metric: {
+          fatigue: "hsl(var(--metric-fatigue))",
+          fitness: "hsl(var(--metric-fitness))",
+          form: "hsl(var(--metric-form))",
+          coach: "hsl(var(--metric-coach))",
+        },
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",

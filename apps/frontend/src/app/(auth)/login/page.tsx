@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { api } from "@/lib/api"
-import { useMutation } from "@tanstack/react-query"
+import { useMutation, useQuery } from "@tanstack/react-query"
 import { Dumbbell, Eye, EyeOff } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
@@ -16,11 +16,14 @@ export default function LoginPage() {
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
 
+  const status = useQuery({
+    queryKey: ["auth-status"],
+    queryFn: () => api.get<{ setup: boolean }>("/auth/status"),
+  })
+
   useEffect(() => {
-    api.get<{ setup: boolean }>("/auth/status").then(({ setup }) => {
-      if (!setup) router.replace("/setup")
-    })
-  }, [router])
+    if (status.data && !status.data.setup) router.replace("/setup")
+  }, [status.data, router])
 
   const loginMutation = useMutation({
     mutationFn: () => api.post("/auth/login", { email, password }),
@@ -34,14 +37,14 @@ export default function LoginPage() {
 
   return (
     <div className="w-full max-w-sm px-4">
-      {/* Glass card */}
-      <div className="rounded-2xl bg-white/60 backdrop-blur-2xl border border-white/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.95),0_24px_64px_rgba(100,120,200,0.18),0_4px_12px_rgba(0,0,0,0.06)] p-8">
+      {/* Tile */}
+      <div className="rounded-[20px] bg-card p-8">
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-white shadow-[0_4px_20px_rgba(59,130,246,0.45)] mb-4">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-white mb-4">
             <Dumbbell className="h-7 w-7" />
           </div>
-          <h1 className="text-2xl font-semibold tracking-tight">Welcome back</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Welcome back</h1>
           <p className="text-sm text-muted-foreground mt-1">Sign in to your FitCoach account</p>
         </div>
 
@@ -86,15 +89,21 @@ export default function LoginPage() {
             </div>
           </div>
 
+          {status.isError && (
+            <Alert variant="destructive">
+              <AlertDescription>{status.error.message}</AlertDescription>
+            </Alert>
+          )}
+
           {loginMutation.isError && (
-            <Alert variant="destructive" className="bg-red-500/10 border-red-500/20 text-red-300">
+            <Alert variant="destructive">
               <AlertDescription>{loginMutation.error.message}</AlertDescription>
             </Alert>
           )}
 
           <Button
             type="submit"
-            className="w-full mt-2"
+            className="w-full mt-2 h-11"
             disabled={loginMutation.isPending || !email || !password}
           >
             {loginMutation.isPending ? "Signing in…" : "Sign in"}

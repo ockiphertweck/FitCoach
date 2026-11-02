@@ -5,43 +5,54 @@ import { Activity, BarChart3, Bot, Home, Settings } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 
-const links = [
-  { href: "/", icon: Home, label: "Dashboard" },
+const tabs = [
+  { href: "/", icon: Home, label: "Summary" },
   { href: "/coach", icon: Bot, label: "Coach" },
   { href: "/activities", icon: Activity, label: "Activities" },
-  { href: "/analytics", icon: BarChart3, label: "Reports" },
-  { href: "/settings", icon: Settings, label: "Settings" },
+  { href: "/trends", icon: BarChart3, label: "Trends" },
 ]
 
 export function Nav() {
   const pathname = usePathname()
+  const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href))
+
+  const item = (active: boolean) =>
+    cn(
+      "flex items-center gap-2 rounded-full transition-colors",
+      active ? "bg-foreground/10 text-foreground" : "text-muted-foreground hover:text-foreground"
+    )
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 h-14 glass-strong flex items-center px-6 gap-6">
-      <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary text-white font-bold text-sm shadow-[0_2px_14px_rgba(59,130,246,0.45)] shrink-0">
-        F
-      </div>
-
-      <div className="flex items-center gap-1">
-        {links.map(({ href, icon: Icon, label }) => {
-          const active = pathname === href
-          return (
-            <Link
-              key={href}
-              href={href}
-              className={cn(
-                "flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-sm font-medium transition-all duration-200",
-                active
-                  ? "bg-primary/10 text-primary shadow-[0_0_18px_rgba(59,130,246,0.18)] border border-primary/18"
-                  : "text-foreground/55 hover:text-foreground hover:bg-white/55"
-              )}
-            >
-              <Icon className="h-4 w-4 shrink-0" />
-              <span>{label}</span>
-            </Link>
-          )
-        })}
-      </div>
+    <nav
+      aria-label="Main"
+      className="glass fixed z-50 flex items-center gap-1 rounded-full p-1.5 left-1/2 -translate-x-1/2 bottom-[max(0.75rem,env(safe-area-inset-bottom))] md:bottom-auto md:top-4"
+    >
+      {tabs.map(({ href, icon: Icon, label }) => {
+        const active = isActive(href)
+        return (
+          <Link
+            key={href}
+            href={href}
+            aria-current={active ? "page" : undefined}
+            className={cn(
+              item(active),
+              "flex-col px-3.5 py-1.5 text-[11px] md:flex-row md:px-4 md:text-sm font-medium"
+            )}
+          >
+            <Icon className="h-5 w-5 md:h-4 md:w-4" />
+            <span>{label}</span>
+          </Link>
+        )
+      })}
+      <Link
+        href="/settings"
+        aria-label="Settings"
+        aria-current={isActive("/settings") ? "page" : undefined}
+        className={cn(item(isActive("/settings")), "hidden md:flex px-3 py-2 text-sm font-medium")}
+      >
+        <Settings className="h-4 w-4" />
+        <span className="sr-only">Settings</span>
+      </Link>
     </nav>
   )
 }

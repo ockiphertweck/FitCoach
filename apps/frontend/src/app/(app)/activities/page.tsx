@@ -1,14 +1,14 @@
 "use client"
 
-import { Badge } from "@/components/ui/badge"
+import { PageHeader } from "@/components/page-header"
+import { ActivityRow } from "@/components/summary/activity-row"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Segmented } from "@/components/ui/segmented"
 import { api } from "@/lib/api"
 import { useQuery } from "@tanstack/react-query"
 import { ChevronLeft, ChevronRight } from "lucide-react"
-import Link from "next/link"
 import { useState } from "react"
 
 interface Activity {
@@ -18,19 +18,25 @@ interface Activity {
   startDate: string
   durationSeconds: number | null
   distanceMeters: number | null
-  elevationMeters: number | null
   averageHeartRate: number | null
-  calories: number | null
-  perceivedExertion: number | null
 }
 
-const SPORTS = ["all", "run", "ride", "swim", "walk", "hike", "workout"]
+const SPORTS = ["all", "run", "ride", "swim", "walk", "hike", "workout"].map((s) => ({
+  value: s,
+  label: s.charAt(0).toUpperCase() + s.slice(1),
+}))
 const PAGE_SIZE = 20
 
-function formatDuration(s: number) {
-  const h = Math.floor(s / 3600)
-  const m = Math.floor((s % 3600) / 60)
-  return h > 0 ? `${h}h ${m}m` : `${m}m`
+const monthLabel = (iso: string) =>
+  new Date(iso).toLocaleDateString("en-GB", { month: "long", year: "numeric" })
+
+function groupByMonth(items: Activity[]) {
+  const groups = new Map<string, Activity[]>()
+  for (const a of items) {
+    const key = monthLabel(a.startDate)
+    groups.set(key, [...(groups.get(key) ?? []), a])
+  }
+  return [...groups.entries()]
 }
 
 export default function ActivitiesPage() {
@@ -55,31 +61,23 @@ export default function ActivitiesPage() {
   const totalPages = Math.ceil((data?.total ?? 0) / PAGE_SIZE)
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Activities</h1>
-        <p className="text-muted-foreground">{data?.total ?? 0} total activities</p>
-      </div>
+    <div className="space-y-4">
+      <PageHeader title="Activities" subtitle={`${data?.total ?? 0} total activities`} />
 
       {/* Filters */}
-      <div className="flex flex-wrap gap-4 items-end">
-        <Tabs
-          value={sport}
-          onValueChange={(v) => {
-            setSport(v)
-            setPage(0)
-          }}
-        >
-          <TabsList>
-            {SPORTS.map((s) => (
-              <TabsTrigger key={s} value={s} className="capitalize">
-                {s}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
-
-        <div className="flex gap-2 items-center">
+      <Card className="space-y-3">
+        <div className="-mx-1 overflow-x-auto px-1 pb-1">
+          <Segmented
+            aria-label="Sport"
+            value={sport}
+            options={SPORTS}
+            onChange={(v) => {
+              setSport(v)
+              setPage(0)
+            }}
+          />
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
           <Input
             type="date"
             value={from}
@@ -115,67 +113,37 @@ export default function ActivitiesPage() {
             </Button>
           )}
         </div>
-      </div>
+      </Card>
 
       {/* List */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">
-            Page {page + 1} of {totalPages || 1}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="space-y-3">
-              {[1, 2, 3, 4, 5].map((i) => (
-                <div key={i} className="h-12 bg-muted animate-pulse rounded" />
+      {isLoading ? (
+        <Card className="space-y-3">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <div key={i} className="h-12 bg-muted animate-pulse rounded-xl" />
+          ))}
+        </Card>
+      ) : !data?.items.length ? (
+        <Card>
+          <p className="text-sm text-muted-foreground text-center py-8">No activities found.</p>
+        </Card>
+      ) : (
+        groupByMonth(data.items).map(([month, items]) => (
+          <section key={month} className="space-y-2">
+            <h2 className="px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              {month}
+            </h2>
+            <Card className="divide-y divide-border py-2">
+              {items.map((a) => (
+                <ActivityRow key={a.id} activity={a} />
               ))}
-            </div>
-          ) : !data?.items.length ? (
-            <p className="text-sm text-muted-foreground text-center py-8">No activities found.</p>
-          ) : (
-            <div className="divide-y">
-              {data.items.map((a) => (
-                <Link
-                  key={a.id}
-                  href={`/activities/${a.id}`}
-                  className="py-3 flex items-center justify-between gap-4 hover:bg-muted/50 -mx-4 px-4 rounded transition-colors"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium truncate">{a.name ?? a.sportType}</p>
-                        <Badge variant="outline" className="capitalize shrink-0 text-xs">
-                          {a.sportType}
-                        </Badge>
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        {new Date(a.startDate).toLocaleDateString("en-GB", {
-                          weekday: "short",
-                          day: "numeric",
-                          month: "short",
-                          year: "numeric",
-                        })}
-                      </p>
-                    </div>
-                  </div>
+            </Card>
+          </section>
+        ))
+      )}
 
-                  <div className="flex gap-4 text-sm text-muted-foreground shrink-0">
-                    {a.durationSeconds && <span>{formatDuration(a.durationSeconds)}</span>}
-                    {a.distanceMeters && <span>{(a.distanceMeters / 1000).toFixed(1)} km</span>}
-                    {a.elevationMeters && <span>{Math.round(a.elevationMeters)} m ↑</span>}
-                    {a.averageHeartRate && <span>{a.averageHeartRate} bpm</span>}
-                    {a.calories && <span>{a.calories} kcal</span>}
-                    {a.perceivedExertion && (
-                      <span className="font-medium">RPE {a.perceivedExertion}</span>
-                    )}
-                  </div>
-                </Link>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <p className="text-center text-xs text-muted-foreground">
+        Page {page + 1} of {totalPages || 1}
+      </p>
 
       {/* Pagination */}
       {totalPages > 1 && (

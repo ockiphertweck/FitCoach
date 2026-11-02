@@ -104,7 +104,7 @@ test.describe("Activities list", () => {
       })
     })
     await authedPage.goto("/activities")
-    await authedPage.getByRole("tab", { name: "run" }).click()
+    await authedPage.getByRole("radio", { name: "Run" }).click()
     await authedPage.waitForTimeout(100)
     expect(capturedUrl).toContain("sport=run")
   })

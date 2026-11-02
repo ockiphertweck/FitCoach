@@ -1,50 +1,60 @@
-import { and, desc, eq, gte } from "drizzle-orm"
+import { desc, eq } from "drizzle-orm"
 import type { DB } from "../db/index.js"
-import { activities, chatHistory, userProfiles } from "../db/schema.js"
+import { type Activity, chatHistory } from "../db/schema.js"
 import { calculateTrainingLoad } from "../services/atl-ctl.js"
-import { formatDistance, formatDuration, formatPace, formatProfileSection } from "./_format.js"
+import { loadRecapInputs, recapWindowStart } from "../services/daily-recap.js"
+import {
+  formatDistance,
+  formatDuration,
+  formatFormLabel,
+  formatPace,
+  formatProfileSection,
+} from "./_format.js"
 
-export async function buildRecommendationPrompt(userId: string, db: DB): Promise<string> {
-  const fourteenDaysAgo = new Date()
-  fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14)
+export function formatActivityLine(a: Activity): string {
+  const parts = [`- ${a.startDate.toISOString().slice(0, 10)} | ${a.sportType}`]
+  if (a.name) parts.push(`"${a.name}"`)
+  if (a.durationSeconds) parts.push(formatDuration(a.durationSeconds))
+  if (a.distanceMeters) parts.push(formatDistance(a.distanceMeters))
+  if (a.averageHeartRate) parts.push(`avg HR: ${a.averageHeartRate} bpm`)
+  if (a.averagePaceSecondsPerKm) parts.push(formatPace(a.averagePaceSecondsPerKm))
+  if (a.perceivedExertion) parts.push(`RPE: ${a.perceivedExertion}/10`)
+  return parts.join(" | ")
+}
 
-  const fortyTwoDaysAgo = new Date()
-  fortyTwoDaysAgo.setDate(fortyTwoDaysAgo.getDate() - 42)
+export async function buildRecommendationPrompt(
+  userId: string,
+  db: DB,
+  date: string
+): Promise<string> {
+  const fourteenDaysAgo = recapWindowStart(date, 14)
 
-  const [recentActivities, allActivities, recentChat, profileRows] = await Promise.all([
-    db
-      .select()
-      .from(activities)
-      .where(and(eq(activities.userId, userId), gte(activities.startDate, fourteenDaysAgo)))
-      .orderBy(desc(activities.startDate))
-      .limit(20),
-    db
-      .select()
-      .from(activities)
-      .where(and(eq(activities.userId, userId), gte(activities.startDate, fortyTwoDaysAgo)))
-      .orderBy(desc(activities.startDate)),
+  const [{ activities: allActivities, profile }, recentChat] = await Promise.all([
+    loadRecapInputs(db, userId, date),
     db
       .select()
       .from(chatHistory)
       .where(eq(chatHistory.userId, userId))
       .orderBy(desc(chatHistory.createdAt))
       .limit(3),
-    db.select().from(userProfiles).where(eq(userProfiles.userId, userId)).limit(1),
   ])
+  const recentActivities = allActivities
+    .filter((a) => a.startDate >= fourteenDaysAgo)
+    .sort((a, b) => b.startDate.getTime() - a.startDate.getTime())
+    .slice(0, 20)
 
   const load = calculateTrainingLoad(allActivities)
-  const profile = profileRows[0] ?? null
 
   const lines: string[] = [
     "# Athlete Training Context",
     "",
-    `**Date**: ${new Date().toISOString().slice(0, 10)}`,
+    `**Date**: ${date}`,
     "",
     ...formatProfileSection(profile),
     "## Training Load (TRIMP-based)",
     `- ATL (Acute / 7-day): ${load.atl}`,
     `- CTL (Chronic / 42-day): ${load.ctl}`,
-    `- TSB (Form = CTL - ATL): ${load.tsb} ${load.tsb > 5 ? "(fresh)" : load.tsb < -10 ? "(fatigued)" : "(moderate)"}`,
+    `- TSB (Form = CTL - ATL): ${load.tsb} ${formatFormLabel(load.tsb)}`,
     "",
     "## Last 14 Days Activities",
   ]
@@ -52,16 +62,7 @@ export async function buildRecommendationPrompt(userId: string, db: DB): Promise
   if (recentActivities.length === 0) {
     lines.push("No activities recorded in the last 14 days.")
   } else {
-    for (const a of recentActivities) {
-      const parts = [`- ${a.startDate.toISOString().slice(0, 10)} | ${a.sportType}`]
-      if (a.name) parts.push(`"${a.name}"`)
-      if (a.durationSeconds) parts.push(formatDuration(a.durationSeconds))
-      if (a.distanceMeters) parts.push(formatDistance(a.distanceMeters))
-      if (a.averageHeartRate) parts.push(`avg HR: ${a.averageHeartRate} bpm`)
-      if (a.averagePaceSecondsPerKm) parts.push(formatPace(a.averagePaceSecondsPerKm))
-      if (a.perceivedExertion) parts.push(`RPE: ${a.perceivedExertion}/10`)
-      lines.push(parts.join(" | "))
-    }
+    lines.push(...recentActivities.map(formatActivityLine))
   }
 
   if (recentChat.length > 0) {

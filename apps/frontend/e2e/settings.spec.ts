@@ -1,4 +1,4 @@
-import { API_BASE, expect, mockGet, test } from "./fixtures"
+import { API_BASE, expect, mockGet, mockPost, mockStream, test } from "./fixtures"
 
 const STRAVA_CONNECTED = {
   connected: true,
@@ -126,6 +126,34 @@ test.describe("Settings", () => {
       expect(saveCount).toBe(1)
     })
 
+    test("saving a key refreshes the Summary recap (one POST)", async ({ authedPage }) => {
+      const posts: string[] = []
+      authedPage.on("request", (r) => {
+        if (r.method() === "POST" && r.url().includes("/ai/recommendation")) posts.push(r.url())
+      })
+      let keySaved = false
+      await mockGet(authedPage, "/activities/stats", { atl: 50, ctl: 55, tsb: -5 })
+      await mockGet(authedPage, "/activities?limit=5", { items: [], total: 0 })
+      await authedPage.route(/\/ai\/recommendation\?date=/, (route) =>
+        route.fulfill({ json: { hasKey: keySaved, recap: null } })
+      )
+      await mockPost(authedPage, "/settings/apikey", { ok: true })
+      await mockStream(authedPage, "/ai/recommendation", ["Hello coach"])
+      await authedPage.goto("/")
+      await expect(authedPage.getByText("Add your Claude API key in Settings")).toBeVisible()
+      await authedPage
+        .getByRole("link", { name: /Settings/i })
+        .first()
+        .click()
+      await authedPage.locator("#claude-key").fill("sk-ant-test-key-12345")
+      keySaved = true
+      await authedPage.getByRole("button", { name: "Save key" }).click()
+      await expect(authedPage.getByText("Key saved").first()).toBeVisible()
+      await authedPage.getByRole("link", { name: "Summary" }).first().click()
+      await expect(authedPage.getByText("Hello coach")).toBeVisible()
+      expect(posts).toHaveLength(1)
+    })
+
     test("deletes API key", async ({ authedPage }) => {
       await authedPage.unroute(`${API_BASE}/settings/apikey`)
       let deleteCalled = false
@@ -202,8 +230,11 @@ test.describe("Settings", () => {
       // PROFILE_EMPTY has sex: null — wait for the useEffect to initialise the form
       // so the profile data doesn't race and reset the field after selectOption.
       await expect(sexField).toHaveValue("")
-      await sexField.selectOption("female")
-      await expect(sexField).toHaveValue("female")
+      // selectOption before hydration is reverted by React's controlled value; retry until it sticks.
+      await expect(async () => {
+        await sexField.selectOption("female")
+        await expect(sexField).toHaveValue("female", { timeout: 500 })
+      }).toPass()
     })
 
     test("shows no Saved indicator when profile save fails", async ({ authedPage }) => {

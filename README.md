@@ -6,7 +6,7 @@
 
 **Self-hosted AI training coach powered by Strava and Claude.**
 
-FitCoach connects to your Strava account, computes training load metrics (ATL/CTL/TSB), and uses the Anthropic Claude API to deliver personalised coaching — daily recommendations, an interactive chat, and weekly reports. Everything runs on your own hardware. Your data never leaves your server.
+FitCoach connects to your Strava account, computes training load metrics (ATL/CTL/TSB), and uses the Anthropic Claude API to deliver personalised coaching — a daily recap, an interactive chat, and weekly reports. Everything runs on your own hardware. Your data never leaves your server.
 
 > A self-hosted alternative to TrainingPeaks AI features — no subscription, no vendor lock-in, bring your own Claude API key.
 
@@ -14,14 +14,15 @@ FitCoach connects to your Strava account, computes training load metrics (ATL/CT
 
 ## Features
 
-- **Daily recommendation** — one-click "train or rest today?" answer streamed in real time from Claude, based on your current training load and recent activities
+- **Daily recap** — a "train or rest today?" recap that loads automatically on the Summary screen, streamed from Claude, and refreshes when your training data changes (new activity, profile edit)
 - **AI Coach chat** — persistent multi-turn conversation with Claude, aware of your activity history and athlete profile
 - **Weekly reports** — AI-generated summary with distance, duration, HR, ATL/CTL, and coaching notes
-- **Analytics** — interactive weekly trend charts for distance, duration, and heart rate
+- **Trends** — interactive weekly trend charts for distance, duration, and heart rate
 - **Training load** — ATL / CTL / TSB computed from TRIMP (same methodology as TrainingPeaks)
 - **Strava sync** — manual sync + real-time webhook updates when you save an activity
 - **Athlete profile** — weight, height, max HR, FTP, sex — passed to Claude for personalised advice
 - **BYOK** — Claude API key stored AES-256-GCM encrypted; set it in Settings without redeploying
+- **Appearance** — light, dark or system theme
 - **Single-user** — first registered account locks the instance; designed for personal self-hosting
 
 ---
@@ -32,9 +33,9 @@ FitCoach connects to your Strava account, computes training load metrics (ATL/CT
 |---|---|
 | ![Dashboard](screenshots/dashboard.png) | ![Coach](screenshots/coach.png) |
 
-| Analytics | Settings |
+| Trends | Settings |
 |---|---|
-| ![Analytics](screenshots/analytics.png) | ![Settings](screenshots/settings.png) |
+| ![Trends](screenshots/analytics.png) | ![Settings](screenshots/settings.png) |
 
 ---
 
@@ -109,7 +110,7 @@ Open **http://localhost:3001** and create your account.
 
 **AI streaming request lifecycle:**
 
-1. Browser `POST /ai/recommendation` with session cookie
+1. Browser `POST /ai/recommendation` (body `{ date }`) with session cookie
 2. API verifies JWT, decrypts the user's Claude key (AES-256-GCM)
 3. Queries Postgres for 42 days of activities, computes ATL/CTL/TSB, builds a structured prompt
 4. Opens an Anthropic streaming request, forwards `data:` SSE chunks on the same HTTP response
@@ -132,7 +133,7 @@ fitcoach/
 │   │   └── drizzle/       # SQL migration files
 │   └── frontend/          # Next.js 15 App Router
 │       └── src/
-│           ├── app/       # Route segments: activities · analytics · coach · settings
+│           ├── app/       # Route segments: activities · trends · coach · settings
 │           ├── components/ # shadcn/ui primitives + shared Markdown renderer
 │           └── lib/       # Typed API client + SSE streaming helper
 ├── packages/
@@ -191,6 +192,7 @@ activities         userId → users, externalId, source, sportType, startDate,
                    duration, distance, elevation, HR, pace, RPE, calories,
                    rawData (jsonb)  — UNIQUE(userId, externalId, source)
 chatHistory        userId → users, role, content, tokensUsed, createdAt
+dailyRecommendations userId → users, date, inputHash, content, tokensUsed, generatedAt  — UNIQUE(userId, date)
 weeklyReports      userId → users, weekStart, summary, metrics (jsonb)  — UNIQUE(userId, weekStart)
 ```
 
@@ -239,7 +241,8 @@ All routes except `/auth/*` and the Strava webhook endpoint require a valid `fit
 | `GET` | `/activities` | Paginated list — `limit`, `offset`, `sport`, `from`, `to` |
 | `GET` | `/activities/stats` | Current `{ atl, ctl, tsb }` |
 | `GET` | `/activities/:id` | Single activity |
-| `POST` | `/ai/recommendation` | Stream daily recommendation (SSE) |
+| `GET` | `/ai/recommendation?date=` | Stored daily recap — returns `{ hasKey, recap }` (`recap` includes `stale`) |
+| `POST` | `/ai/recommendation` | Stream daily recap (SSE) — body `{ date }` |
 | `POST` | `/ai/chat` | Stream chat reply (SSE) |
 | `GET` | `/ai/chat/history` | Chat history |
 | `DELETE` | `/ai/chat/history` | Clear chat history |

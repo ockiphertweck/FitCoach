@@ -1,0 +1,297 @@
+import { type Page, expect as pwExpect } from "@playwright/test"
+import { API_BASE, MOCK_ACTIVITY, expect, mockGet, mockPost, mockStream, test } from "./fixtures"
+
+const STATS_FRESH = { atl: 38, ctl: 52, tsb: 14 }
+const STATS_FATIGUED = { atl: 78, ctl: 55, tsb: -23 }
+const STATS_MODERATE = { atl: 50, ctl: 55, tsb: -5 }
+
+// Same computation as localDate() in lib/utils.ts
+const localDate = () => {
+  const d = new Date()
+  const p = (n: number) => String(n).padStart(2, "0")
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+}
+
+const recap = (content: string, stale = false) => ({
+  hasKey: true,
+  recap: { content, stale, generatedAt: new Date().toISOString() },
+})
+
+function trackPosts(page: Page) {
+  const posts: string[] = []
+  page.on("request", (r) => {
+    if (r.method() === "POST" && r.url().includes("/ai/recommendation"))
+      posts.push(r.postData() ?? "")
+  })
+  return posts
+}
+
+test.describe("Summary", () => {
+  test.beforeEach(async ({ authedPage }) => {
+    await mockGet(authedPage, "/activities/stats", STATS_MODERATE)
+    await mockGet(authedPage, "/activities?limit=5", { items: [], total: 0 })
+    await mockGet(authedPage, /\/ai\/recommendation\?date=/, recap("Cached."))
+  })
+
+  test("shows ATL, CTL and TSB values with labels", async ({ authedPage }) => {
+    await mockGet(authedPage, "/activities/stats", STATS_FRESH)
+    await authedPage.goto("/")
+    await expect(authedPage.getByText("Fatigue")).toBeVisible()
+    await expect(authedPage.getByText("Fitness")).toBeVisible()
+    await expect(authedPage.getByText("Form")).toBeVisible()
+    await expect(authedPage.getByText("38", { exact: true })).toBeVisible()
+    await expect(authedPage.getByText("52", { exact: true })).toBeVisible()
+    await expect(authedPage.getByText("14", { exact: true })).toBeVisible()
+  })
+
+  for (const [stats, label] of [
+    [STATS_FRESH, "Fresh"],
+    [STATS_FATIGUED, "Fatigued"],
+    [STATS_MODERATE, "Balanced"],
+  ] as const) {
+    test(`TSB ${stats.tsb} shows ${label}`, async ({ authedPage }) => {
+      await mockGet(authedPage, "/activities/stats", stats)
+      await authedPage.goto("/")
+      await expect(authedPage.getByText(label, { exact: true })).toBeVisible()
+    })
+  }
+
+  test.describe("Coach recap", () => {
+    test("fresh recap renders without POST", async ({ authedPage }) => {
+      const posts = trackPosts(authedPage)
+      await mockGet(authedPage, /\/ai\/recommendation\?date=/, recap("Rest day today."))
+      await authedPage.goto("/")
+      await expect(authedPage.getByText("Rest day today.")).toBeVisible()
+      await authedPage.waitForTimeout(300)
+      pwExpect(posts).toHaveLength(0)
+    })
+
+    test("missing recap streams once even after the post-DONE refetch", async ({ authedPage }) => {
+      const posts = trackPosts(authedPage)
+      let gets = 0
+      await authedPage.route(/\/ai\/recommendation\?date=/, (route) => {
+        gets++
+        route.fulfill({ json: { hasKey: true, recap: null } })
+      })
+      await mockStream(authedPage, "/ai/recommendation", ["Easy ", "ride"])
+      await authedPage.goto("/")
+      await expect(authedPage.getByText("Easy ride")).toBeVisible()
+      await pwExpect.poll(() => gets).toBeGreaterThanOrEqual(2)
+      await authedPage.waitForTimeout(300)
+      pwExpect(posts).toHaveLength(1)
+      pwExpect(JSON.parse(posts[0])).toEqual({ date: localDate() })
+    })
+
+    test("refresh button sends exactly one POST", async ({ authedPage }) => {
+      const posts = trackPosts(authedPage)
+      await mockStream(authedPage, "/ai/recommendation", ["Fresh take"])
+      await authedPage.goto("/")
+      await expect(authedPage.getByText("Cached.")).toBeVisible()
+      await authedPage.getByRole("button", { name: "Refresh recap" }).click()
+      await expect(authedPage.getByText("Fresh take")).toBeVisible()
+      pwExpect(posts).toHaveLength(1)
+    })
+
+    test("sync with a new stale recap triggers exactly one new POST", async ({ authedPage }) => {
+      const posts = trackPosts(authedPage)
+      let n = 0
+      await authedPage.route(/\/ai\/recommendation\?date=/, (route) => {
+        n++
+        route.fulfill({
+          json:
+            n === 1
+              ? { hasKey: true, recap: null }
+              : {
+                  hasKey: true,
+                  recap: {
+                    content: "Stored",
+                    stale: n === 3, // only the first post-sync fetch is stale
+                    generatedAt: `2026-01-0${Math.min(n, 4)}T00:00:00Z`,
+                  },
+                },
+        })
+      })
+      await mockStream(authedPage, "/ai/recommendation", ["Streamed"])
+      await mockPost(authedPage, "/strava/sync", { synced: 1 })
+      await authedPage.goto("/")
+      await expect(authedPage.getByText("Stored")).toBeVisible()
+      await pwExpect.poll(() => posts.length).toBe(1)
+      await authedPage.getByRole("button", { name: "Sync Strava" }).click()
+      await pwExpect.poll(() => posts.length).toBe(2)
+      await authedPage.waitForTimeout(500)
+      pwExpect(posts).toHaveLength(2)
+    })
+
+    test("always-stale recap stops after 2 automatic streams", async ({ authedPage }) => {
+      const posts = trackPosts(authedPage)
+      let gets = 0
+      await authedPage.route(/\/ai\/recommendation\?date=/, (route) => {
+        gets++
+        route.fulfill({
+          json: {
+            hasKey: true,
+            recap: {
+              content: "Stored text",
+              stale: true,
+              generatedAt: `2026-02-01T00:00:${gets}Z`,
+            },
+          },
+        })
+      })
+      await mockStream(authedPage, "/ai/recommendation", ["Streamed"])
+      await authedPage.goto("/")
+      await pwExpect.poll(() => gets).toBeGreaterThanOrEqual(3)
+      await authedPage.waitForTimeout(1000)
+      pwExpect(posts).toHaveLength(2)
+      await expect(authedPage.getByText("Stored text")).toBeVisible()
+      await expect(authedPage.getByText("Updating…")).toHaveCount(0)
+    })
+
+    test("navigating away and back mid-stream still sends one POST", async ({ authedPage }) => {
+      const posts = trackPosts(authedPage)
+      await mockGet(authedPage, /\/ai\/recommendation\?date=/, { hasKey: true, recap: null })
+      await authedPage.route(`${API_BASE}/ai/recommendation`, async (route) => {
+        await new Promise((r) => setTimeout(r, 1200))
+        route.fulfill({
+          status: 200,
+          contentType: "text/event-stream",
+          body: 'data: {"text":"Done text"}\n\ndata: [DONE]\n\n',
+        })
+      })
+      await authedPage.goto("/")
+      await pwExpect.poll(() => posts.length).toBe(1)
+      await authedPage
+        .getByRole("link", { name: /Activities/i })
+        .first()
+        .click()
+      await authedPage.goBack()
+      await authedPage.waitForTimeout(1800)
+      pwExpect(posts).toHaveLength(1)
+    })
+
+    test("leaving mid-stream and returning after it settled sends no second POST", async ({
+      authedPage,
+    }) => {
+      const posts = trackPosts(authedPage)
+      let saved = false // like the real server: GET returns the saved recap once the stream ends
+      let gets = 0
+      await authedPage.route(/\/ai\/recommendation\?date=/, (route) => {
+        gets++
+        route.fulfill({
+          json: saved ? recap("Saved recap.") : { hasKey: true, recap: null },
+        })
+      })
+      await authedPage.route(`${API_BASE}/ai/recommendation`, async (route) => {
+        await new Promise((r) => setTimeout(r, 1000))
+        await route.fulfill({
+          status: 200,
+          contentType: "text/event-stream",
+          body: 'data: {"text":"Saved recap."}\n\ndata: [DONE]\n\n',
+        })
+        saved = true
+      })
+      await authedPage.goto("/")
+      await pwExpect.poll(() => posts.length).toBe(1)
+      await authedPage
+        .getByRole("link", { name: /Activities/i })
+        .first()
+        .click()
+      await expect(authedPage).toHaveURL(/\/activities$/)
+      await pwExpect.poll(() => saved, { timeout: 5000 }).toBe(true)
+      await authedPage.waitForTimeout(300) // let the stream promise settle in the page
+      const getsBefore = gets
+      await authedPage.goBack()
+      await expect(authedPage).toHaveURL(/\/$/)
+      await pwExpect.poll(() => gets).toBeGreaterThan(getsBefore)
+      await expect(authedPage.getByText("Saved recap.")).toBeVisible()
+      await authedPage.waitForTimeout(500)
+      pwExpect(posts).toHaveLength(1)
+    })
+
+    test("stale recap shows old text with Updating then new text", async ({ authedPage }) => {
+      await mockGet(authedPage, /\/ai\/recommendation\?date=/, recap("Old advice.", true))
+      await authedPage.route(`${API_BASE}/ai/recommendation`, async (route) => {
+        await new Promise((r) => setTimeout(r, 800))
+        route.fulfill({
+          status: 200,
+          contentType: "text/event-stream",
+          body: 'data: {"text":"New advice."}\n\ndata: [DONE]\n\n',
+        })
+      })
+      await authedPage.goto("/")
+      await expect(authedPage.getByText("Old advice.")).toBeVisible()
+      await expect(authedPage.getByText("Updating…")).toBeVisible()
+      await expect(authedPage.getByText("New advice.")).toBeVisible()
+      await expect(authedPage.getByText("Old advice.")).toHaveCount(0)
+    })
+
+    test("no API key shows prompt and does not POST", async ({ authedPage }) => {
+      const posts = trackPosts(authedPage)
+      await mockGet(authedPage, /\/ai\/recommendation\?date=/, { hasKey: false, recap: null })
+      await authedPage.goto("/")
+      await expect(authedPage.getByText("Add your Claude API key in Settings")).toBeVisible()
+      await authedPage.waitForTimeout(300)
+      pwExpect(posts).toHaveLength(0)
+    })
+
+    test("failed GET shows error with retry and does not POST", async ({ authedPage }) => {
+      const posts = trackPosts(authedPage)
+      await mockGet(authedPage, /\/ai\/recommendation\?date=/, { error: "boom" }, 500)
+      await authedPage.goto("/")
+      await expect(authedPage.getByText(/Couldn't load your recap/)).toBeVisible()
+      await expect(authedPage.getByRole("button", { name: "Retry" })).toBeVisible()
+      pwExpect(posts).toHaveLength(0)
+    })
+
+    test("whitespace-only stream shows failure instead of spinner text", async ({ authedPage }) => {
+      await mockGet(authedPage, /\/ai\/recommendation\?date=/, { hasKey: true, recap: null })
+      await mockStream(authedPage, "/ai/recommendation", ["  \n"])
+      await authedPage.goto("/")
+      await expect(authedPage.getByText(/Recap generation failed/)).toBeVisible()
+      await expect(authedPage.getByText("Writing your recap…")).toHaveCount(0)
+    })
+
+    for (const [name, body] of [
+      ["error event", 'data: {"text":"Partial"}\n\ndata: {"error":"Recap generation failed"}\n\n'],
+      ["end without [DONE]", 'data: {"text":"Partial"}\n\n'],
+    ] as const) {
+      test(`${name} shows error, hides partial text, offers retry`, async ({ authedPage }) => {
+        await mockGet(authedPage, /\/ai\/recommendation\?date=/, { hasKey: true, recap: null })
+        await authedPage.route(`${API_BASE}/ai/recommendation`, (route) =>
+          route.fulfill({ status: 200, contentType: "text/event-stream", body })
+        )
+        await authedPage.goto("/")
+        await expect(authedPage.getByText(/Recap generation failed/)).toBeVisible()
+        await expect(authedPage.getByText("Partial")).toHaveCount(0)
+        await expect(authedPage.getByRole("button", { name: "Refresh recap" })).toBeVisible()
+      })
+    }
+  })
+
+  test.describe("Recent activities", () => {
+    test("shows empty state when no activities", async ({ authedPage }) => {
+      await authedPage.goto("/")
+      await expect(authedPage.getByText("No activities yet")).toBeVisible()
+    })
+
+    test("row shows name and links to the detail page", async ({ authedPage }) => {
+      await mockGet(authedPage, "/activities?limit=5", { items: [MOCK_ACTIVITY], total: 1 })
+      await mockGet(authedPage, `/activities/${MOCK_ACTIVITY.id}`, MOCK_ACTIVITY)
+      await authedPage.goto("/")
+      const row = authedPage.getByRole("link", { name: /Morning Run/ })
+      await expect(row).toHaveAttribute("href", `/activities/${MOCK_ACTIVITY.id}`)
+      await expect(row.getByText("1:00")).toBeVisible()
+      await row.click()
+      await expect(authedPage).toHaveURL(new RegExp(`/activities/${MOCK_ACTIVITY.id}`))
+    })
+  })
+
+  test.describe("Sync Strava", () => {
+    test("sync button triggers API and shows count", async ({ authedPage }) => {
+      await mockPost(authedPage, "/strava/sync", { synced: 5 })
+      await authedPage.goto("/")
+      await authedPage.getByRole("button", { name: "Sync Strava" }).click()
+      await expect(authedPage.getByText("Synced 5 activities")).toBeVisible()
+    })
+  })
+})

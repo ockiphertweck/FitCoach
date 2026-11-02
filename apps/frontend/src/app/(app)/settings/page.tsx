@@ -1,15 +1,18 @@
 "use client"
 
+import { PageHeader } from "@/components/page-header"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Segmented } from "@/components/ui/segmented"
 import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
 import { api } from "@/lib/api"
+import { type Theme, parseTheme, setThemeCookie } from "@/lib/theme"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { CheckCircle, Key, Link2, Link2Off, LogOut, User } from "lucide-react"
+import { CheckCircle, Key, Link2, Link2Off, LogOut, Palette, User } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useCallback, useEffect, useState } from "react"
 
@@ -51,6 +54,9 @@ export default function SettingsPage() {
   const router = useRouter()
   const qc = useQueryClient()
   const [claudeKey, setClaudeKey] = useState("")
+  const [theme, setTheme] = useState<Theme>("system")
+  // Server renders "system"; sync to what the layout actually applied.
+  useEffect(() => setTheme(parseTheme(document.documentElement.dataset.theme)), [])
   const { saved: keySaved, flash: flashKeySaved } = useFlashSaved()
 
   const [profileForm, setProfileForm] = useState<Profile>({
@@ -91,6 +97,7 @@ export default function SettingsPage() {
     onSuccess: () => {
       flashProfileSaved()
       qc.invalidateQueries({ queryKey: ["profile"] })
+      qc.invalidateQueries({ queryKey: ["recap"] })
     },
   })
 
@@ -100,12 +107,16 @@ export default function SettingsPage() {
       flashKeySaved()
       setClaudeKey("")
       qc.invalidateQueries({ queryKey: ["api-key-status"] })
+      qc.invalidateQueries({ queryKey: ["recap"] })
     },
   })
 
   const deleteKeyMutation = useMutation({
     mutationFn: () => api.delete("/settings/apikey/anthropic"),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["api-key-status"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["api-key-status"] })
+      qc.invalidateQueries({ queryKey: ["recap"] })
+    },
   })
 
   const disconnectStravaMutation = useMutation({
@@ -121,15 +132,37 @@ export default function SettingsPage() {
   const hasAnthropicKey = apiKeyStatus?.providers.includes("anthropic")
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
-        <p className="text-muted-foreground text-sm mt-0.5">Manage your FitCoach configuration</p>
-      </div>
+    <div className="space-y-4">
+      <PageHeader title="Settings" subtitle="MANAGE YOUR FITCOACH CONFIGURATION" />
+
+      {/* Appearance */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base font-medium">
+            <Palette className="h-4 w-4 text-primary" /> Appearance
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="flex items-center justify-between gap-3">
+          <span className="text-sm">Theme</span>
+          <Segmented
+            aria-label="Appearance"
+            value={theme}
+            options={[
+              { value: "system", label: "System" },
+              { value: "light", label: "Light" },
+              { value: "dark", label: "Dark" },
+            ]}
+            onChange={(t) => {
+              setTheme(t)
+              setThemeCookie(t)
+            }}
+          />
+        </CardContent>
+      </Card>
 
       {/* Athlete Profile */}
       <Card>
-        <CardHeader className="pt-5 px-5">
+        <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base font-medium">
             <User className="h-4 w-4 text-primary" /> Athlete Profile
           </CardTitle>
@@ -137,7 +170,7 @@ export default function SettingsPage() {
             Personal stats help the AI tailor recommendations to your physiology.
           </CardDescription>
         </CardHeader>
-        <CardContent className="px-5 pb-5 space-y-4">
+        <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
               <Label htmlFor="sex">Sex</Label>
@@ -147,7 +180,7 @@ export default function SettingsPage() {
                 onChange={(e) =>
                   setProfileForm((p) => ({ ...p, sex: (e.target.value || null) as Profile["sex"] }))
                 }
-                className="flex h-9 w-full rounded-xl border border-white/42 bg-white/22 backdrop-blur-sm px-3 py-1 text-sm"
+                className="flex h-9 w-full rounded-xl border-0 bg-muted px-3 py-1 text-sm"
               >
                 <option value="">Prefer not to say</option>
                 <option value="male">Male</option>
@@ -289,7 +322,7 @@ export default function SettingsPage() {
 
       {/* Claude API Key */}
       <Card>
-        <CardHeader className="pt-5 px-5">
+        <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base font-medium">
             <Key className="h-4 w-4 text-primary" /> Claude API Key
           </CardTitle>
@@ -297,13 +330,13 @@ export default function SettingsPage() {
             Required for AI recommendations and coaching. Get a key at console.anthropic.com.
           </CardDescription>
         </CardHeader>
-        <CardContent className="px-5 pb-5 space-y-4">
+        <CardContent className="space-y-4">
           {hasAnthropicKey ? (
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Badge
                   variant="outline"
-                  className="border-emerald-400/40 bg-emerald-50 text-emerald-700"
+                  className="border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
                 >
                   <CheckCircle className="h-3 w-3 mr-1" /> Key saved
                 </Badge>
@@ -349,7 +382,7 @@ export default function SettingsPage() {
 
       {/* Strava */}
       <Card>
-        <CardHeader className="pt-5 px-5">
+        <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base font-medium">
             <Link2 className="h-4 w-4 text-primary" /> Strava
           </CardTitle>
@@ -357,13 +390,13 @@ export default function SettingsPage() {
             Connect Strava to import activities automatically via OAuth.
           </CardDescription>
         </CardHeader>
-        <CardContent className="px-5 pb-5">
+        <CardContent>
           {stravaStatus?.connected ? (
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Badge
                   variant="outline"
-                  className="border-emerald-400/40 bg-emerald-50 text-emerald-700"
+                  className="border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
                 >
                   <CheckCircle className="h-3 w-3 mr-1" /> Connected
                 </Badge>
@@ -394,12 +427,12 @@ export default function SettingsPage() {
 
       {/* Account */}
       <Card>
-        <CardHeader className="pt-5 px-5">
+        <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base font-medium">
             <User className="h-4 w-4 text-primary" /> Account
           </CardTitle>
         </CardHeader>
-        <CardContent className="px-5 pb-5 space-y-4">
+        <CardContent className="space-y-4">
           {user && (
             <div className="space-y-1">
               <p className="text-sm font-medium">{user.email}</p>
@@ -408,7 +441,7 @@ export default function SettingsPage() {
               </p>
             </div>
           )}
-          <Separator />
+          <Separator className="bg-border" />
           <Button
             variant="outline"
             size="sm"
