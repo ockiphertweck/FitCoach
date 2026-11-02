@@ -2,11 +2,6 @@ import { expect, mockGet, test } from "./fixtures"
 
 test.describe("Appearance", () => {
   test.beforeEach(async ({ authedPage }) => {
-    await mockGet(authedPage, "/strava/status", {
-      connected: false,
-      athleteId: null,
-      lastSynced: null,
-    })
     await mockGet(authedPage, "/settings/apikey", { providers: [] })
     await mockGet(authedPage, "/settings/profile", {
       sex: null,

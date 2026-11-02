@@ -8,7 +8,7 @@ type RawData = Record<string, unknown>
 
 /**
  * Hash of the fields that drive the AI insight.
- * Volatile fields (kudos_count, achievement_count, updated_at) are excluded
+ * Only the Garmin rawData fields the prompt formats are included; everything else is excluded
  * so they don't trigger unnecessary re-generation.
  */
 export function computeInsightHash(activity: Activity): string {
@@ -23,11 +23,10 @@ export function computeInsightHash(activity: Activity): string {
     suffer: activity.sufferScore,
     rpe: activity.perceivedExertion,
     cal: activity.calories,
-    watts: raw.average_watts ?? null,
-    np: raw.weighted_average_watts ?? null,
-    kj: raw.kilojoules ?? null,
-    pm: raw.device_watts ?? null,
-    indoor: raw.trainer ?? null,
+    watts: raw.avgPower ?? null,
+    np: raw.normPower ?? null,
+    ate: raw.aerobicTrainingEffect ?? null,
+    nte: raw.anaerobicTrainingEffect ?? null,
   })
   return createHash("sha256").update(payload).digest("hex")
 }

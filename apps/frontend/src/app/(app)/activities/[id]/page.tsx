@@ -53,7 +53,6 @@ interface RawData {
   elev_high?: number
   start_latlng?: [number, number]
   end_latlng?: [number, number]
-  map?: { summary_polyline?: string }
   workout_type?: number
   suffer_score?: number
 }
@@ -96,6 +95,7 @@ interface StreamsData {
   points: StreamPoint[]
   hrZones: HrZones | null
   maxHrUsed: number | null
+  polyline: string | null
 }
 
 function fmt(seconds: number) {
@@ -203,7 +203,7 @@ export default function ActivityDetailPage({ params }: { params: Promise<{ id: s
   const { data: streams } = useQuery<StreamsData>({
     queryKey: ["activity-streams", id],
     queryFn: () => api.get(`/activities/${id}/streams`),
-    enabled: !!activity && activity.source === "strava",
+    enabled: !!activity,
     retry: false,
   })
 
@@ -213,7 +213,7 @@ export default function ActivityDetailPage({ params }: { params: Promise<{ id: s
 
   if (isLoading) {
     return (
-      <div className="space-y-4 max-w-3xl">
+      <div className="space-y-4">
         {[1, 2, 3].map((i) => (
           <div key={i} className="h-32 bg-muted animate-pulse rounded-[20px]" />
         ))}
@@ -224,14 +224,14 @@ export default function ActivityDetailPage({ params }: { params: Promise<{ id: s
   if (!activity) return null
 
   const raw = activity.rawData ?? {}
-  const polyline = raw.map?.summary_polyline
+  const polyline = streams?.polyline
   const movingTime = raw.moving_time
   const elapsedTime = raw.elapsed_time ?? activity.durationSeconds
   const stopTime = movingTime && elapsedTime ? elapsedTime - movingTime : null
   const hasPower = raw.average_watts != null
   const isIndoor = raw.trainer === true
 
-  // Only use Strava's own calorie value — kJ/4.184 gives wrong result (metabolic ≠ mechanical)
+  // Only use the stored calorie value — kJ/4.184 gives wrong result (metabolic ≠ mechanical)
   const kcal = activity.calories ?? null
 
   const pts = streams?.points ?? []
@@ -243,7 +243,7 @@ export default function ActivityDetailPage({ params }: { params: Promise<{ id: s
   const kmTicks = Array.from({ length: Math.floor(maxKm / 10) }, (_, i) => (i + 1) * 10)
 
   return (
-    <div className="space-y-6 max-w-3xl">
+    <div className="space-y-6">
       <Link
         href="/activities"
         className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
@@ -281,7 +281,7 @@ export default function ActivityDetailPage({ params }: { params: Promise<{ id: s
       </div>
 
       {/* Key stats grid */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-[repeat(auto-fit,minmax(150px,1fr))]">
         {movingTime != null && (
           <StatCard
             icon={Timer}
@@ -364,192 +364,198 @@ export default function ActivityDetailPage({ params }: { params: Promise<{ id: s
         )}
       </div>
 
-      {/* Map */}
-      {polyline && <ActivityMap polyline={polyline} />}
+      <div className="grid gap-3 empty:hidden lg:grid-cols-2">
+        {/* Map */}
+        {polyline && <ActivityMap polyline={polyline} />}
 
-      {/* Stream charts */}
-      {pts.length > 0 && (
-        <div className="space-y-3">
-          {/* HR over distance */}
-          {hasHr && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  Heart Rate <span className="font-normal text-xs ml-1">bpm</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={180}>
-                  <AreaChart data={pts} margin={chartMargin}>
-                    <defs>
-                      <linearGradient id="hrGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="hsl(var(--chart-hr))" stopOpacity={0.3} />
-                        <stop offset="95%" stopColor="hsl(var(--chart-hr))" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid {...grid} />
-                    <XAxis
-                      axisLine={false}
-                      tickLine={false}
-                      dataKey="distanceKm"
-                      type="number"
-                      domain={[0, maxKm]}
-                      ticks={kmTicks}
-                      tickFormatter={(v) => `${v} km`}
-                      tick={tick}
-                      padding={{ left: 0, right: 0 }}
-                    />
-                    <YAxis tick={tick} width={36} axisLine={false} tickLine={false} />
-                    <Tooltip
-                      formatter={(v: number) => [`${v} bpm`, "HR"]}
-                      labelFormatter={(v) => `${v} km`}
-                      contentStyle={chartTooltipStyle}
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="heartrate"
-                      stroke="hsl(var(--chart-hr))"
-                      strokeWidth={1.5}
-                      fill="url(#hrGrad)"
-                      dot={false}
-                      connectNulls
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-          )}
+        {/* Stream charts */}
+        {pts.length > 0 && (
+          <div className="space-y-3 lg:space-y-0 lg:contents">
+            {/* HR over distance */}
+            {hasHr && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm font-medium text-muted-foreground">
+                    Heart Rate <span className="font-normal text-xs ml-1">bpm</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={180}>
+                    <AreaChart data={pts} margin={chartMargin}>
+                      <defs>
+                        <linearGradient id="hrGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="hsl(var(--chart-hr))" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="hsl(var(--chart-hr))" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid {...grid} />
+                      <XAxis
+                        axisLine={false}
+                        tickLine={false}
+                        dataKey="distanceKm"
+                        type="number"
+                        domain={[0, maxKm]}
+                        ticks={kmTicks}
+                        tickFormatter={(v) => `${v} km`}
+                        tick={tick}
+                        padding={{ left: 0, right: 0 }}
+                      />
+                      <YAxis tick={tick} width={36} axisLine={false} tickLine={false} />
+                      <Tooltip
+                        formatter={(v: number) => [`${v} bpm`, "HR"]}
+                        labelFormatter={(v) => `${v} km`}
+                        contentStyle={chartTooltipStyle}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="heartrate"
+                        stroke="hsl(var(--chart-hr))"
+                        strokeWidth={1.5}
+                        fill="url(#hrGrad)"
+                        dot={false}
+                        connectNulls
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            )}
 
-          {/* Speed over distance */}
-          {hasSpeed && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  Speed <span className="font-normal text-xs ml-1">km/h</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={180}>
-                  <AreaChart data={pts} margin={chartMargin}>
-                    <defs>
-                      <linearGradient id="speedGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop
-                          offset="5%"
-                          stopColor="hsl(var(--chart-duration))"
-                          stopOpacity={0.3}
-                        />
-                        <stop offset="95%" stopColor="hsl(var(--chart-duration))" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid {...grid} />
-                    <XAxis
-                      axisLine={false}
-                      tickLine={false}
-                      dataKey="distanceKm"
-                      type="number"
-                      domain={[0, maxKm]}
-                      ticks={kmTicks}
-                      tickFormatter={(v) => `${v} km`}
-                      tick={tick}
-                    />
-                    <YAxis tick={tick} width={36} axisLine={false} tickLine={false} />
-                    <Tooltip
-                      formatter={(v: number) => [`${v} km/h`, "Speed"]}
-                      labelFormatter={(v) => `${v} km`}
-                      contentStyle={chartTooltipStyle}
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="speedKmh"
-                      stroke="hsl(var(--chart-duration))"
-                      strokeWidth={1.5}
-                      fill="url(#speedGrad)"
-                      dot={false}
-                      connectNulls
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-          )}
+            {/* Speed over distance */}
+            {hasSpeed && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm font-medium text-muted-foreground">
+                    Speed <span className="font-normal text-xs ml-1">km/h</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={180}>
+                    <AreaChart data={pts} margin={chartMargin}>
+                      <defs>
+                        <linearGradient id="speedGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop
+                            offset="5%"
+                            stopColor="hsl(var(--chart-duration))"
+                            stopOpacity={0.3}
+                          />
+                          <stop
+                            offset="95%"
+                            stopColor="hsl(var(--chart-duration))"
+                            stopOpacity={0}
+                          />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid {...grid} />
+                      <XAxis
+                        axisLine={false}
+                        tickLine={false}
+                        dataKey="distanceKm"
+                        type="number"
+                        domain={[0, maxKm]}
+                        ticks={kmTicks}
+                        tickFormatter={(v) => `${v} km`}
+                        tick={tick}
+                      />
+                      <YAxis tick={tick} width={36} axisLine={false} tickLine={false} />
+                      <Tooltip
+                        formatter={(v: number) => [`${v} km/h`, "Speed"]}
+                        labelFormatter={(v) => `${v} km`}
+                        contentStyle={chartTooltipStyle}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="speedKmh"
+                        stroke="hsl(var(--chart-duration))"
+                        strokeWidth={1.5}
+                        fill="url(#speedGrad)"
+                        dot={false}
+                        connectNulls
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            )}
 
-          {/* Elevation over distance */}
-          {hasAlt && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  Elevation <span className="font-normal text-xs ml-1">m</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={180}>
-                  <AreaChart data={pts} margin={chartMargin}>
-                    <defs>
-                      <linearGradient id="altGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop
-                          offset="5%"
-                          stopColor="hsl(var(--chart-distance))"
-                          stopOpacity={0.4}
-                        />
-                        <stop
-                          offset="95%"
-                          stopColor="hsl(var(--chart-distance))"
-                          stopOpacity={0.05}
-                        />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid {...grid} />
-                    <XAxis
-                      axisLine={false}
-                      tickLine={false}
-                      dataKey="distanceKm"
-                      type="number"
-                      domain={[0, maxKm]}
-                      ticks={kmTicks}
-                      tickFormatter={(v) => `${v} km`}
-                      tick={tick}
-                    />
-                    <YAxis tick={tick} width={40} axisLine={false} tickLine={false} />
-                    <Tooltip
-                      formatter={(v: number) => [`${Math.round(v)} m`, "Altitude"]}
-                      labelFormatter={(v) => `${v} km`}
-                      contentStyle={chartTooltipStyle}
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="altitudeM"
-                      stroke="hsl(var(--chart-distance))"
-                      strokeWidth={1.5}
-                      fill="url(#altGrad)"
-                      dot={false}
-                      connectNulls
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-          )}
+            {/* Elevation over distance */}
+            {hasAlt && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm font-medium text-muted-foreground">
+                    Elevation <span className="font-normal text-xs ml-1">m</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={180}>
+                    <AreaChart data={pts} margin={chartMargin}>
+                      <defs>
+                        <linearGradient id="altGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop
+                            offset="5%"
+                            stopColor="hsl(var(--chart-distance))"
+                            stopOpacity={0.4}
+                          />
+                          <stop
+                            offset="95%"
+                            stopColor="hsl(var(--chart-distance))"
+                            stopOpacity={0.05}
+                          />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid {...grid} />
+                      <XAxis
+                        axisLine={false}
+                        tickLine={false}
+                        dataKey="distanceKm"
+                        type="number"
+                        domain={[0, maxKm]}
+                        ticks={kmTicks}
+                        tickFormatter={(v) => `${v} km`}
+                        tick={tick}
+                      />
+                      <YAxis tick={tick} width={40} axisLine={false} tickLine={false} />
+                      <Tooltip
+                        formatter={(v: number) => [`${Math.round(v)} m`, "Altitude"]}
+                        labelFormatter={(v) => `${v} km`}
+                        contentStyle={chartTooltipStyle}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="altitudeM"
+                        stroke="hsl(var(--chart-distance))"
+                        strokeWidth={1.5}
+                        fill="url(#altGrad)"
+                        dot={false}
+                        connectNulls
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            )}
 
-          {/* HR zones */}
-          {streams?.hrZones && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  Heart Rate Zones
-                  {streams.maxHrUsed && (
-                    <span className="ml-2 font-normal text-xs">
-                      (max HR: {streams.maxHrUsed} bpm)
-                    </span>
-                  )}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <HrZoneChart zones={streams.hrZones} maxHrUsed={streams.maxHrUsed} />
-              </CardContent>
-            </Card>
-          )}
-        </div>
-      )}
+            {/* HR zones */}
+            {streams?.hrZones && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm font-medium text-muted-foreground">
+                    Heart Rate Zones
+                    {streams.maxHrUsed && (
+                      <span className="ml-2 font-normal text-xs">
+                        (max HR: {streams.maxHrUsed} bpm)
+                      </span>
+                    )}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <HrZoneChart zones={streams.hrZones} maxHrUsed={streams.maxHrUsed} />
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* AI Insight */}
       <Card>

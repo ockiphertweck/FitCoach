@@ -1,5 +1,4 @@
 import {
-  bigint,
   date,
   integer,
   jsonb,
@@ -32,20 +31,48 @@ export const apiKeys = pgTable(
   (table) => [unique().on(table.userId, table.provider)]
 )
 
-export const stravaTokens = pgTable(
-  "strava_tokens",
+export const garminSync = pgTable("garmin_sync", {
+  userId: uuid("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  status: text("status").notNull().default("idle"),
+  lastSyncedAt: timestamp("last_synced_at"),
+  lastError: text("last_error"),
+  keyExpiresAt: timestamp("key_expires_at"),
+  importedAt: timestamp("imported_at"),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+})
+
+export const dailyWellness = pgTable(
+  "daily_wellness",
   {
     id: uuid("id").primaryKey().defaultRandom(),
     userId: uuid("user_id")
       .references(() => users.id, { onDelete: "cascade" })
       .notNull(),
-    accessToken: text("access_token").notNull(),
-    refreshToken: text("refresh_token").notNull(),
-    expiresAt: timestamp("expires_at").notNull(),
-    athleteId: bigint("athlete_id", { mode: "number" }).notNull(),
+    date: date("date").notNull(),
+    sleepScore: integer("sleep_score"),
+    sleepSeconds: integer("sleep_seconds"),
+    deepSleepSeconds: integer("deep_sleep_seconds"),
+    remSleepSeconds: integer("rem_sleep_seconds"),
+    lightSleepSeconds: integer("light_sleep_seconds"),
+    awakeSeconds: integer("awake_seconds"),
+    sleepStart: timestamp("sleep_start"),
+    sleepEnd: timestamp("sleep_end"),
+    hrvLastNight: integer("hrv_last_night"),
+    hrvWeeklyAvg: integer("hrv_weekly_avg"),
+    hrvStatus: text("hrv_status"),
+    bodyBatteryCharged: integer("body_battery_charged"),
+    bodyBatteryAtWake: integer("body_battery_at_wake"),
+    bodyBatteryCurrent: integer("body_battery_current"),
+    stressAvg: integer("stress_avg"),
+    restingHeartRate: integer("resting_heart_rate"),
+    caloriesTotal: integer("calories_total"),
+    caloriesActive: integer("calories_active"),
+    caloriesResting: integer("calories_resting"),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
-  (table) => [unique().on(table.userId)]
+  (table) => [unique().on(table.userId, table.date)]
 )
 
 export const activities = pgTable(
@@ -56,7 +83,7 @@ export const activities = pgTable(
       .references(() => users.id, { onDelete: "cascade" })
       .notNull(),
     externalId: text("external_id").notNull(),
-    source: text("source").notNull().default("strava"),
+    source: text("source").notNull().default("garmin"),
     name: text("name"),
     sportType: text("sport_type").notNull(),
     startDate: timestamp("start_date").notNull(),
@@ -150,7 +177,9 @@ export type UserProfile = typeof userProfiles.$inferSelect
 export type User = typeof users.$inferSelect
 export type NewUser = typeof users.$inferInsert
 export type ApiKey = typeof apiKeys.$inferSelect
-export type StravaToken = typeof stravaTokens.$inferSelect
+export type GarminSync = typeof garminSync.$inferSelect
+export type DailyWellness = typeof dailyWellness.$inferSelect
+export type NewDailyWellness = typeof dailyWellness.$inferInsert
 export type Activity = typeof activities.$inferSelect
 export type NewActivity = typeof activities.$inferInsert
 export type ChatSession = typeof chatSessions.$inferSelect

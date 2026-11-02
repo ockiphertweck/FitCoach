@@ -7,7 +7,7 @@ import "./globals.css"
 
 export const metadata: Metadata = {
   title: "FitCoach",
-  description: "Self-hosted AI training coach powered by Strava and Claude",
+  description: "Self-hosted AI training coach powered by Garmin and Claude",
 }
 
 // Runs before first paint so "system" never flashes the wrong scheme; always present so switching to System in-session tracks the OS.

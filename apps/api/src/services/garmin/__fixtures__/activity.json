@@ -1,0 +1,14 @@
+{
+  "activityId": 9900000001,
+  "activityName": "Evening Run",
+  "startTimeLocal": "2026-11-01 23:30:00",
+  "startTimeGMT": "2026-11-01 22:30:00",
+  "activityType": { "typeId": 1, "typeKey": "running", "parentTypeId": 17 },
+  "distance": 10000.5,
+  "duration": 3000.4,
+  "elevationGain": 85.5,
+  "calories": 720,
+  "averageHR": 152.4,
+  "maxHR": 178,
+  "unknownExtra": { "a": 1 }
+}

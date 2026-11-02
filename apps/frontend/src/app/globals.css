@@ -28,6 +28,15 @@
     --metric-fitness: 211 100% 50%; /* #007aff */
     --metric-form: 135 59% 49%; /* #34c759 */
     --metric-coach: 280 68% 60%; /* #af52de */
+    --metric-sleep: 241 56% 58%; /* #5856d6 */
+    --metric-hrv: 190 62% 47%; /* #30b0c7 */
+    --metric-battery: 176 100% 33%; /* #00a69c */
+    --metric-stress: 16 100% 60%; /* #ff6b35 */
+    --metric-calories: 345 100% 59%; /* #ff2d55 */
+    --stage-deep: 241 51% 42%;
+    --stage-rem: 199 94% 67%;
+    --stage-light: 241 85% 80%;
+    --stage-awake: 35 100% 52%;
     --chart-distance: 175 70% 38%;
     --chart-duration: 239 84% 60%;
     --chart-hr: 340 82% 52%;
@@ -57,6 +66,15 @@
     --metric-fitness: 211 100% 60%;
     --metric-form: 135 59% 55%;
     --metric-coach: 280 68% 65%;
+    --metric-sleep: 241 70% 70%;
+    --metric-hrv: 190 62% 55%;
+    --metric-battery: 176 80% 42%;
+    --metric-stress: 16 100% 65%;
+    --metric-calories: 345 100% 66%;
+    --stage-deep: 241 55% 55%;
+    --stage-rem: 199 80% 60%;
+    --stage-light: 241 60% 75%;
+    --stage-awake: 35 100% 58%;
     --chart-distance: 175 65% 50%;
     --chart-duration: 239 90% 74%;
     --chart-hr: 340 85% 64%;

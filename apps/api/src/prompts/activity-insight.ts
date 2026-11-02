@@ -24,17 +24,18 @@ export function buildActivityInsightPrompt(
     const s = activity.averagePaceSecondsPerKm % 60
     lines.push(`Avg Pace: ${m}:${String(s).padStart(2, "0")}/km`)
   }
-  if (raw.average_watts)
-    lines.push(
-      `Avg Power: ${raw.average_watts} W${raw.device_watts ? " (power meter)" : " (estimated)"}`
-    )
-  if (raw.weighted_average_watts) lines.push(`Normalized Power: ${raw.weighted_average_watts} W`)
-  if (raw.kilojoules) lines.push(`Energy: ${raw.kilojoules} kJ`)
+  // rawData is untyped provider JSON: print only real numbers, never objects or strings.
+  const rawNum = (label: string, key: string, unit = "") => {
+    const v = raw[key]
+    if (typeof v === "number" && v) lines.push(`${label}: ${v}${unit}`)
+  }
+  rawNum("Avg Power", "avgPower", " W")
+  rawNum("Normalized Power", "normPower", " W")
+  rawNum("Aerobic Training Effect", "aerobicTrainingEffect")
+  rawNum("Anaerobic Training Effect", "anaerobicTrainingEffect")
   if (activity.calories) lines.push(`Calories: ${activity.calories} kcal`)
   if (activity.sufferScore) lines.push(`Suffer Score: ${activity.sufferScore}`)
   if (activity.perceivedExertion) lines.push(`RPE: ${activity.perceivedExertion}/10`)
-  if (raw.pr_count) lines.push(`PRs: ${raw.pr_count}`)
-  if (raw.trainer) lines.push("Indoor: yes")
 
   lines.push("")
   lines.push(`Athlete Sex: ${profile?.sex ?? "not set"}`)

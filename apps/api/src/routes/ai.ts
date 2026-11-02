@@ -6,7 +6,7 @@ import { activities, chatHistory, chatSessions, userProfiles, weeklyReports } fr
 import { env } from "../env.js"
 import { authMiddleware } from "../middleware/auth.js"
 import { buildChatMessages, buildChatSystemPrompt } from "../prompts/chat.js"
-import { buildRecommendationPrompt } from "../prompts/recommendation.js"
+import { buildRecapRequest, buildRecommendationPrompt } from "../prompts/recommendation.js"
 import { SYSTEM_PROMPT } from "../prompts/system.js"
 import { buildWeeklyReportPrompt } from "../prompts/weekly-report.js"
 import { computeInsightHash, generateActivityInsight } from "../services/activity-insight.js"
@@ -159,9 +159,10 @@ const aiRoutes: FastifyPluginAsyncZod = async (fastify) => {
       const { date } = request.body
       const anthropic = await requireAnthropicClient(userId)
       // Hash before calling Claude so it reflects the data the prompt is built from.
-      const inputHash = computeRecapHash({ date, ...(await loadRecapInputs(db, userId, date)) })
+      const inputs = await loadRecapInputs(db, userId, date)
+      const inputHash = computeRecapHash({ date, ...inputs })
       fastify.log.info({ userId }, "recommendation: building prompt")
-      const userMessage = await buildRecommendationPrompt(userId, db, date)
+      const userMessage = await buildRecommendationPrompt(userId, db, date, inputs)
 
       const origin = request.headers.origin ?? env.FRONTEND_URL
       reply.raw.writeHead(200, {
@@ -175,10 +176,7 @@ const aiRoutes: FastifyPluginAsyncZod = async (fastify) => {
 
       try {
         const stream = await anthropic.messages.create({
-          model: "claude-sonnet-4-6",
-          max_tokens: 1024,
-          system: SYSTEM_PROMPT,
-          messages: [{ role: "user", content: userMessage }],
+          ...buildRecapRequest(userMessage),
           stream: true,
           posthogDistinctId: userId,
         })

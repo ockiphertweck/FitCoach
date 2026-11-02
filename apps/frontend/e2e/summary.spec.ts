@@ -1,5 +1,5 @@
 import { type Page, expect as pwExpect } from "@playwright/test"
-import { API_BASE, MOCK_ACTIVITY, expect, mockGet, mockPost, mockStream, test } from "./fixtures"
+import { API_BASE, MOCK_ACTIVITY, expect, mockGet, mockStream, test } from "./fixtures"
 
 const STATS_FRESH = { atl: 38, ctl: 52, tsb: 14 }
 const STATS_FATIGUED = { atl: 78, ctl: 55, tsb: -23 }
@@ -26,8 +26,46 @@ function trackPosts(page: Page) {
   return posts
 }
 
+const STATUS_OK: Record<string, unknown> = {
+  connected: true,
+  status: "idle",
+  lastSyncedAt: new Date().toISOString(),
+  lastError: null,
+  keyExpiresAt: null,
+}
+const WELLNESS_DAY = {
+  date: localDate(),
+  sleepScore: 82,
+  sleepSeconds: 26640,
+  deepSleepSeconds: 5400,
+  remSleepSeconds: 6000,
+  lightSleepSeconds: 13200,
+  awakeSeconds: 2040,
+  hrvLastNight: 58,
+  hrvWeeklyAvg: 54,
+  hrvStatus: "BALANCED",
+  bodyBatteryCharged: 62,
+  bodyBatteryCurrent: 78,
+  stressAvg: 24,
+  caloriesTotal: 2430,
+  caloriesActive: 680,
+  caloriesResting: 1750,
+}
+
+async function mockGarmin(
+  page: Page,
+  { status = STATUS_OK, wellness = { today: null, days: [] } as unknown, syncStatus = 200 } = {}
+) {
+  await mockGet(page, /\/garmin\/status/, status)
+  await mockGet(page, /\/wellness\?/, wellness)
+  await page.route(`${API_BASE}/garmin/sync`, (route) =>
+    route.fulfill({ status: syncStatus, json: status })
+  )
+}
+
 test.describe("Summary", () => {
   test.beforeEach(async ({ authedPage }) => {
+    await mockGarmin(authedPage)
     await mockGet(authedPage, "/activities/stats", STATS_MODERATE)
     await mockGet(authedPage, "/activities?limit=5", { items: [], total: 0 })
     await mockGet(authedPage, /\/ai\/recommendation\?date=/, recap("Cached."))
@@ -90,36 +128,6 @@ test.describe("Summary", () => {
       await authedPage.getByRole("button", { name: "Refresh recap" }).click()
       await expect(authedPage.getByText("Fresh take")).toBeVisible()
       pwExpect(posts).toHaveLength(1)
-    })
-
-    test("sync with a new stale recap triggers exactly one new POST", async ({ authedPage }) => {
-      const posts = trackPosts(authedPage)
-      let n = 0
-      await authedPage.route(/\/ai\/recommendation\?date=/, (route) => {
-        n++
-        route.fulfill({
-          json:
-            n === 1
-              ? { hasKey: true, recap: null }
-              : {
-                  hasKey: true,
-                  recap: {
-                    content: "Stored",
-                    stale: n === 3, // only the first post-sync fetch is stale
-                    generatedAt: `2026-01-0${Math.min(n, 4)}T00:00:00Z`,
-                  },
-                },
-        })
-      })
-      await mockStream(authedPage, "/ai/recommendation", ["Streamed"])
-      await mockPost(authedPage, "/strava/sync", { synced: 1 })
-      await authedPage.goto("/")
-      await expect(authedPage.getByText("Stored")).toBeVisible()
-      await pwExpect.poll(() => posts.length).toBe(1)
-      await authedPage.getByRole("button", { name: "Sync Strava" }).click()
-      await pwExpect.poll(() => posts.length).toBe(2)
-      await authedPage.waitForTimeout(500)
-      pwExpect(posts).toHaveLength(2)
     })
 
     test("always-stale recap stops after 2 automatic streams", async ({ authedPage }) => {
@@ -286,12 +294,194 @@ test.describe("Summary", () => {
     })
   })
 
-  test.describe("Sync Strava", () => {
-    test("sync button triggers API and shows count", async ({ authedPage }) => {
-      await mockPost(authedPage, "/strava/sync", { synced: 5 })
+  test.describe("Recovery & Garmin sync", () => {
+    const wellness = { today: WELLNESS_DAY, days: [WELLNESS_DAY] }
+
+    test("desktop: five recovery tiles and two columns", async ({ authedPage }) => {
+      await authedPage.setViewportSize({ width: 1280, height: 900 })
+      await mockGarmin(authedPage, { wellness })
       await authedPage.goto("/")
-      await authedPage.getByRole("button", { name: "Sync Strava" }).click()
-      await expect(authedPage.getByText("Synced 5 activities")).toBeVisible()
+      const sleep = authedPage.getByTestId("tile-sleep")
+      await expect(sleep).toContainText("82")
+      await expect(sleep).toContainText("7h 24m")
+      await expect(authedPage.getByTestId("tile-hrv")).toContainText("58")
+      await expect(authedPage.getByTestId("tile-hrv")).toContainText("Balanced")
+      await expect(authedPage.getByTestId("tile-battery")).toContainText("+62 charged overnight")
+      await expect(authedPage.getByTestId("tile-stress")).toContainText("24")
+      await expect(authedPage.getByTestId("tile-calories")).toContainText("2,430")
+      await expect(authedPage.getByTestId("tile-calories")).toContainText("Active 680")
+      const tops = await Promise.all(
+        ["sleep", "hrv", "battery", "stress", "calories"].map(async (k) => {
+          const b = await authedPage.getByTestId(`tile-${k}`).boundingBox()
+          return Math.round(b?.y ?? -1)
+        })
+      )
+      pwExpect(new Set(tops).size).toBe(1)
+      const main = await authedPage.getByTestId("main-col").boundingBox()
+      const load = await authedPage.getByTestId("load-col").boundingBox()
+      pwExpect(main && load && main.x + main.width <= load.x + 1).toBe(true)
+    })
+
+    test("phone: single column", async ({ authedPage }) => {
+      await authedPage.setViewportSize({ width: 390, height: 900 })
+      await mockGarmin(authedPage, { wellness })
+      await authedPage.goto("/")
+      await expect(authedPage.getByTestId("tile-sleep")).toBeVisible()
+      const main = await authedPage.getByTestId("main-col").boundingBox()
+      const load = await authedPage.getByTestId("load-col").boundingBox()
+      pwExpect(main && load && load.y >= main.y + main.height - 1).toBe(true)
+    })
+
+    test("no sleep score falls back to duration and stages", async ({ authedPage }) => {
+      const today = { ...WELLNESS_DAY, sleepScore: null }
+      await mockGarmin(authedPage, { wellness: { today, days: [today] } })
+      await authedPage.goto("/")
+      const sleep = authedPage.getByTestId("tile-sleep")
+      await expect(sleep).toContainText("7h 24m")
+      await expect(sleep).not.toContainText("No data")
+      await expect(sleep.locator(".bg-stage-deep")).toHaveCount(1)
+    })
+
+    test("no wellness shows No data on Sleep and HRV", async ({ authedPage }) => {
+      await authedPage.goto("/")
+      await expect(authedPage.getByTestId("tile-sleep")).toContainText("No data")
+      await expect(authedPage.getByTestId("tile-hrv")).toContainText("No data")
+    })
+
+    test("importing waits: message and no recap POST", async ({ authedPage }) => {
+      const posts = trackPosts(authedPage)
+      await mockGarmin(authedPage, { status: { ...STATUS_OK, status: "importing" } })
+      await mockGet(authedPage, /\/ai\/recommendation\?date=/, { hasKey: true, recap: null })
+      await authedPage.goto("/")
+      let recapGets = 0
+      authedPage.on("request", (r) => {
+        if (r.url().includes("/ai/recommendation?date=")) recapGets++
+      })
+      await expect(authedPage.getByText("Waiting for Garmin import…")).toBeVisible()
+      await expect(authedPage.getByText("Importing from Garmin…")).toBeVisible()
+      await expect(authedPage.getByTestId("recovery-skeleton")).toBeVisible()
+      await expect(authedPage.getByText("No data")).toHaveCount(0)
+      await authedPage.waitForTimeout(500)
+      pwExpect(posts).toHaveLength(0)
+      pwExpect(recapGets).toBe(0)
+    })
+
+    test("sync completes before recap GET; one sync POST and one recap POST", async ({
+      authedPage,
+    }) => {
+      const events: string[] = []
+      authedPage.on("requestfinished", (r) => {
+        if (r.url().endsWith("/garmin/sync") && r.method() === "POST") events.push("sync")
+      })
+      authedPage.on("request", (r) => {
+        if (r.url().includes("/ai/recommendation?date=")) events.push("recap-get")
+      })
+      const syncs: string[] = []
+      authedPage.on("request", (r) => {
+        if (r.url().endsWith("/garmin/sync") && r.method() === "POST")
+          syncs.push(r.postData() ?? "")
+      })
+      const posts = trackPosts(authedPage)
+      await mockGet(authedPage, /\/ai\/recommendation\?date=/, { hasKey: true, recap: null })
+      await mockStream(authedPage, "/ai/recommendation", ["### Easy day\n\nSleep ok.\n\n→ Rest"])
+      await authedPage.goto("/")
+      await expect(authedPage.getByRole("heading", { name: "Easy day" })).toBeVisible()
+      await authedPage.waitForTimeout(300)
+      pwExpect(events.indexOf("sync")).toBeGreaterThanOrEqual(0)
+      pwExpect(events.indexOf("sync")).toBeLessThan(events.indexOf("recap-get"))
+      pwExpect(syncs).toHaveLength(1)
+      pwExpect(JSON.parse(syncs[0])).toEqual({ force: false })
+      pwExpect(posts).toHaveLength(1)
+    })
+
+    test("tab refocused next day: syncs again before the recap for the new date", async ({
+      authedPage,
+    }) => {
+      const events: string[] = []
+      authedPage.on("request", (r) => {
+        if (r.url().endsWith("/garmin/sync") && r.method() === "POST") events.push("sync-start")
+        const m = r.url().match(/\/ai\/recommendation\?date=(.+)$/)
+        if (m) events.push(`recap-get:${m[1]}`)
+      })
+      authedPage.on("requestfinished", (r) => {
+        if (r.url().endsWith("/garmin/sync") && r.method() === "POST") events.push("sync-done")
+      })
+      await authedPage.clock.install({ time: new Date("2026-11-02T22:00:00") })
+      await authedPage.goto("/")
+      await pwExpect.poll(() => events.includes("recap-get:2026-11-02")).toBe(true)
+      pwExpect(events.filter((e) => e === "sync-start")).toHaveLength(1)
+
+      // Overnight: the tab stays open, then becomes visible again the next morning.
+      await authedPage.clock.setSystemTime(new Date("2026-11-03T07:00:00"))
+      await authedPage.evaluate(() => document.dispatchEvent(new Event("visibilitychange")))
+      await authedPage.evaluate(() => window.dispatchEvent(new Event("focus")))
+      await pwExpect.poll(() => events.includes("recap-get:2026-11-03")).toBe(true)
+      const second = events.lastIndexOf("sync-done")
+      pwExpect(events.filter((e) => e === "sync-start")).toHaveLength(2)
+      pwExpect(second).toBeGreaterThan(-1)
+      pwExpect(second).toBeLessThan(events.indexOf("recap-get:2026-11-03"))
+    })
+
+    test("refocus within 15 minutes on the same day does not sync again", async ({
+      authedPage,
+    }) => {
+      let syncs = 0
+      authedPage.on("request", (r) => {
+        if (r.url().endsWith("/garmin/sync") && r.method() === "POST") syncs++
+      })
+      await authedPage.clock.install({ time: new Date("2026-11-02T10:00:00") })
+      await authedPage.goto("/")
+      await pwExpect.poll(() => syncs).toBe(1)
+      await authedPage.clock.setSystemTime(new Date("2026-11-02T10:10:00"))
+      await authedPage.evaluate(() => document.dispatchEvent(new Event("visibilitychange")))
+      await authedPage.waitForTimeout(300)
+      pwExpect(syncs).toBe(1)
+      await authedPage.clock.setSystemTime(new Date("2026-11-02T10:16:00"))
+      await authedPage.evaluate(() => document.dispatchEvent(new Event("visibilitychange")))
+      await authedPage.evaluate(() => window.dispatchEvent(new Event("focus")))
+      await pwExpect.poll(() => syncs).toBe(2)
+      await authedPage.waitForTimeout(300)
+      pwExpect(syncs).toBe(2)
+    })
+
+    test("key_invalid shows notice with Settings link", async ({ authedPage }) => {
+      await mockGarmin(authedPage, { status: { ...STATUS_OK, lastError: "key_invalid" } })
+      await authedPage.goto("/")
+      await expect(authedPage.getByText(/Garmin key invalid or expired/)).toBeVisible()
+      await expect(
+        authedPage.getByRole("link", { name: "Settings", exact: true }).first()
+      ).toHaveAttribute("href", "/settings")
+    })
+
+    test("not connected shows connect prompt", async ({ authedPage }) => {
+      await mockGarmin(authedPage, {
+        status: { ...STATUS_OK, connected: false, lastSyncedAt: null },
+        syncStatus: 400,
+      })
+      await authedPage.goto("/")
+      await expect(
+        authedPage.getByRole("link", { name: /Connect Garmin in Settings/ })
+      ).toHaveAttribute("href", "/settings")
+    })
+
+    test("sync icon in the header (top right) forces a sync", async ({ authedPage }) => {
+      const syncs: string[] = []
+      authedPage.on("request", (r) => {
+        if (r.url().endsWith("/garmin/sync") && r.method() === "POST")
+          syncs.push(r.postData() ?? "")
+      })
+      await authedPage.goto("/")
+      await expect(authedPage.getByRole("heading", { name: "Home" })).toBeVisible()
+      await expect(authedPage.getByText("Sync now")).toHaveCount(0)
+      const sync = authedPage.getByRole("button", { name: "Sync with Garmin" })
+      const title = await authedPage.getByRole("heading", { name: "Home" }).boundingBox()
+      const btn = await sync.boundingBox()
+      pwExpect(btn && title && btn.x > title.x + title.width).toBe(true)
+      pwExpect(btn && title && Math.abs(btn.y - title.y) < 40).toBe(true)
+      await pwExpect.poll(() => syncs.length).toBe(1)
+      await sync.click()
+      await pwExpect.poll(() => syncs.length).toBe(2)
+      pwExpect(JSON.parse(syncs[1])).toEqual({ force: true })
     })
   })
 })
