@@ -164,6 +164,32 @@ export default function SettingsPage() {
     onSuccess: () => setGarmin(GARMIN_NOT_CONNECTED),
   })
   const syncGarmin = useMutation({ mutationFn: () => syncNow(qc) })
+  const garminKeyForm = (
+    <div className="space-y-3">
+      <div className="space-y-1">
+        <Label htmlFor="garmin-key">Garmin key</Label>
+        <Input
+          id="garmin-key"
+          type="password"
+          autoComplete="off"
+          value={garminKey}
+          onChange={(e) => setGarminKey(e.target.value)}
+        />
+      </div>
+      <Button
+        size="sm"
+        onClick={() => connectGarmin.mutate()}
+        disabled={!garminKey.trim() || connectGarmin.isPending}
+      >
+        {connectGarmin.isPending ? "Connecting…" : "Connect"}
+      </Button>
+      {connectGarmin.error && (
+        <p className="text-sm text-destructive">
+          {GARMIN_ERRORS[connectGarmin.error.message] ?? "Connection failed"}
+        </p>
+      )}
+    </div>
+  )
 
   const logoutMutation = useMutation({
     mutationFn: () => api.post("/auth/logout"),
@@ -407,32 +433,11 @@ export default function SettingsPage() {
                   Remove key
                 </Button>
               </div>
+              {/* Expired/revoked key: paste a new one (connect upserts it). */}
+              {garmin.lastError === "key_invalid" && garminKeyForm}
             </div>
           ) : (
-            <div className="space-y-3">
-              <div className="space-y-1">
-                <Label htmlFor="garmin-key">Garmin key</Label>
-                <Input
-                  id="garmin-key"
-                  type="password"
-                  autoComplete="off"
-                  value={garminKey}
-                  onChange={(e) => setGarminKey(e.target.value)}
-                />
-              </div>
-              <Button
-                size="sm"
-                onClick={() => connectGarmin.mutate()}
-                disabled={!garminKey.trim() || connectGarmin.isPending}
-              >
-                {connectGarmin.isPending ? "Connecting…" : "Connect"}
-              </Button>
-              {connectGarmin.error && (
-                <p className="text-sm text-destructive">
-                  {GARMIN_ERRORS[connectGarmin.error.message] ?? "Connection failed"}
-                </p>
-              )}
-            </div>
+            garminKeyForm
           )}
         </CardContent>
       </Card>

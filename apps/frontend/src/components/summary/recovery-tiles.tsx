@@ -140,9 +140,16 @@ export function RecoveryTiles({
         id="sleep"
         label="Sleep"
         color="sleep"
-        value={t?.sleepScore}
+        // No sleep score (spec Fallbacks): show duration + stages instead.
+        value={t?.sleepScore ?? (t?.sleepSeconds != null ? hm(t.sleepSeconds) : null)}
         unit={t?.sleepScore != null ? sleepLabel(t.sleepScore) : undefined}
-        caption={t?.sleepSeconds != null ? hm(t.sleepSeconds) : undefined}
+        caption={
+          t?.sleepScore == null
+            ? "Duration"
+            : t.sleepSeconds != null
+              ? hm(t.sleepSeconds)
+              : undefined
+        }
       >
         {stages.length > 0 && <Bar parts={stages} />}
       </Tile>

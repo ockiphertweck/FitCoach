@@ -332,6 +332,16 @@ test.describe("Summary", () => {
       pwExpect(main && load && load.y >= main.y + main.height - 1).toBe(true)
     })
 
+    test("no sleep score falls back to duration and stages", async ({ authedPage }) => {
+      const today = { ...WELLNESS_DAY, sleepScore: null }
+      await mockGarmin(authedPage, { wellness: { today, days: [today] } })
+      await authedPage.goto("/")
+      const sleep = authedPage.getByTestId("tile-sleep")
+      await expect(sleep).toContainText("7h 24m")
+      await expect(sleep).not.toContainText("No data")
+      await expect(sleep.locator(".bg-stage-deep")).toHaveCount(1)
+    })
+
     test("no wellness shows No data on Sleep and HRV", async ({ authedPage }) => {
       await authedPage.goto("/")
       await expect(authedPage.getByTestId("tile-sleep")).toContainText("No data")
@@ -382,6 +392,56 @@ test.describe("Summary", () => {
       pwExpect(syncs).toHaveLength(1)
       pwExpect(JSON.parse(syncs[0])).toEqual({ force: false })
       pwExpect(posts).toHaveLength(1)
+    })
+
+    test("tab refocused next day: syncs again before the recap for the new date", async ({
+      authedPage,
+    }) => {
+      const events: string[] = []
+      authedPage.on("request", (r) => {
+        if (r.url().endsWith("/garmin/sync") && r.method() === "POST") events.push("sync-start")
+        const m = r.url().match(/\/ai\/recommendation\?date=(.+)$/)
+        if (m) events.push(`recap-get:${m[1]}`)
+      })
+      authedPage.on("requestfinished", (r) => {
+        if (r.url().endsWith("/garmin/sync") && r.method() === "POST") events.push("sync-done")
+      })
+      await authedPage.clock.install({ time: new Date("2026-11-02T22:00:00") })
+      await authedPage.goto("/")
+      await pwExpect.poll(() => events.includes("recap-get:2026-11-02")).toBe(true)
+      pwExpect(events.filter((e) => e === "sync-start")).toHaveLength(1)
+
+      // Overnight: the tab stays open, then becomes visible again the next morning.
+      await authedPage.clock.setSystemTime(new Date("2026-11-03T07:00:00"))
+      await authedPage.evaluate(() => document.dispatchEvent(new Event("visibilitychange")))
+      await authedPage.evaluate(() => window.dispatchEvent(new Event("focus")))
+      await pwExpect.poll(() => events.includes("recap-get:2026-11-03")).toBe(true)
+      const second = events.lastIndexOf("sync-done")
+      pwExpect(events.filter((e) => e === "sync-start")).toHaveLength(2)
+      pwExpect(second).toBeGreaterThan(-1)
+      pwExpect(second).toBeLessThan(events.indexOf("recap-get:2026-11-03"))
+    })
+
+    test("refocus within 15 minutes on the same day does not sync again", async ({
+      authedPage,
+    }) => {
+      let syncs = 0
+      authedPage.on("request", (r) => {
+        if (r.url().endsWith("/garmin/sync") && r.method() === "POST") syncs++
+      })
+      await authedPage.clock.install({ time: new Date("2026-11-02T10:00:00") })
+      await authedPage.goto("/")
+      await pwExpect.poll(() => syncs).toBe(1)
+      await authedPage.clock.setSystemTime(new Date("2026-11-02T10:10:00"))
+      await authedPage.evaluate(() => document.dispatchEvent(new Event("visibilitychange")))
+      await authedPage.waitForTimeout(300)
+      pwExpect(syncs).toBe(1)
+      await authedPage.clock.setSystemTime(new Date("2026-11-02T10:16:00"))
+      await authedPage.evaluate(() => document.dispatchEvent(new Event("visibilitychange")))
+      await authedPage.evaluate(() => window.dispatchEvent(new Event("focus")))
+      await pwExpect.poll(() => syncs).toBe(2)
+      await authedPage.waitForTimeout(300)
+      pwExpect(syncs).toBe(2)
     })
 
     test("key_invalid shows notice with Settings link", async ({ authedPage }) => {

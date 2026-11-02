@@ -130,6 +130,23 @@ test.describe("Settings", () => {
       await expect(authedPage.getByText("Key invalid or expired")).toBeVisible()
       await expect(authedPage.getByText(/Key expires/)).toBeVisible()
     })
+
+    test("key_invalid: shows the key input and reconnecting with a new key works", async ({
+      authedPage,
+    }) => {
+      await mockGarmin(authedPage, {
+        ...NOT_CONNECTED,
+        connected: true,
+        status: "error",
+        lastError: "key_invalid",
+      })
+      await authedPage.goto("/settings")
+      await expect(authedPage.getByText("Key invalid or expired")).toBeVisible()
+      await authedPage.getByLabel("Garmin key", { exact: true }).fill("renewed-key")
+      await authedPage.getByRole("button", { name: "Connect", exact: true }).click()
+      await expect(authedPage.getByText(/^Connected/)).toBeVisible({ timeout: 10_000 })
+      await expect(authedPage.getByLabel("Garmin key", { exact: true })).toHaveCount(0)
+    })
   })
 
   test.describe("Claude API key", () => {
