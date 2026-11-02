@@ -19,7 +19,7 @@ FitCoach connects to your Garmin account, computes training load metrics (ATL/CT
 - **Weekly reports** — AI-generated summary with distance, duration, HR, ATL/CTL, and coaching notes
 - **Trends** — interactive weekly trend charts for distance, duration, and heart rate
 - **Training load** — ATL / CTL / TSB computed from TRIMP (same methodology as TrainingPeaks)
-- **Garmin data source** — activities and wellness data via the Garmin Personal API (sync arrives in a follow-up)
+- **Garmin data source** — activities, sleep, HRV, Body Battery, stress and calories via the Garmin Personal API, pulled automatically when you open the Summary
 - **Athlete profile** — weight, height, max HR, FTP, sex — passed to Claude for personalised advice
 - **BYOK** — Claude API key stored AES-256-GCM encrypted; set it in Settings without redeploying
 - **Appearance** — light, dark or system theme
@@ -68,13 +68,26 @@ Open **http://localhost:3001** and create your account.
 | `CLAUDE_API_KEY` | optional | Default Claude key; can be set per-user in Settings |
 | `POSTHOG_API_KEY` | optional | Usage analytics — disabled if omitted |
 | `FRONTEND_URL` | optional | Defaults to `http://localhost:3001` |
-| `GARMIN_API_KEY` | optional | Garmin Personal API key (portal key, 90-day expiry) |
+
+The Garmin key is **not** an environment variable: you paste it in Settings (see below). `GARMIN_API_KEY` in `.env.example` is only read by the dev script `pnpm --filter api garmin:probe`, which prints Garmin response shapes.
 
 ---
 
-## Upgrading from Strava
+## Connecting Garmin
 
-Strava closed its API to free accounts, so FitCoach now uses Garmin. After pulling this version run `pnpm --filter api db:migrate`, then:
+1. Create a personal API key at [connect.garmin.com/app/settings/personalApiToken](https://connect.garmin.com/app/settings/personalApiToken)
+2. Open FitCoach → **Settings** → **Garmin**, paste the key and click **Connect**. It is stored AES-256-GCM encrypted.
+3. The first import pulls the last **12 months of activities** and **90 days of recovery data** (sleep, HRV, Body Battery, stress, calories). It runs in the background; the Summary shows "Importing from Garmin…" until it is done.
+
+After that, data is pulled whenever you open the Summary (or return to the tab), **at most every 15 minutes**; **Sync now** forces it. When the key expires, Settings shows "Key invalid or expired" with a field to paste a new one — your data is kept and the reconnect runs a normal incremental sync, not a full re-import.
+
+---
+
+## Upgrading from Strava (optional)
+
+Strava closed its API to free accounts, so FitCoach now uses Garmin. After pulling this version run `pnpm --filter api db:migrate`. That is all you need: Strava activities stay, and when Garmin imports a workout with the same start time (±2 minutes) the Strava copy is replaced automatically.
+
+If you want a clean slate instead, you can optionally run:
 
 ```bash
 pnpm --filter api purge-legacy-data   # asks for "yes"; add --yes to skip the prompt
@@ -127,14 +140,15 @@ fitcoach/
 │   │   ├── src/
 │   │   │   ├── db/        # Drizzle ORM client & schema
 │   │   │   ├── middleware/ # JWT auth hook
-│   │   │   ├── routes/    # activities · ai · auth · settings
-│   │   │   └── services/  # ai-context · atl-ctl · encryption
+│   │   │   ├── routes/    # activities · ai · auth · garmin · settings · wellness
+│   │   │   └── services/  # atl-ctl · daily-recap · encryption · streams · wellness
+│   │   │       └── garmin/ # client · sync · mappers · fit (FIT download)
 │   │   └── drizzle/       # SQL migration files
 │   └── frontend/          # Next.js 15 App Router
 │       └── src/
 │           ├── app/       # Route segments: activities · trends · coach · settings
 │           ├── components/ # shadcn/ui primitives + shared Markdown renderer
-│           └── lib/       # Typed API client + SSE streaming helper
+│           └── lib/       # Typed API client + SSE streaming helper + Garmin auto-sync
 ├── packages/
 │   └── shared/            # Zod schemas shared between API and frontend
 ├── db/
@@ -184,11 +198,15 @@ One Rust-based tool, one config file, zero conflicts between linter and formatte
 
 ```
 users              id, email, passwordHash, createdAt
-apiKeys            userId → users, provider, encryptedKey  — UNIQUE(userId, provider)
+apiKeys            userId → users, provider ("anthropic" | "garmin"), encryptedKey*  — UNIQUE(userId, provider)
+garminSync         userId → users (PK), status, lastSyncedAt, lastError, keyExpiresAt, importedAt
+dailyWellness      userId → users, date, sleep score/duration/stages, sleepStart/End, HRV,
+                   Body Battery (overnight charge, at wake, current), stress, resting HR,
+                   calories  — UNIQUE(userId, date)
 userProfiles       userId → users (PK), sex, weightKg, heightCm, maxHeartRate, ftpWatts
 activities         userId → users, externalId, source, sportType, startDate,
                    duration, distance, elevation, HR, pace, RPE, calories,
-                   rawData (jsonb)  — UNIQUE(userId, externalId, source)
+                   rawData (jsonb), streamData (jsonb, parsed FIT)  — UNIQUE(userId, externalId, source)
 chatHistory        userId → users, role, content, tokensUsed, createdAt
 dailyRecommendations userId → users, date, inputHash, content, tokensUsed, generatedAt  — UNIQUE(userId, date)
 weeklyReports      userId → users, weekStart, summary, metrics (jsonb)  — UNIQUE(userId, weekStart)
