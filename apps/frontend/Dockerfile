@@ -36,8 +36,8 @@ RUN addgroup --system --gid 1001 nodejs \
  && adduser --system --uid 1001 nextjs
 
 COPY --from=builder /workspace/apps/frontend/.next/standalone ./
-COPY --from=builder /workspace/apps/frontend/.next/static ./.next/static
-COPY --from=builder /workspace/apps/frontend/public* ./public/
+COPY --from=builder /workspace/apps/frontend/.next/static ./apps/frontend/.next/static
+COPY --from=builder /workspace/apps/frontend/public* ./apps/frontend/public/
 
 USER nextjs
 
@@ -46,4 +46,4 @@ EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-CMD ["node", "server.js"]
+CMD ["node", "apps/frontend/server.js"]
