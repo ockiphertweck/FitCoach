@@ -245,6 +245,10 @@ All routes except `/auth/*` require a valid `fitcoach_token` cookie.
 | `GET` | `/ai/chat/history` | Chat history |
 | `DELETE` | `/ai/chat/history` | Clear chat history |
 | `POST` | `/ai/weekly-report` | Generate / return this week's report |
+| `POST` | `/garmin/connect` | Validate + store Garmin Personal API key, start initial import |
+| `GET` | `/garmin/status` | `{ connected, status, lastSyncedAt, lastError, keyExpiresAt }` |
+| `POST` | `/garmin/sync` | Incremental sync (15 min gate; body `{ force }`) |
+| `DELETE` | `/garmin/key` | Remove Garmin key + sync state (data kept) |
 | `GET` | `/settings/apikey` | Configured providers |
 | `POST` | `/settings/apikey` | Save encrypted API key |
 | `DELETE` | `/settings/apikey/:provider` | Remove API key |

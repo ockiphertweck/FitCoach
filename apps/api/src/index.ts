@@ -8,6 +8,7 @@ import { authPlugin } from "./middleware/auth.js"
 import activitiesRoutes from "./routes/activities.js"
 import aiRoutes from "./routes/ai.js"
 import authRoutes from "./routes/auth.js"
+import garminRoutes from "./routes/garmin.js"
 import settingsRoutes from "./routes/settings.js"
 
 const fastify = Fastify({
@@ -37,6 +38,7 @@ await fastify.register(authPlugin)
 await fastify.register(authRoutes)
 await fastify.register(activitiesRoutes)
 await fastify.register(aiRoutes)
+await fastify.register(garminRoutes)
 await fastify.register(settingsRoutes)
 
 // Health check
