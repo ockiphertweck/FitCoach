@@ -1,7 +1,8 @@
-import { and, desc, eq, gte } from "drizzle-orm"
+import { desc, eq } from "drizzle-orm"
 import type { DB } from "../db/index.js"
-import { activities, chatHistory, userProfiles } from "../db/schema.js"
+import { chatHistory } from "../db/schema.js"
 import { calculateTrainingLoad } from "../services/atl-ctl.js"
+import { loadRecapInputs, recapWindowStart } from "../services/daily-recap.js"
 import { formatDistance, formatDuration, formatPace, formatProfileSection } from "./_format.js"
 
 export async function buildRecommendationPrompt(
@@ -9,35 +10,23 @@ export async function buildRecommendationPrompt(
   db: DB,
   date: string
 ): Promise<string> {
-  const fourteenDaysAgo = new Date()
-  fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14)
+  const fourteenDaysAgo = recapWindowStart(date, 14)
 
-  const fortyTwoDaysAgo = new Date()
-  fortyTwoDaysAgo.setDate(fortyTwoDaysAgo.getDate() - 42)
-
-  const [recentActivities, allActivities, recentChat, profileRows] = await Promise.all([
-    db
-      .select()
-      .from(activities)
-      .where(and(eq(activities.userId, userId), gte(activities.startDate, fourteenDaysAgo)))
-      .orderBy(desc(activities.startDate))
-      .limit(20),
-    db
-      .select()
-      .from(activities)
-      .where(and(eq(activities.userId, userId), gte(activities.startDate, fortyTwoDaysAgo)))
-      .orderBy(desc(activities.startDate)),
+  const [{ activities: allActivities, profile }, recentChat] = await Promise.all([
+    loadRecapInputs(db, userId, date),
     db
       .select()
       .from(chatHistory)
       .where(eq(chatHistory.userId, userId))
       .orderBy(desc(chatHistory.createdAt))
       .limit(3),
-    db.select().from(userProfiles).where(eq(userProfiles.userId, userId)).limit(1),
   ])
+  const recentActivities = allActivities
+    .filter((a) => a.startDate >= fourteenDaysAgo)
+    .sort((a, b) => b.startDate.getTime() - a.startDate.getTime())
+    .slice(0, 20)
 
   const load = calculateTrainingLoad(allActivities)
-  const profile = profileRows[0] ?? null
 
   const lines: string[] = [
     "# Athlete Training Context",

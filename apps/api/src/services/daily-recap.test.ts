@@ -4,6 +4,7 @@ import {
   type RecapStreamEvent,
   computeRecapHash,
   recapDateSchema,
+  recapWindowStart,
   streamAndSaveRecap,
 } from "./daily-recap.js"
 
@@ -140,5 +141,22 @@ describe("recapDateSchema", () => {
   })
   it.each([{ date: "2026-13-01" }, { date: "today" }, {}])("rejects %j", (v) => {
     expect(recapDateSchema.safeParse(v).success).toBe(false)
+  })
+})
+
+describe("recapWindowStart", () => {
+  it("is 42 days before the date at UTC midnight, independent of now", () => {
+    expect(recapWindowStart("2026-11-02").toISOString()).toBe("2026-09-21T00:00:00.000Z")
+    expect(recapWindowStart("2026-11-02", 14).toISOString()).toBe("2026-10-19T00:00:00.000Z")
+  })
+})
+
+describe("streamAndSaveRecap empty output", () => {
+  it("does not save a whitespace-only recap but returns it", async () => {
+    const save = vi.fn()
+    await expect(
+      streamAndSaveRecap({ stream: events(delta("  \n")), onText: vi.fn(), save })
+    ).resolves.toBe("  \n")
+    expect(save).not.toHaveBeenCalled()
   })
 })

@@ -52,19 +52,26 @@ export async function streamAndSaveRecap(opts: {
       clientGone = true
     }
   }
-  await opts.save(full)
+  if (full.trim() !== "") await opts.save(full)
   return full
 }
 
 export const recapDateSchema = z.object({ date: z.string().date() })
 
+/** Start (UTC midnight) of the 42-day window ending on `date`; fixed per date so the hash stays stable all day. */
+export function recapWindowStart(date: string, days = 42): Date {
+  const d = new Date(`${date}T00:00:00Z`)
+  d.setUTCDate(d.getUTCDate() - days)
+  return d
+}
+
 /** Activities in the 42-day window plus the profile — the inputs that drive the recap. */
 export async function loadRecapInputs(
   db: DB,
-  userId: string
+  userId: string,
+  date: string
 ): Promise<{ activities: Activity[]; profile: UserProfile | null }> {
-  const since = new Date()
-  since.setDate(since.getDate() - 42)
+  const since = recapWindowStart(date)
   const [acts, profileRows] = await Promise.all([
     db
       .select()

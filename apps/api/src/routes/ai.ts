@@ -138,7 +138,7 @@ const aiRoutes: FastifyPluginAsyncZod = async (fastify) => {
       const [client, stored, inputs] = await Promise.all([
         getAnthropicClient(userId),
         getStoredRecap(db, userId, date),
-        loadRecapInputs(db, userId),
+        loadRecapInputs(db, userId, date),
       ])
       const recap = stored
         ? {
@@ -159,7 +159,7 @@ const aiRoutes: FastifyPluginAsyncZod = async (fastify) => {
       const { date } = request.body
       const anthropic = await requireAnthropicClient(userId)
       // Hash before calling Claude so it reflects the data the prompt is built from.
-      const inputHash = computeRecapHash({ date, ...(await loadRecapInputs(db, userId)) })
+      const inputHash = computeRecapHash({ date, ...(await loadRecapInputs(db, userId, date)) })
       fastify.log.info({ userId }, "recommendation: building prompt")
       const userMessage = await buildRecommendationPrompt(userId, db, date)
 
@@ -192,12 +192,15 @@ const aiRoutes: FastifyPluginAsyncZod = async (fastify) => {
           save: (content) => upsertRecap(db, { userId, date, inputHash, content }),
         })
 
-        reply.raw.write("data: [DONE]\n\n")
+        if (!reply.raw.destroyed) reply.raw.write("data: [DONE]\n\n")
       } catch (err) {
         fastify.log.error(
           { userId, err: err instanceof Error ? err.message : "unknown" },
           "recommendation: stream or save failed"
         )
+        if (!reply.raw.destroyed) {
+          reply.raw.write(`data: ${JSON.stringify({ error: "Recap generation failed" })}\n\n`)
+        }
       } finally {
         reply.raw.end()
       }
