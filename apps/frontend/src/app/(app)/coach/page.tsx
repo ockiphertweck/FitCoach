@@ -1,13 +1,15 @@
 "use client"
 
 import { Markdown } from "@/components/markdown"
+import { PageHeader } from "@/components/page-header"
 import { Button } from "@/components/ui/button"
-import { ScrollArea } from "@/components/ui/scroll-area"
+import { Card } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
 import { api, streamPost } from "@/lib/api"
 import { cn } from "@/lib/utils"
+import * as Dialog from "@radix-ui/react-dialog"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { Bot, Menu, MessageSquarePlus, RefreshCw, Send, Trash2, User, X } from "lucide-react"
+import { Bot, MessageSquarePlus, MessagesSquare, RefreshCw, Send, Trash2 } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 
 interface Message {
@@ -33,7 +35,8 @@ export default function CoachPage() {
   const streamingRef = useRef("")
   const [isStreaming, setIsStreaming] = useState(false)
   const [failedMessage, setFailedMessage] = useState<string | null>(null)
-  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [sheetOpen, setSheetOpen] = useState(false) // phone: Chats bottom sheet
+  const [listOpen, setListOpen] = useState(true) // ≥ md: collapsible sessions tile
 
   const { data: sessionsData } = useQuery<{ sessions: ChatSession[] }>({
     queryKey: ["chat-sessions"],
@@ -47,7 +50,7 @@ export default function CoachPage() {
     onSuccess: (session) => {
       qc.invalidateQueries({ queryKey: ["chat-sessions"] })
       setActiveSessionId(session.id)
-      setSidebarOpen(false)
+      setSheetOpen(false)
     },
   })
 
@@ -102,7 +105,7 @@ export default function CoachPage() {
 
   const handleSelectSession = (id: string) => {
     setActiveSessionId(id)
-    setSidebarOpen(false)
+    setSheetOpen(false)
   }
 
   const handleSend = async (override?: string) => {
@@ -173,7 +176,7 @@ export default function CoachPage() {
 
   const activeSession = sessions.find((s) => s.id === activeSessionId)
 
-  const SessionList = () => (
+  const sessionList = (
     <>
       <Button
         size="sm"
@@ -184,222 +187,201 @@ export default function CoachPage() {
         <MessageSquarePlus className="h-4 w-4" />
         New chat
       </Button>
-      <ScrollArea className="flex-1">
-        <div className="space-y-1 pr-1">
-          {sessions.map((session) => (
-            <div key={session.id} className="group flex min-w-0 overflow-hidden">
-              <button
-                type="button"
-                className={cn(
-                  "flex flex-1 items-center gap-1 rounded-xl px-3 py-2 text-sm cursor-pointer transition-all min-w-0 overflow-hidden text-left",
-                  activeSessionId === session.id
-                    ? "bg-primary/10 text-primary border-0"
-                    : "text-foreground/60 hover:bg-muted hover:text-foreground"
-                )}
-                onClick={() => handleSelectSession(session.id)}
-              >
-                <span className="min-w-0 flex-1 truncate leading-snug">{session.title}</span>
-              </button>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  deleteSessionMutation.mutate(session.id)
-                }}
-                className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:text-destructive shrink-0 self-center mr-1"
-                aria-label="Delete chat"
-              >
-                <Trash2 className="h-3 w-3" />
-              </button>
-            </div>
-          ))}
-        </div>
-      </ScrollArea>
+      <div className="space-y-1 overflow-y-auto min-h-0">
+        {sessions.map((session) => (
+          <div key={session.id} className="group flex min-w-0 overflow-hidden">
+            <button
+              type="button"
+              className={cn(
+                "flex flex-1 items-center gap-1 rounded-xl px-3 py-2 text-sm cursor-pointer transition-all min-w-0 overflow-hidden text-left",
+                activeSessionId === session.id
+                  ? "bg-primary/10 text-primary"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              )}
+              onClick={() => handleSelectSession(session.id)}
+            >
+              <span className="min-w-0 flex-1 truncate leading-snug">{session.title}</span>
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                deleteSessionMutation.mutate(session.id)
+              }}
+              className="md:opacity-0 md:group-hover:opacity-100 focus-visible:opacity-100 transition-opacity p-1 rounded hover:text-destructive shrink-0 self-center"
+              aria-label="Delete chat"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        ))}
+      </div>
     </>
   )
 
   return (
-    <div className="flex flex-1 min-h-0 gap-4 relative">
-      {/* Mobile sidebar overlay */}
-      {sidebarOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm md:hidden"
-          onClick={() => setSidebarOpen(false)}
-          onKeyDown={(e) => e.key === "Escape" && setSidebarOpen(false)}
-          role="presentation"
-        />
+    <div className="flex flex-1 min-h-0 flex-col">
+      <PageHeader
+        title="Coach"
+        subtitle={activeSession?.title?.toUpperCase()}
+        action={
+          <>
+            {messages.length > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => clearHistoryMutation.mutate()}
+                disabled={clearHistoryMutation.isPending}
+                className="text-muted-foreground hover:text-destructive"
+              >
+                <Trash2 className="h-4 w-4" />
+                Clear
+              </Button>
+            )}
+            <Button
+              variant="secondary"
+              size="sm"
+              className="md:hidden"
+              onClick={() => setSheetOpen(true)}
+            >
+              <MessagesSquare className="h-4 w-4" />
+              Chats
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              className="hidden md:inline-flex"
+              aria-expanded={listOpen}
+              onClick={() => setListOpen((o) => !o)}
+            >
+              <MessagesSquare className="h-4 w-4" />
+              Chats
+            </Button>
+          </>
+        }
+      />
+
+      {/* ≥ md: collapsible sessions tile */}
+      {listOpen && (
+        <Card className="hidden md:flex flex-col gap-2 max-h-52 mb-3 shrink-0">{sessionList}</Card>
       )}
 
-      {/* Sidebar — slide-in on mobile, always visible on md+ */}
-      <aside
-        className={cn(
-          "flex flex-col gap-2 z-50 transition-transform duration-200",
-          // Mobile: fixed overlay panel
-          "fixed top-14 bottom-0 left-0 w-64 p-3 bg-card md:hidden",
-          sidebarOpen ? "translate-x-0" : "-translate-x-full",
-          // Desktop: static in flow
-          "md:static md:translate-x-0 md:w-52 md:p-0 md:bg-transparent md:backdrop-filter-none md:border-0 md:shadow-none md:flex"
-        )}
-      >
-        <SessionList />
-      </aside>
-
-      {/* Main chat area */}
-      <div className="flex flex-col flex-1 min-h-0 min-w-0">
-        {/* Header */}
-        <div className="flex items-center gap-2 pb-3 border-b border-black/8 mb-3">
-          {/* Mobile menu toggle */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="md:hidden shrink-0 h-8 w-8"
-            onClick={() => setSidebarOpen((o) => !o)}
+      {/* Phone: bottom sheet */}
+      <Dialog.Root open={sheetOpen} onOpenChange={setSheetOpen}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-40 bg-black/30 md:hidden" />
+          <Dialog.Content
+            aria-describedby={undefined}
+            className="fixed inset-x-0 bottom-0 z-50 flex max-h-[70vh] flex-col gap-2 rounded-t-[20px] bg-card p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] md:hidden"
           >
-            {sidebarOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
-          </Button>
+            <Dialog.Title className="text-lg font-semibold">Chats</Dialog.Title>
+            {sessionList}
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
 
-          <h1 className="text-lg font-semibold tracking-tight flex items-center gap-2 min-w-0 flex-1">
-            <Bot className="h-5 w-5 text-primary shrink-0" />
-            <span className="truncate">{activeSession?.title ?? "AI Coach"}</span>
-          </h1>
-
-          {messages.length > 0 && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => clearHistoryMutation.mutate()}
-              disabled={clearHistoryMutation.isPending}
-              className="text-muted-foreground hover:text-destructive shrink-0"
-            >
-              <Trash2 className="h-4 w-4" />
-              <span className="hidden sm:inline">Clear</span>
-            </Button>
+      {/* Messages */}
+      <div className="flex-1 min-h-0 overflow-y-auto py-2">
+        <div className="space-y-3">
+          {messages.length === 0 && !isStreaming && (
+            <div className="text-center text-muted-foreground py-16">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-metric-coach/15 mx-auto mb-4">
+                <Bot className="h-7 w-7 text-metric-coach" />
+              </div>
+              <p className="text-base font-medium text-foreground">Start a conversation</p>
+              <p className="text-sm mt-1">Ask about your training, recovery, or goals</p>
+            </div>
           )}
-        </div>
 
-        {/* Messages */}
-        <div className="flex-1 py-2 overflow-y-auto">
-          <div className="space-y-4 max-w-3xl mx-auto">
-            {messages.length === 0 && !isStreaming && (
-              <div className="text-center text-muted-foreground py-16">
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 border border-primary/20 mx-auto mb-4">
-                  <Bot className="h-7 w-7 text-primary/60" />
-                </div>
-                <p className="text-base font-medium text-foreground/60">Start a conversation</p>
-                <p className="text-sm mt-1">Ask about your training, recovery, or goals</p>
-              </div>
-            )}
-
-            {messages.map((msg, i) => (
+          {messages.map((msg, i) => (
+            <div key={msg.id} className={cn("flex", msg.role === "user" && "justify-end")}>
               <div
-                key={msg.id}
-                className={cn("flex gap-3", msg.role === "user" && "flex-row-reverse")}
+                className={cn(
+                  "max-w-[85%] rounded-[20px] px-4 py-3 text-sm",
+                  msg.role === "user" ? "bg-metric-coach/15 text-foreground" : "bg-card"
+                )}
               >
-                <div
-                  className={cn(
-                    "flex h-8 w-8 shrink-0 items-center justify-center rounded-xl",
-                    msg.role === "user" ? "bg-primary text-white" : "bg-muted text-muted-foreground"
-                  )}
-                >
-                  {msg.role === "user" ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
-                </div>
-                <div
-                  className={cn(
-                    "max-w-[85%] rounded-2xl px-4 py-3 text-sm",
-                    msg.role === "user" ? "bg-primary text-white" : "bg-card"
-                  )}
-                >
-                  {msg.role === "assistant" ? (
-                    <div className="prose prose-sm max-w-none text-foreground/85">
-                      <Markdown>{msg.content}</Markdown>
-                    </div>
-                  ) : (
-                    <p className="whitespace-pre-wrap">{msg.content}</p>
-                  )}
-                  {/* Retry button on last user message when request failed */}
-                  {msg.role === "user" && failedMessage && i === messages.length - 1 ? (
-                    <div className="flex items-center justify-end gap-2 mt-2">
-                      <span className="text-xs text-white/60">Failed to send</span>
-                      <button
-                        type="button"
-                        onClick={() => handleSend(failedMessage)}
-                        className="flex items-center gap-1 text-xs text-white/80 hover:text-white bg-white/15 hover:bg-white/25 rounded-lg px-2 py-1 transition-colors"
-                      >
-                        <RefreshCw className="h-3 w-3" /> Retry
-                      </button>
-                    </div>
-                  ) : (
-                    <p
-                      className={cn(
-                        "text-xs mt-1.5 opacity-40",
-                        msg.role === "user" ? "text-right" : ""
-                      )}
+                {msg.role === "assistant" ? (
+                  <div className="prose prose-sm max-w-none text-foreground">
+                    <Markdown>{msg.content}</Markdown>
+                  </div>
+                ) : (
+                  <p className="whitespace-pre-wrap">{msg.content}</p>
+                )}
+                {/* Retry button on last user message when request failed */}
+                {msg.role === "user" && failedMessage && i === messages.length - 1 ? (
+                  <div className="flex items-center justify-end gap-2 mt-2">
+                    <span className="text-xs text-muted-foreground">Failed to send</span>
+                    <button
+                      type="button"
+                      onClick={() => handleSend(failedMessage)}
+                      className="flex items-center gap-1 text-xs text-foreground bg-foreground/10 hover:bg-foreground/15 rounded-lg px-2 py-1 transition-colors"
                     >
-                      {new Date(msg.createdAt).toLocaleTimeString()}
-                    </p>
-                  )}
-                </div>
+                      <RefreshCw className="h-3 w-3" /> Retry
+                    </button>
+                  </div>
+                ) : (
+                  <p
+                    className={cn(
+                      "text-xs mt-1.5 text-muted-foreground",
+                      msg.role === "user" ? "text-right" : ""
+                    )}
+                  >
+                    {new Date(msg.createdAt).toLocaleTimeString()}
+                  </p>
+                )}
               </div>
-            ))}
+            </div>
+          ))}
 
-            {(isStreaming || streamingMessage) && (
-              <div className="flex gap-3">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground">
-                  <Bot className="h-4 w-4" />
-                </div>
-                <div className="max-w-[85%] rounded-2xl px-4 py-3 text-sm bg-card">
-                  {streamingMessage ? (
-                    <div>
-                      <div className="prose prose-sm max-w-none text-foreground/85">
-                        <Markdown>{streamingMessage}</Markdown>
-                      </div>
-                      {isStreaming && <span className="animate-pulse text-primary">▋</span>}
+          {(isStreaming || streamingMessage) && (
+            <div className="flex">
+              <div className="max-w-[85%] rounded-[20px] px-4 py-3 text-sm bg-card">
+                {streamingMessage ? (
+                  <div>
+                    <div className="prose prose-sm max-w-none text-foreground">
+                      <Markdown>{streamingMessage}</Markdown>
                     </div>
-                  ) : (
-                    <div className="flex gap-1.5 items-center h-5">
+                    {isStreaming && <span className="animate-pulse text-metric-coach">▋</span>}
+                  </div>
+                ) : (
+                  <div className="flex gap-1.5 items-center h-5">
+                    {[0, 150, 300].map((d) => (
                       <span
-                        className="animate-bounce w-1.5 h-1.5 bg-primary rounded-full"
-                        style={{ animationDelay: "0ms" }}
+                        key={d}
+                        className="animate-bounce w-1.5 h-1.5 bg-metric-coach rounded-full"
+                        style={{ animationDelay: `${d}ms` }}
                       />
-                      <span
-                        className="animate-bounce w-1.5 h-1.5 bg-primary rounded-full"
-                        style={{ animationDelay: "150ms" }}
-                      />
-                      <span
-                        className="animate-bounce w-1.5 h-1.5 bg-primary rounded-full"
-                        style={{ animationDelay: "300ms" }}
-                      />
-                    </div>
-                  )}
-                </div>
+                    ))}
+                  </div>
+                )}
               </div>
-            )}
+            </div>
+          )}
 
-            <div ref={bottomRef} />
-          </div>
+          <div ref={bottomRef} />
         </div>
+      </div>
 
-        {/* Input */}
-        <div className="pt-3 border-t border-black/8">
-          <div className="flex gap-2 max-w-3xl mx-auto">
-            <Textarea
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Ask your coach anything… (Enter to send, Shift+Enter for newline)"
-              className="min-h-[52px] max-h-[200px] resize-none rounded-2xl placeholder:text-muted-foreground/60"
-              disabled={isStreaming || !activeSessionId}
-            />
-            <Button
-              onClick={() => handleSend()}
-              disabled={!input.trim() || isStreaming || !activeSessionId}
-              size="icon"
-              className="h-[52px] w-[52px] rounded-2xl shrink-0"
-            >
-              <Send className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
+      {/* Input — column bottom; on phone the layout's bottom padding keeps it above the tab bar */}
+      <div className="glass flex shrink-0 items-end gap-2 p-1.5 mt-2">
+        <Textarea
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="Ask your coach anything… (Enter to send, Shift+Enter for newline)"
+          className="min-h-[44px] max-h-[200px] resize-none rounded-3xl bg-transparent placeholder:text-muted-foreground"
+          disabled={isStreaming || !activeSessionId}
+        />
+        <Button
+          onClick={() => handleSend()}
+          disabled={!input.trim() || isStreaming || !activeSessionId}
+          size="icon"
+          aria-label="Send"
+          className="h-11 w-11 shrink-0 rounded-full"
+        >
+          <Send className="h-4 w-4" />
+        </Button>
       </div>
     </div>
   )

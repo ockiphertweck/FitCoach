@@ -41,7 +41,7 @@ export default function LoginPage() {
           <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-white mb-4">
             <Dumbbell className="h-7 w-7" />
           </div>
-          <h1 className="text-2xl font-semibold tracking-tight">Welcome back</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Welcome back</h1>
           <p className="text-sm text-muted-foreground mt-1">Sign in to your FitCoach account</p>
         </div>
 
@@ -87,14 +87,14 @@ export default function LoginPage() {
           </div>
 
           {loginMutation.isError && (
-            <Alert variant="destructive" className="bg-red-500/10 border-red-500/20 text-red-300">
+            <Alert variant="destructive">
               <AlertDescription>{loginMutation.error.message}</AlertDescription>
             </Alert>
           )}
 
           <Button
             type="submit"
-            className="w-full mt-2"
+            className="w-full mt-2 h-11"
             disabled={loginMutation.isPending || !email || !password}
           >
             {loginMutation.isPending ? "Signing in…" : "Sign in"}
