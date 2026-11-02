@@ -53,7 +53,7 @@ export default function TrendsPage() {
           data={weekly}
           error={isError}
           color="hsl(var(--chart-distance))"
-          format={(v) => `${v} km`}
+          format={(v) => `${v.toLocaleString(locale)} km`}
         />
         <WeeklyChart
           title={t.trends.duration}
@@ -61,7 +61,7 @@ export default function TrendsPage() {
           data={weekly}
           error={isError}
           color="hsl(var(--chart-duration))"
-          format={(v) => `${v} min`}
+          format={(v) => `${v.toLocaleString(locale)} min`}
         />
         <WeeklyChart
           title={t.trends.avgHeartRate}
@@ -69,7 +69,7 @@ export default function TrendsPage() {
           data={weekly}
           error={isError}
           color="hsl(var(--chart-hr))"
-          format={(v) => `${v} bpm`}
+          format={(v) => `${v.toLocaleString(locale)} bpm`}
         />
 
         <Card className="lg:col-span-2">
@@ -122,7 +122,7 @@ export default function TrendsPage() {
                       value: String(reportMutation.data.metrics.sessions),
                     },
                     {
-                      label: "Avg HR",
+                      label: t.trends.avgHr,
                       value: reportMutation.data.metrics.avgHR
                         ? `${reportMutation.data.metrics.avgHR} bpm`
                         : t.trends.notAvailable,

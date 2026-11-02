@@ -197,6 +197,26 @@ test.describe("Trends — language", () => {
       expect(body.lang).toBe("de")
     })
 
+    test("localizes chart header decimals and report metric labels", async ({ authedPage }) => {
+      await mockGet(authedPage, /\/activities\?limit=200/, {
+        items: [
+          {
+            startDate: "2026-03-31T07:00:00.000Z",
+            durationSeconds: 3600,
+            distanceMeters: 12500,
+            averageHeartRate: 145,
+          },
+        ],
+        total: 1,
+      })
+      await mockPost(authedPage, "/ai/weekly-report", WEEKLY_REPORT)
+      await authedPage.goto("/trends")
+      await expect(authedPage.getByText("12,5 km").first()).toBeVisible()
+      await authedPage.getByRole("button", { name: "Bericht erstellen" }).click()
+      await expect(authedPage.getByText("Ø HF", { exact: true }).last()).toBeVisible()
+      await expect(authedPage.getByText("Avg HR")).toHaveCount(0)
+    })
+
     test("shows translated API error", async ({ authedPage }) => {
       await mockGet(authedPage, /\/activities\?limit=200/, { items: ACTIVITIES_8W, total: 3 })
       await mockPost(
