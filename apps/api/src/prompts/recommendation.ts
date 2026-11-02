@@ -25,12 +25,13 @@ export function buildRecapRequest(userMessage: string) {
 export async function buildRecommendationPrompt(
   userId: string,
   db: DB,
-  date: string
+  date: string,
+  inputs?: Awaited<ReturnType<typeof loadRecapInputs>>
 ): Promise<string> {
   const fourteenDaysAgo = recapWindowStart(date, 14)
 
   const [{ activities: allActivities, profile, wellness }, recentChat] = await Promise.all([
-    loadRecapInputs(db, userId, date),
+    inputs ?? loadRecapInputs(db, userId, date),
     db
       .select()
       .from(chatHistory)
@@ -51,7 +52,7 @@ export async function buildRecommendationPrompt(
     `**Date**: ${date}`,
     "",
     ...formatProfileSection(profile),
-    ...formatRecoverySection(wellness),
+    ...formatRecoverySection(wellness, date),
     "## Training Load (TRIMP-based)",
     `- ATL (Acute / 7-day): ${load.atl}`,
     `- CTL (Chronic / 42-day): ${load.ctl}`,

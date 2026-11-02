@@ -47,7 +47,7 @@ export async function buildChatSystemPrompt(userId: string, db: DB): Promise<str
     `Today: ${today}`,
     "",
     ...formatProfileSection(profile),
-    ...formatRecoverySection(settledWellness(wellnessRows, today)),
+    ...formatRecoverySection(settledWellness(wellnessRows, today), today),
     "## Current Training Load",
     `- ATL: ${load.atl} | CTL: ${load.ctl} | TSB: ${load.tsb} ${load.tsb > 5 ? "(fresh)" : load.tsb < -10 ? "(fatigued)" : "(moderate)"}`,
     "",

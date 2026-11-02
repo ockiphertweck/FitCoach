@@ -48,24 +48,29 @@ export function formatProfileSection(profile: UserProfile | null): string[] {
 const val = (v: number | string | null | undefined, unit = "") =>
   v == null ? "n/a" : `${v}${unit}`
 
-/** Markdown lines with the latest night's recovery data plus a 7-day trend; [] without data. */
-export function formatRecoverySection(w: RecapWellness[]): string[] {
-  const last = w.at(-1)
-  if (!last) return []
-  const prev = w.length > 1 ? w[w.length - 2] : null
-  const lines = [
-    "## Recovery (Garmin)",
-    `- Last night: sleep score ${val(last.sleepScore)}, ${last.sleepSeconds ? formatDuration(last.sleepSeconds) : "n/a"} (deep ${last.deepSleepSeconds ? formatDuration(last.deepSleepSeconds) : "n/a"}, REM ${last.remSleepSeconds ? formatDuration(last.remSleepSeconds) : "n/a"}, light ${last.lightSleepSeconds ? formatDuration(last.lightSleepSeconds) : "n/a"}, awake ${last.awakeSeconds ? formatDuration(last.awakeSeconds) : "n/a"})`,
-    `- HRV: last night ${val(last.hrvLastNight, " ms")}, weekly avg ${val(last.hrvWeeklyAvg, " ms")}, status ${val(last.hrvStatus)}`,
-    `- Body Battery: ${val(last.bodyBatteryAtWake)} at wake (charged +${val(last.bodyBatteryCharged)})`,
-  ]
+/** Markdown lines with last night's recovery (only if `date` has a row), yesterday's stress/RHR and a dated trend; [] without data. */
+export function formatRecoverySection(w: RecapWellness[], date: string): string[] {
+  if (w.length === 0) return []
+  const d = new Date(`${date}T00:00:00Z`)
+  d.setUTCDate(d.getUTCDate() - 1)
+  const today = w.find((r) => r.date === date)
+  const prev = w.find((r) => r.date === d.toISOString().slice(0, 10))
+  const dur = (sec: number | null) => (sec ? formatDuration(sec) : "n/a")
+  const lines = ["## Recovery (Garmin)"]
+  if (today) {
+    lines.push(
+      `- Last night: sleep score ${val(today.sleepScore)}, ${dur(today.sleepSeconds)} (deep ${dur(today.deepSleepSeconds)}, REM ${dur(today.remSleepSeconds)}, light ${dur(today.lightSleepSeconds)}, awake ${dur(today.awakeSeconds)})`,
+      `- HRV: last night ${val(today.hrvLastNight, " ms")}, weekly avg ${val(today.hrvWeeklyAvg, " ms")}, status ${val(today.hrvStatus)}`,
+      `- Body Battery: ${val(today.bodyBatteryAtWake)} at wake (charged +${val(today.bodyBatteryCharged)})`
+    )
+  }
   if (prev) {
     lines.push(
       `- Yesterday: avg stress ${val(prev.stressAvg)}, resting HR ${val(prev.restingHeartRate, " bpm")}`
     )
   }
   lines.push(
-    `- Last ${w.length} days (sleep score / HRV): ${w.map((d) => `${d.date.slice(5)} ${val(d.sleepScore)}/${val(d.hrvLastNight)}`).join(", ")}`,
+    `- Trend (date sleep score/HRV): ${w.map((r) => `${r.date.slice(5)} ${val(r.sleepScore)}/${val(r.hrvLastNight)}`).join(", ")}`,
     ""
   )
   return lines

@@ -159,9 +159,10 @@ const aiRoutes: FastifyPluginAsyncZod = async (fastify) => {
       const { date } = request.body
       const anthropic = await requireAnthropicClient(userId)
       // Hash before calling Claude so it reflects the data the prompt is built from.
-      const inputHash = computeRecapHash({ date, ...(await loadRecapInputs(db, userId, date)) })
+      const inputs = await loadRecapInputs(db, userId, date)
+      const inputHash = computeRecapHash({ date, ...inputs })
       fastify.log.info({ userId }, "recommendation: building prompt")
-      const userMessage = await buildRecommendationPrompt(userId, db, date)
+      const userMessage = await buildRecommendationPrompt(userId, db, date, inputs)
 
       const origin = request.headers.origin ?? env.FRONTEND_URL
       reply.raw.writeHead(200, {
