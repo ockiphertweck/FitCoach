@@ -28,6 +28,9 @@
     --metric-fitness: 211 100% 50%; /* #007aff */
     --metric-form: 135 59% 49%; /* #34c759 */
     --metric-coach: 280 68% 60%; /* #af52de */
+    --chart-distance: 175 70% 38%;
+    --chart-duration: 239 84% 60%;
+    --chart-hr: 340 82% 52%;
   }
 
   .dark {
@@ -54,6 +57,9 @@
     --metric-fitness: 211 100% 60%;
     --metric-form: 135 59% 55%;
     --metric-coach: 280 68% 65%;
+    --chart-distance: 175 65% 50%;
+    --chart-duration: 239 90% 74%;
+    --chart-hr: 340 85% 64%;
   }
 
   * {

@@ -40,7 +40,17 @@ test.describe("Trends", () => {
   test.describe("Page structure", () => {
     test("renders page heading", async ({ authedPage }) => {
       await authedPage.goto("/trends")
-      await expect(authedPage.getByRole("heading", { name: "Weekly Report" })).toBeVisible()
+      await expect(authedPage.getByRole("heading", { name: "Trends" })).toBeVisible()
+    })
+
+    test("renders weekly charts with delta vs previous week", async ({ authedPage }) => {
+      await mockGet(authedPage, /\/activities\?limit=200/, { items: ACTIVITIES_8W, total: 3 })
+      await authedPage.goto("/trends")
+      for (const t of ["Distance", "Duration", "Avg Heart Rate"]) {
+        await expect(authedPage.getByText(t, { exact: true }).first()).toBeVisible()
+      }
+      // latest week 10 km vs previous 22.5 km => −56%
+      await expect(authedPage.getByTestId("delta-distance")).toHaveText("−56%")
     })
   })
 
@@ -51,15 +61,13 @@ test.describe("Trends", () => {
 
     test("shows generate report button", async ({ authedPage }) => {
       await authedPage.goto("/trends")
-      await expect(
-        authedPage.getByRole("button", { name: "Generate this week's report" })
-      ).toBeVisible()
+      await expect(authedPage.getByRole("button", { name: "Generate report" })).toBeVisible()
     })
 
     test("generates report and shows metrics and summary", async ({ authedPage }) => {
       await mockPost(authedPage, "/ai/weekly-report", WEEKLY_REPORT)
       await authedPage.goto("/trends")
-      await authedPage.getByRole("button", { name: "Generate this week's report" }).click()
+      await authedPage.getByRole("button", { name: "Generate report" }).click()
       // Metrics grid
       await expect(authedPage.getByText("32.5 km")).toBeVisible()
       await expect(authedPage.getByText("195 min")).toBeVisible()
@@ -79,7 +87,7 @@ test.describe("Trends", () => {
         })
       })
       await authedPage.goto("/trends")
-      await authedPage.getByRole("button", { name: "Generate this week's report" }).click()
+      await authedPage.getByRole("button", { name: "Generate report" }).click()
       await expect(authedPage.getByRole("button", { name: "Generating…" })).toBeVisible()
     })
 
@@ -91,7 +99,7 @@ test.describe("Trends", () => {
         400
       )
       await authedPage.goto("/trends")
-      await authedPage.getByRole("button", { name: "Generate this week's report" }).click()
+      await authedPage.getByRole("button", { name: "Generate report" }).click()
       await expect(authedPage.getByText("No API key configured.")).toBeVisible()
     })
 
@@ -101,7 +109,7 @@ test.describe("Trends", () => {
         metrics: { ...WEEKLY_REPORT.metrics, avgHR: null },
       })
       await authedPage.goto("/trends")
-      await authedPage.getByRole("button", { name: "Generate this week's report" }).click()
+      await authedPage.getByRole("button", { name: "Generate report" }).click()
       await expect(authedPage.getByText("N/A")).toBeVisible()
     })
   })

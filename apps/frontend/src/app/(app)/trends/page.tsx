@@ -1,10 +1,16 @@
 "use client"
 
 import { Markdown } from "@/components/markdown"
+import { PageHeader } from "@/components/page-header"
+import {
+  type ChartActivity,
+  WeeklyChart,
+  buildWeeklyChartData,
+} from "@/components/trends/weekly-chart"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { api } from "@/lib/api"
-import { useMutation } from "@tanstack/react-query"
+import { useMutation, useQuery } from "@tanstack/react-query"
 import { FileText, Loader2 } from "lucide-react"
 
 interface WeeklyReport {
@@ -27,26 +33,49 @@ export default function TrendsPage() {
     mutationFn: () => api.post<WeeklyReport>("/ai/weekly-report"),
   })
 
+  const { data: activities } = useQuery<{ items: ChartActivity[] }>({
+    queryKey: ["chart-activities"],
+    queryFn: () => api.get("/activities?limit=200"),
+  })
+  const weekly = buildWeeklyChartData(activities?.items ?? [])
+
   return (
-    <div className="space-y-5">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Weekly Report</h1>
-        <p className="text-muted-foreground text-sm mt-0.5">
-          AI-generated analysis of your training week
-        </p>
-      </div>
+    <div className="mx-auto max-w-3xl space-y-4">
+      <PageHeader title="Trends" />
+
+      <WeeklyChart
+        title="Distance"
+        dataKey="distance"
+        data={weekly}
+        color="hsl(var(--chart-distance))"
+        format={(v) => `${v} km`}
+      />
+      <WeeklyChart
+        title="Duration"
+        dataKey="duration"
+        data={weekly}
+        color="hsl(var(--chart-duration))"
+        format={(v) => `${v} min`}
+      />
+      <WeeklyChart
+        title="Avg Heart Rate"
+        dataKey="avgHR"
+        data={weekly}
+        color="hsl(var(--chart-hr))"
+        format={(v) => `${v} bpm`}
+      />
 
       <Card>
-        <CardHeader className="pt-5 px-5">
+        <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base font-medium">
             <FileText className="h-4 w-4 text-primary" />
-            Generate Report
+            Weekly Report
           </CardTitle>
           <CardDescription>
             Analyses your current week's distance, duration, heart rate, and training load.
           </CardDescription>
         </CardHeader>
-        <CardContent className="px-5 pb-5 space-y-5">
+        <CardContent className="space-y-5">
           <Button
             onClick={() => reportMutation.mutate()}
             disabled={reportMutation.isPending}
@@ -60,7 +89,7 @@ export default function TrendsPage() {
             ) : (
               <>
                 <FileText className="h-4 w-4" />
-                Generate this week&apos;s report
+                Generate report
               </>
             )}
           </Button>
