@@ -68,15 +68,19 @@ export async function streamPost(
       if (line.startsWith("data: ")) {
         const data = line.slice(6)
         if (data === "[DONE]") return
+        let parsed: { text?: string; error?: string }
         try {
-          const parsed = JSON.parse(data) as { text: string }
-          if (parsed.text) onChunk(parsed.text)
+          parsed = JSON.parse(data)
         } catch {
-          // ignore malformed lines
+          continue // ignore malformed lines
         }
+        if (parsed.error) throw new Error(parsed.error)
+        if (parsed.text) onChunk(parsed.text)
       }
     }
   }
+
+  throw new Error("Stream ended unexpectedly")
 }
 
 export { API_URL }
