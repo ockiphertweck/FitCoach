@@ -58,6 +58,11 @@ const metricColors = {
   fitness: "text-metric-fitness",
   form: "text-metric-form",
   coach: "text-metric-coach",
+  sleep: "text-metric-sleep",
+  hrv: "text-metric-hrv",
+  battery: "text-metric-battery",
+  stress: "text-metric-stress",
+  calories: "text-metric-calories",
 } as const
 
 function MetricLabel({

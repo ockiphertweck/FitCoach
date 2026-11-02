@@ -24,7 +24,7 @@ const autoStarted = new Set<string>()
 const MAX_AUTO_STREAMS = 2
 const autoStreams = new Map<string, number>()
 
-export function CoachTile() {
+export function CoachTile({ enabled }: { enabled: boolean }) {
   const qc = useQueryClient()
   const date = localDate()
   const [streamed, setStreamed] = useState("")
@@ -35,6 +35,7 @@ export function CoachTile() {
   const { data, isFetching, isError, refetch } = useQuery<RecapResponse>({
     queryKey: ["recap", date],
     queryFn: () => api.get(`/ai/recommendation?date=${date}`),
+    enabled,
   })
 
   const generate = useCallback(async () => {
@@ -83,21 +84,28 @@ export function CoachTile() {
   useEffect(() => {
     // Guard per (date, generatedAt): no loop if a save fails, one retry per new stale recap,
     // and no double stream under StrictMode or remount. Decide only on settled data.
-    if (!needsStream || key === null || isFetching || inflight.has(date) || autoStarted.has(key))
+    if (
+      !enabled ||
+      !needsStream ||
+      key === null ||
+      isFetching ||
+      inflight.has(date) ||
+      autoStarted.has(key)
+    )
       return
     autoStarted.add(key)
     const used = autoStreams.get(date) ?? 0
     if (used >= MAX_AUTO_STREAMS) return
     autoStreams.set(date, used + 1)
     void generate()
-  }, [needsStream, key, isFetching, date, generate])
+  }, [enabled, needsStream, key, isFetching, date, generate])
 
   const old = data?.recap?.content
   const shown = streamed || old
   return (
-    <Card>
+    <Card data-testid="coach-tile">
       <div className="flex items-center justify-between">
-        <MetricLabel color="coach">Coach</MetricLabel>
+        <MetricLabel color="coach">Coach · Today</MetricLabel>
         {data?.hasKey && (
           <button
             type="button"
@@ -128,14 +136,18 @@ export function CoachTile() {
         ) : failed ? (
           <p className="text-destructive">Recap generation failed. Try refreshing.</p>
         ) : shown ? (
-          <div className={streaming && !streamed ? "opacity-50" : undefined}>
-            <Markdown>{shown}</Markdown>
+          <div
+            className={`[&_h3]:text-lg [&_h3]:font-extrabold [&_h3]:tracking-tight [&_h3]:text-foreground ${streaming && !streamed ? "opacity-50" : ""}`}
+          >
+            <Markdown>{shown.replace(/^(→ .+)$/m, "**$1**")}</Markdown>
             {streaming && !streamed && (
               <p className="mt-2 text-xs text-muted-foreground">Updating…</p>
             )}
           </div>
         ) : (
-          <p className="text-muted-foreground">{data ? "Writing your recap…" : "Loading…"}</p>
+          <p className="text-muted-foreground">
+            {!enabled ? "Waiting for Garmin import…" : data ? "Writing your recap…" : "Loading…"}
+          </p>
         )}
       </div>
     </Card>
