@@ -1,3 +1,4 @@
+import type { Page } from "@playwright/test"
 import { API_BASE, expect, mockGet, mockPost, mockStream, test } from "./fixtures"
 
 const PROFILE_FULL = {
@@ -28,6 +29,106 @@ test.describe("Settings", () => {
       // Use heading roles to avoid strict mode violations
       await expect(authedPage.getByRole("heading", { name: "Claude API Key" })).toBeVisible()
       await expect(authedPage.getByRole("heading", { name: "Athlete Profile" })).toBeVisible()
+    })
+  })
+
+  test.describe("Garmin", () => {
+    const NOT_CONNECTED = {
+      connected: false,
+      status: "idle",
+      lastSyncedAt: null,
+      lastError: null,
+      keyExpiresAt: null,
+    }
+
+    // Stateful mock: connect returns importing; every status GET after that returns idle.
+    async function mockGarmin(page: Page, initial: object = NOT_CONNECTED) {
+      let state: object = initial
+      const calls = { sync: 0, remove: 0 }
+      await page.route(`${API_BASE}/garmin/status`, (r) => r.fulfill({ json: state }))
+      await page.route(`${API_BASE}/garmin/connect`, (r) => {
+        const { key } = r.request().postDataJSON()
+        if (key === "bad") return r.fulfill({ status: 400, json: { error: "key_invalid" } })
+        if (key === "busy") return r.fulfill({ status: 502, json: { error: "rate_limited" } })
+        const importing = { ...NOT_CONNECTED, connected: true, status: "importing" }
+        state = { ...importing, status: "idle", lastSyncedAt: new Date().toISOString() }
+        return r.fulfill({ json: importing })
+      })
+      await page.route(`${API_BASE}/garmin/sync`, (r) => {
+        calls.sync++
+        r.fulfill({ json: state })
+      })
+      await page.route(`${API_BASE}/garmin/key`, (r) => {
+        calls.remove++
+        state = NOT_CONNECTED
+        r.fulfill({ json: { ok: true } })
+      })
+      return calls
+    }
+
+    test("connect shows Importing then Connected; key input is a password field", async ({
+      authedPage,
+    }) => {
+      await mockGarmin(authedPage)
+      await authedPage.goto("/settings")
+      const input = authedPage.getByLabel("Garmin key")
+      await expect(input).toHaveAttribute("type", "password")
+      await expect(authedPage.getByRole("link", { name: /personal API token/i })).toHaveAttribute(
+        "href",
+        "https://connect.garmin.com/app/settings/personalApiToken"
+      )
+      await input.fill("good-key")
+      await authedPage.getByRole("button", { name: "Connect", exact: true }).click()
+      await expect(authedPage.getByText("Importing…")).toBeVisible()
+      await expect(authedPage.getByText(/^Connected/)).toBeVisible({ timeout: 10_000 })
+      await expect(authedPage.getByText(/Last sync/)).toBeVisible()
+    })
+
+    test("invalid key shows Key invalid and keeps the input", async ({ authedPage }) => {
+      await mockGarmin(authedPage)
+      await authedPage.goto("/settings")
+      await authedPage.getByLabel("Garmin key").fill("bad")
+      await authedPage.getByRole("button", { name: "Connect", exact: true }).click()
+      await expect(authedPage.getByText("Key invalid", { exact: true })).toBeVisible()
+      await expect(authedPage.getByLabel("Garmin key")).toHaveValue("bad")
+    })
+
+    test("rate limited shows a busy message", async ({ authedPage }) => {
+      await mockGarmin(authedPage)
+      await authedPage.goto("/settings")
+      await authedPage.getByLabel("Garmin key").fill("busy")
+      await authedPage.getByRole("button", { name: "Connect", exact: true }).click()
+      await expect(authedPage.getByText("Garmin is busy, try again later")).toBeVisible()
+    })
+
+    test("connected: Sync now posts a sync, Remove key returns to the connect form", async ({
+      authedPage,
+    }) => {
+      const calls = await mockGarmin(authedPage, {
+        ...NOT_CONNECTED,
+        connected: true,
+        lastSyncedAt: new Date(Date.now() - 3 * 3600_000).toISOString(),
+      })
+      await authedPage.goto("/settings")
+      await expect(authedPage.getByText(/Last sync 3 hours ago/)).toBeVisible()
+      await authedPage.getByRole("button", { name: "Sync now" }).click()
+      await expect.poll(() => calls.sync).toBeGreaterThan(0)
+      await authedPage.getByRole("button", { name: "Remove Garmin key" }).click()
+      await expect(authedPage.getByLabel("Garmin key")).toBeVisible()
+      expect(calls.remove).toBe(1)
+    })
+
+    test("shows key invalid or expired and expiry date when present", async ({ authedPage }) => {
+      await mockGarmin(authedPage, {
+        ...NOT_CONNECTED,
+        connected: true,
+        status: "error",
+        lastError: "key_invalid",
+        keyExpiresAt: "2027-01-15T00:00:00.000Z",
+      })
+      await authedPage.goto("/settings")
+      await expect(authedPage.getByText("Key invalid or expired")).toBeVisible()
+      await expect(authedPage.getByText(/Key expires/)).toBeVisible()
     })
   })
 

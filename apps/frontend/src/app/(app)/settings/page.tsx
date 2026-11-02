@@ -10,11 +10,42 @@ import { Segmented } from "@/components/ui/segmented"
 import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
 import { api } from "@/lib/api"
+import {
+  GARMIN_NOT_CONNECTED,
+  type GarminStatus,
+  STATUS_KEY,
+  refreshData,
+  syncNow,
+} from "@/lib/garmin"
 import { type Theme, parseTheme, setThemeCookie } from "@/lib/theme"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { CheckCircle, Key, LogOut, Palette, User } from "lucide-react"
+import { Activity, CheckCircle, Key, LogOut, Palette, User } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useCallback, useEffect, useState } from "react"
+
+const GARMIN_ERRORS: Record<string, string> = {
+  key_invalid: "Key invalid",
+  rate_limited: "Garmin is busy, try again later",
+  garmin_unavailable: "Garmin unavailable, try again later",
+}
+
+function garminLine(s: GarminStatus) {
+  if (s.status === "importing") return "Importing…"
+  if (s.lastError === "key_invalid") return "Key invalid or expired"
+  if (!s.lastSyncedAt) return "Connected"
+  const mins = Math.round((Date.now() - new Date(s.lastSyncedAt).getTime()) / 60_000)
+  const [n, unit] =
+    mins < 60
+      ? [mins, "minute"]
+      : mins < 1440
+        ? [Math.round(mins / 60), "hour"]
+        : [Math.round(mins / 1440), "day"]
+  const rel = new Intl.RelativeTimeFormat("en", { numeric: "auto" }).format(
+    -n,
+    unit as Intl.RelativeTimeFormatUnit
+  )
+  return `Connected · Last sync ${rel}`
+}
 
 function useFlashSaved(duration = 3000) {
   const [saved, setSaved] = useState(false)
@@ -109,6 +140,30 @@ export default function SettingsPage() {
       qc.invalidateQueries({ queryKey: ["recap"] })
     },
   })
+
+  const [garminKey, setGarminKey] = useState("")
+  const { data: garmin } = useQuery<GarminStatus>({
+    queryKey: STATUS_KEY,
+    queryFn: () => api.get("/garmin/status"),
+    refetchInterval: (q) => (q.state.data?.status === "importing" ? 5000 : false),
+  })
+  // Seed the cache so the Summary (staleTime 60 s) sees the change and doesn't recap mid-import.
+  const setGarmin = (s: GarminStatus) => {
+    qc.setQueryData(STATUS_KEY, s)
+    refreshData(qc)
+  }
+  const connectGarmin = useMutation({
+    mutationFn: () => api.post<GarminStatus>("/garmin/connect", { key: garminKey.trim() }),
+    onSuccess: (s) => {
+      setGarminKey("")
+      setGarmin(s)
+    },
+  })
+  const removeGarmin = useMutation({
+    mutationFn: () => api.delete("/garmin/key"),
+    onSuccess: () => setGarmin(GARMIN_NOT_CONNECTED),
+  })
+  const syncGarmin = useMutation({ mutationFn: () => syncNow(qc) })
 
   const logoutMutation = useMutation({
     mutationFn: () => api.post("/auth/logout"),
@@ -303,6 +358,82 @@ export default function SettingsPage() {
               </span>
             )}
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Garmin */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base font-medium">
+            <Activity className="h-4 w-4 text-primary" /> Garmin
+          </CardTitle>
+          <CardDescription>
+            Create a{" "}
+            <a
+              href="https://connect.garmin.com/app/settings/personalApiToken"
+              target="_blank"
+              rel="noreferrer"
+              className="underline"
+            >
+              personal API token
+            </a>{" "}
+            in Garmin Connect and paste it here.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {garmin?.connected ? (
+            <div className="space-y-3">
+              <p className="text-sm">{garminLine(garmin)}</p>
+              {garmin.keyExpiresAt && (
+                <p className="text-xs text-muted-foreground">
+                  Key expires {new Date(garmin.keyExpiresAt).toLocaleDateString()}
+                </p>
+              )}
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => syncGarmin.mutate()}
+                  disabled={syncGarmin.isPending || garmin.status === "importing"}
+                >
+                  {syncGarmin.isPending ? "Syncing…" : "Sync now"}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  aria-label="Remove Garmin key"
+                  onClick={() => removeGarmin.mutate()}
+                  disabled={removeGarmin.isPending}
+                >
+                  Remove key
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <Label htmlFor="garmin-key">Garmin key</Label>
+                <Input
+                  id="garmin-key"
+                  type="password"
+                  autoComplete="off"
+                  value={garminKey}
+                  onChange={(e) => setGarminKey(e.target.value)}
+                />
+              </div>
+              <Button
+                size="sm"
+                onClick={() => connectGarmin.mutate()}
+                disabled={!garminKey.trim() || connectGarmin.isPending}
+              >
+                {connectGarmin.isPending ? "Connecting…" : "Connect"}
+              </Button>
+              {connectGarmin.error && (
+                <p className="text-sm text-destructive">
+                  {GARMIN_ERRORS[connectGarmin.error.message] ?? "Connection failed"}
+                </p>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
 

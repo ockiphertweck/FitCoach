@@ -11,9 +11,9 @@ export interface GarminStatus {
   keyExpiresAt: string | null
 }
 
-const STATUS_KEY = ["garmin-status"]
+export const STATUS_KEY = ["garmin-status"]
 
-function refreshData(qc: QueryClient) {
+export function refreshData(qc: QueryClient) {
   for (const k of ["stats", "recent-activities", "wellness", "recap"])
     void qc.invalidateQueries({ queryKey: [k] })
 }
@@ -33,6 +33,14 @@ let initialSync: Promise<void> | undefined
 
 export function syncNow(qc: QueryClient) {
   return postSync(qc, true)
+}
+
+export const GARMIN_NOT_CONNECTED: GarminStatus = {
+  connected: false,
+  status: "idle",
+  lastSyncedAt: null,
+  lastError: null,
+  keyExpiresAt: null,
 }
 
 export function useGarminSync() {
