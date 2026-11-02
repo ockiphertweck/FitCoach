@@ -214,7 +214,7 @@ test.describe("Settings", () => {
       keySaved = true
       await authedPage.getByRole("button", { name: "Save key" }).click()
       await expect(authedPage.getByText("Key saved").first()).toBeVisible()
-      await authedPage.getByRole("link", { name: "Summary" }).first().click()
+      await authedPage.getByRole("link", { name: "Home" }).first().click()
       await expect(authedPage.getByText("Hello coach")).toBeVisible()
       expect(posts).toHaveLength(1)
     })

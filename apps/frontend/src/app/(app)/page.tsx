@@ -27,7 +27,7 @@ const GARMIN_ERRORS = {
   garmin_unavailable: "Garmin is busy, try again later",
 } as const
 
-export default function Summary() {
+export default function HomePage() {
   const qc = useQueryClient()
   const date = localDate()
   const { status, settled } = useGarminSync()
@@ -52,7 +52,26 @@ export default function Summary() {
 
   return (
     <div className="space-y-3">
-      <PageHeader title="Summary" />
+      <PageHeader
+        title="Home"
+        action={
+          status?.connected && (
+            <button
+              type="button"
+              aria-label="Sync with Garmin"
+              title="Sync with Garmin"
+              disabled={!settled || busy || syncing}
+              onClick={() => {
+                setSyncing(true)
+                void syncNow(qc).finally(() => setSyncing(false))
+              }}
+              className="rounded-full p-2 text-muted-foreground hover:text-foreground disabled:opacity-50"
+            >
+              <RefreshCw className={`h-5 w-5 ${syncing || busy ? "animate-spin" : ""}`} />
+            </button>
+          )
+        }
+      />
       {settled && status && !status.connected ? (
         <Link href="/settings" className="block">
           <Card className="text-sm font-medium">Connect Garmin in Settings</Card>
@@ -118,18 +137,6 @@ export default function Summary() {
               <FormScale tsb={stats?.tsb ?? 0} />
             </div>
           </Card>
-          <button
-            type="button"
-            disabled={!settled || busy || syncing}
-            onClick={() => {
-              setSyncing(true)
-              void syncNow(qc).finally(() => setSyncing(false))
-            }}
-            className="flex w-full items-center justify-center gap-2 rounded-full bg-card px-4 py-2 text-sm font-semibold disabled:opacity-50"
-          >
-            {syncing && <RefreshCw className="h-4 w-4 animate-spin" />}
-            Sync now
-          </button>
         </div>
       </div>
     </div>

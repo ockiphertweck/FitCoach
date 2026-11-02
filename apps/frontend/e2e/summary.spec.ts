@@ -464,15 +464,22 @@ test.describe("Summary", () => {
       ).toHaveAttribute("href", "/settings")
     })
 
-    test("Sync now forces a sync", async ({ authedPage }) => {
+    test("sync icon in the header (top right) forces a sync", async ({ authedPage }) => {
       const syncs: string[] = []
       authedPage.on("request", (r) => {
         if (r.url().endsWith("/garmin/sync") && r.method() === "POST")
           syncs.push(r.postData() ?? "")
       })
       await authedPage.goto("/")
+      await expect(authedPage.getByRole("heading", { name: "Home" })).toBeVisible()
+      await expect(authedPage.getByText("Sync now")).toHaveCount(0)
+      const sync = authedPage.getByRole("button", { name: "Sync with Garmin" })
+      const title = await authedPage.getByRole("heading", { name: "Home" }).boundingBox()
+      const btn = await sync.boundingBox()
+      pwExpect(btn && title && btn.x > title.x + title.width).toBe(true)
+      pwExpect(btn && title && Math.abs(btn.y - title.y) < 40).toBe(true)
       await pwExpect.poll(() => syncs.length).toBe(1)
-      await authedPage.getByRole("button", { name: "Sync now" }).click()
+      await sync.click()
       await pwExpect.poll(() => syncs.length).toBe(2)
       pwExpect(JSON.parse(syncs[1])).toEqual({ force: true })
     })

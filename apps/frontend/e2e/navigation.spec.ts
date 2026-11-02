@@ -5,7 +5,7 @@ test.describe("Navigation", () => {
     await authedPage.setViewportSize({ width: 1280, height: 800 })
     await authedPage.goto("/")
     const nav = authedPage.getByRole("navigation", { name: "Main" })
-    for (const name of ["Summary", "Coach", "Activities", "Trends", "Settings"]) {
+    for (const name of ["Home", "Coach", "Activities", "Trends", "Settings"]) {
       await expect(nav.getByRole("link", { name })).toBeVisible()
     }
     const box = await nav.boundingBox()
@@ -16,7 +16,7 @@ test.describe("Navigation", () => {
     await authedPage.setViewportSize({ width: 390, height: 844 })
     await authedPage.goto("/")
     const nav = authedPage.getByRole("navigation", { name: "Main" })
-    for (const name of ["Summary", "Coach", "Activities", "Trends"]) {
+    for (const name of ["Home", "Coach", "Activities", "Trends"]) {
       await expect(nav.getByRole("link", { name })).toBeVisible()
     }
     await expect(nav.getByRole("link", { name: "Settings" })).toBeHidden()
