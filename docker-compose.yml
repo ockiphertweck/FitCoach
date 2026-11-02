@@ -6,6 +6,9 @@ services:
       POSTGRES_DB: fitcoach
       POSTGRES_USER: fitcoach
       POSTGRES_PASSWORD: ${DB_PASSWORD}
+    # Published on localhost only, so `pnpm dev` / `db:migrate` on the host can reach it
+    ports:
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
@@ -24,6 +27,9 @@ services:
       postgres:
         condition: service_healthy
     env_file: .env
+    environment:
+      # Inside the compose network the database host is `postgres`, not localhost
+      DATABASE_URL: postgresql://fitcoach:${DB_PASSWORD}@postgres:5432/fitcoach
     ports:
       - "3000:3000"
 

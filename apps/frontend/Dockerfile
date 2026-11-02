@@ -1,16 +1,17 @@
 FROM node:22-alpine AS builder
 
+# Pinned to the "packageManager" version in the root package.json
 RUN --mount=type=cache,id=npm-cache,target=/root/.npm \
-    npm install -g pnpm
+    npm install -g pnpm@10.33.0
 
 WORKDIR /workspace
 
-COPY package.json pnpm-workspace.yaml ./
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY packages/shared/package.json ./packages/shared/
 COPY apps/frontend/package.json ./apps/frontend/
 
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
-    pnpm install
+    pnpm install --frozen-lockfile --filter frontend...
 
 COPY packages/shared/ ./packages/shared/
 COPY apps/frontend/ ./apps/frontend/
