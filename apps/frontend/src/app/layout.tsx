@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 // Runs before first paint so "system" never flashes the wrong scheme; always present so switching to System in-session tracks the OS.
 const SYSTEM_THEME_SCRIPT = `(function(){var m=matchMedia("(prefers-color-scheme: dark)"),r=document.documentElement;function a(){if(r.dataset.theme==="system")r.classList.toggle("dark",m.matches)}a();m.addEventListener("change",a)})()`
 
-export default async function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const theme = parseTheme((await cookies()).get(THEME_COOKIE)?.value)
   return (
     <html

@@ -16,20 +16,22 @@ export function Segmented<T extends string>({
   onChange,
   className,
   "aria-label": ariaLabel,
-}: SegmentedProps<T>) {
-  const move = (e: React.KeyboardEvent<HTMLDivElement>) => {
+}: Readonly<SegmentedProps<T>>) {
+  // Handler sits on the radios (the focusable elements) for roving-tabindex arrow navigation.
+  const move = (e: React.KeyboardEvent<HTMLButtonElement>) => {
     const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key]
     if (!step) return
     e.preventDefault()
     const i = options.findIndex((o) => o.value === value)
     const next = options[(i + step + options.length) % options.length]
     onChange(next.value)
-    e.currentTarget.querySelectorAll<HTMLElement>('[role="radio"]')[options.indexOf(next)]?.focus()
+    e.currentTarget.parentElement
+      ?.querySelectorAll<HTMLElement>('[role="radio"]')
+      [options.indexOf(next)]?.focus()
   }
 
   return (
     <div
-      onKeyDown={move}
       role="radiogroup"
       aria-label={ariaLabel}
       className={cn("inline-flex rounded-full bg-muted p-0.5", className)}
@@ -43,6 +45,7 @@ export function Segmented<T extends string>({
           aria-checked={o.value === value}
           tabIndex={o.value === value ? 0 : -1}
           onClick={() => onChange(o.value)}
+          onKeyDown={move}
           className={cn(
             "rounded-full px-3 py-1 text-sm font-medium text-muted-foreground transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background",
             o.value === value && "bg-card text-foreground shadow-sm"

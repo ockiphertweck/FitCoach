@@ -1,8 +1,10 @@
 export function formLabel(tsb: number) {
-  return tsb > 5 ? "Fresh" : tsb < -10 ? "Fatigued" : "Balanced"
+  if (tsb > 5) return "Fresh"
+  if (tsb < -10) return "Fatigued"
+  return "Balanced"
 }
 
-export function FormScale({ tsb }: { tsb: number }) {
+export function FormScale({ tsb }: Readonly<{ tsb: number }>) {
   const pos = Math.min(1, Math.max(0, (tsb + 30) / 60)) * 100
   return (
     <div className="relative h-2 rounded-full bg-[linear-gradient(to_right,hsl(var(--destructive)),#ffcc00,hsl(var(--metric-form)),hsl(var(--metric-fitness)))]">

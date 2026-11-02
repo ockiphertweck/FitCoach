@@ -44,7 +44,7 @@ function formatPace(secPerKm: number): string {
 export function ActivityRow({
   activity: a,
   wide = false,
-}: { activity: ActivityItem; wide?: boolean }) {
+}: Readonly<{ activity: ActivityItem; wide?: boolean }>) {
   const sport = a.sportType.toLowerCase()
   const Icon = ICONS[sport as keyof typeof ICONS] ?? Activity
   const tint = TINTS[sport] ?? "bg-muted text-muted-foreground"

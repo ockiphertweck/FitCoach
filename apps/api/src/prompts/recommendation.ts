@@ -1,11 +1,12 @@
 import { desc, eq } from "drizzle-orm"
 import type { DB } from "../db/index.js"
-import { chatHistory } from "../db/schema.js"
+import { type Activity, chatHistory } from "../db/schema.js"
 import { calculateTrainingLoad } from "../services/atl-ctl.js"
 import { loadRecapInputs, recapWindowStart } from "../services/daily-recap.js"
 import {
   formatDistance,
   formatDuration,
+  formatFormLabel,
   formatPace,
   formatProfileSection,
   formatRecoverySection,
@@ -20,6 +21,17 @@ export function buildRecapRequest(userMessage: string) {
     system: RECAP_SYSTEM_PROMPT,
     messages: [{ role: "user" as const, content: userMessage }],
   }
+}
+
+export function formatActivityLine(a: Activity): string {
+  const parts = [`- ${a.startDate.toISOString().slice(0, 10)} | ${a.sportType}`]
+  if (a.name) parts.push(`"${a.name}"`)
+  if (a.durationSeconds) parts.push(formatDuration(a.durationSeconds))
+  if (a.distanceMeters) parts.push(formatDistance(a.distanceMeters))
+  if (a.averageHeartRate) parts.push(`avg HR: ${a.averageHeartRate} bpm`)
+  if (a.averagePaceSecondsPerKm) parts.push(formatPace(a.averagePaceSecondsPerKm))
+  if (a.perceivedExertion) parts.push(`RPE: ${a.perceivedExertion}/10`)
+  return parts.join(" | ")
 }
 
 export async function buildRecommendationPrompt(
@@ -56,7 +68,7 @@ export async function buildRecommendationPrompt(
     "## Training Load (TRIMP-based)",
     `- ATL (Acute / 7-day): ${load.atl}`,
     `- CTL (Chronic / 42-day): ${load.ctl}`,
-    `- TSB (Form = CTL - ATL): ${load.tsb} ${load.tsb > 5 ? "(fresh)" : load.tsb < -10 ? "(fatigued)" : "(moderate)"}`,
+    `- TSB (Form = CTL - ATL): ${load.tsb} ${formatFormLabel(load.tsb)}`,
     "",
     "## Last 14 Days Activities",
   ]
@@ -64,16 +76,7 @@ export async function buildRecommendationPrompt(
   if (recentActivities.length === 0) {
     lines.push("No activities recorded in the last 14 days.")
   } else {
-    for (const a of recentActivities) {
-      const parts = [`- ${a.startDate.toISOString().slice(0, 10)} | ${a.sportType}`]
-      if (a.name) parts.push(`"${a.name}"`)
-      if (a.durationSeconds) parts.push(formatDuration(a.durationSeconds))
-      if (a.distanceMeters) parts.push(formatDistance(a.distanceMeters))
-      if (a.averageHeartRate) parts.push(`avg HR: ${a.averageHeartRate} bpm`)
-      if (a.averagePaceSecondsPerKm) parts.push(formatPace(a.averagePaceSecondsPerKm))
-      if (a.perceivedExertion) parts.push(`RPE: ${a.perceivedExertion}/10`)
-      lines.push(parts.join(" | "))
-    }
+    lines.push(...recentActivities.map(formatActivityLine))
   }
 
   if (recentChat.length > 0) {

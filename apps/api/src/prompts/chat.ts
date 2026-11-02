@@ -7,6 +7,7 @@ import { loadWellness, settledWellness } from "../services/wellness.js"
 import {
   formatDistance,
   formatDuration,
+  formatFormLabel,
   formatProfileSection,
   formatRecoverySection,
 } from "./_format.js"
@@ -49,7 +50,7 @@ export async function buildChatSystemPrompt(userId: string, db: DB): Promise<str
     ...formatProfileSection(profile),
     ...formatRecoverySection(settledWellness(wellnessRows, today), today),
     "## Current Training Load",
-    `- ATL: ${load.atl} | CTL: ${load.ctl} | TSB: ${load.tsb} ${load.tsb > 5 ? "(fresh)" : load.tsb < -10 ? "(fatigued)" : "(moderate)"}`,
+    `- ATL: ${load.atl} | CTL: ${load.ctl} | TSB: ${load.tsb} ${formatFormLabel(load.tsb)}`,
     "",
     "## Recent Activities (last 14 days)",
   ]

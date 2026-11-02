@@ -17,6 +17,12 @@ export function formatPace(secPerKm: number): string {
   return `${min}:${String(sec).padStart(2, "0")}/km`
 }
 
+export function formatFormLabel(tsb: number): string {
+  if (tsb > 5) return "(fresh)"
+  if (tsb < -10) return "(fatigued)"
+  return "(moderate)"
+}
+
 export function formatProfileSection(profile: UserProfile | null): string[] {
   const lines = ["## Athlete Profile"]
   if (!profile) {
