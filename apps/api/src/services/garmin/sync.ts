@@ -1,7 +1,7 @@
 import { and, between, eq } from "drizzle-orm"
 import { z } from "zod"
 import type { DB } from "../../db/index.js"
-import { activities, apiKeys, dailyWellness, garminSync } from "../../db/schema.js"
+import { type GarminSync, activities, apiKeys, dailyWellness, garminSync } from "../../db/schema.js"
 import { decrypt } from "../encryption.js"
 import { GarminError, type GarminErrorCode, createGarminClient } from "./client.js"
 import { mapGarminActivity, mapWellnessDay } from "./mappers.js"
@@ -154,22 +154,30 @@ async function syncWellness(db: DB, client: Client, userId: string, from: string
   }
   for (const [a] of dateChunks(from, to, 1)) {
     const sleep = await client.get<unknown>("/sleep-service/sleep/dailySleep", { date: a })
+    let row: ReturnType<typeof mapWellnessDay>
     try {
-      const row = mapWellnessDay(a, {
+      row = mapWellnessDay(a, {
         sleep,
         hrv: hrv.get(a),
         bodyBattery: battery.get(a),
         stress: stress.get(a),
         summary: summary.get(a),
       })
-      const { date: _d, ...update } = row
-      await db
-        .insert(dailyWellness)
-        .values({ ...row, userId })
-        .onConflictDoUpdate({ target: [dailyWellness.userId, dailyWellness.date], set: update })
     } catch {
       mapFailed(userId)
+      continue
     }
+    // Never overwrite stored values with nulls from an empty/partial Garmin response.
+    const update = Object.fromEntries(
+      Object.entries(row).filter(([k, v]) => k !== "date" && v != null)
+    )
+    await db
+      .insert(dailyWellness)
+      .values({ ...row, userId })
+      .onConflictDoUpdate({
+        target: [dailyWellness.userId, dailyWellness.date],
+        set: { ...update, updatedAt: new Date() },
+      })
   }
 }
 
@@ -202,18 +210,30 @@ export async function runGarminSync(
     })
   } catch (e) {
     const code: GarminErrorCode = e instanceof GarminError ? e.code : "garmin_unavailable"
+    // Never log e.message: it could carry health data or DB details.
+    if (!(e instanceof GarminError))
+      console.error(
+        JSON.stringify({
+          userId,
+          code: "sync_internal_error",
+          err: e instanceof Error ? e.constructor.name : typeof e,
+        })
+      )
     await setSync(db, userId, { status: "error", lastError: code })
   }
 }
 
+// After a failed run, the last attempt (updatedAt) gates auto-syncs so we don't hammer Garmin.
+const gateRef = (row: GarminSync) => (row.status === "error" ? row.updatedAt : row.lastSyncedAt)
+
 /** Gate + lock + incremental sync for POST /garmin/sync. Returns the status without calling Garmin when skipped. */
 export async function syncIfDue(db: DB, userId: string, force: boolean): Promise<GarminStatus> {
-  const [row] = await db.select().from(garminSync).where(eq(garminSync.userId, userId))
-  if (row && isSyncDue(row.lastSyncedAt, new Date(), force)) {
+  await withUserLock(userId, async () => {
+    // Read inside the lock so a concurrent run's result is seen.
+    const [row] = await db.select().from(garminSync).where(eq(garminSync.userId, userId))
+    if (!row || !isSyncDue(gateRef(row), new Date(), force)) return
     // Stale "importing" (server restarted mid-import) falls back to a fresh initial import.
-    await withUserLock(userId, () =>
-      runGarminSync(db, userId, { initial: row.importedAt === null })
-    )
-  }
+    await runGarminSync(db, userId, { initial: row.importedAt === null })
+  })
   return getGarminStatus(db, userId)
 }

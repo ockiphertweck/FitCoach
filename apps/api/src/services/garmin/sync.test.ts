@@ -25,16 +25,27 @@ vi.mock("../anthropic-client.js", () => {
   return {}
 })
 
-import { dateChunks, isSyncDue, runGarminSync, syncWindows, withUserLock } from "./sync.js"
+import {
+  dateChunks,
+  isSyncDue,
+  runGarminSync,
+  syncIfDue,
+  syncWindows,
+  withUserLock,
+} from "./sync.js"
 
 type Op = { op: string; table: string; values?: unknown; set?: unknown; where?: unknown }
 
-function makeDb(selects: unknown[][]) {
+function makeDb(selects: unknown[][], failInsert?: string) {
   const ops: Op[] = []
   const queue = [...selects]
   const chain = (op: Op, result: () => unknown) => {
     const c: Record<string, unknown> = {}
-    for (const m of ["from", "limit", "onConflictDoUpdate"]) c[m] = () => c
+    for (const m of ["from", "limit"]) c[m] = () => c
+    c.onConflictDoUpdate = (cfg: { set: unknown }) => {
+      op.set = cfg.set
+      return c
+    }
     c.values = (v: unknown) => {
       op.values = v
       return c
@@ -58,7 +69,10 @@ function makeDb(selects: unknown[][]) {
     insert: (t: Parameters<typeof getTableName>[0]) => {
       const op = { op: "insert", table: tbl(t) }
       ops.push(op)
-      return chain(op, () => [])
+      return chain(op, () => {
+        if (op.table === failInsert) throw new Error("secret db detail")
+        return []
+      })
     },
     update: (t: Parameters<typeof getTableName>[0]) => {
       const op = { op: "update", table: tbl(t) }
@@ -199,5 +213,69 @@ describe("runGarminSync", () => {
     warn.mockRestore()
   })
 
+  const emptyDay = () =>
+    getMock.mockImplementation(async (path: string) => (path.includes("dailySleep") ? {} : []))
+
+  it("DB failure while upserting wellness ends in error, not idle/importedAt", async () => {
+    emptyDay()
+    const { db, ops } = makeDb([keyRow, [{ lastSyncedAt: null }]], "daily_wellness")
+    const err = vi.spyOn(console, "error").mockImplementation(() => {})
+    await runGarminSync(db, "u1", { initial: true })
+    const last = ops.filter((o) => o.table === "garmin_sync").at(-1)
+    expect(last?.set).toMatchObject({ status: "error", lastError: "garmin_unavailable" })
+    expect(last?.set).not.toHaveProperty("importedAt")
+    // logs class name only, never the message
+    expect(err).toHaveBeenCalledWith(
+      JSON.stringify({ userId: "u1", code: "sync_internal_error", err: "Error" })
+    )
+    expect(JSON.stringify(err.mock.calls)).not.toContain("secret db detail")
+    err.mockRestore()
+  })
+
+  it("wellness upsert only sets non-null columns", async () => {
+    emptyDay()
+    const { db, ops } = makeDb([keyRow, [{ lastSyncedAt: null }]])
+    await runGarminSync(db, "u1", { initial: true })
+    const w = ops.find((o) => o.table === "daily_wellness")
+    expect(Object.values(w?.set as object).filter((v) => v == null)).toEqual([])
+    expect(w?.set).not.toHaveProperty("date")
+  })
+
   it("never loads the Claude client", () => expect(anthropic.touched).toBe(false))
+})
+
+describe("syncIfDue gate", () => {
+  beforeEach(() => getMock.reset())
+  const minAgo = (m: number) => new Date(Date.now() - m * 60_000)
+  const calls = () => {
+    let n = 0
+    getImpl = async () => {
+      n++
+      return []
+    }
+    return () => n
+  }
+  const statusRow = (o: object) => ({
+    status: "idle",
+    lastError: null,
+    keyExpiresAt: null,
+    importedAt: new Date(),
+    ...o,
+  })
+
+  it("after an error, a recent attempt gates a non-forced sync", async () => {
+    const n = calls()
+    const row = statusRow({ status: "error", lastSyncedAt: null, updatedAt: minAgo(1) })
+    const { db } = makeDb([[row], [row]])
+    await syncIfDue(db, "u1", false)
+    expect(n()).toBe(0)
+  })
+
+  it("force bypasses the error gate", async () => {
+    const n = calls()
+    const row = statusRow({ status: "error", lastSyncedAt: null, updatedAt: minAgo(1) })
+    const { db } = makeDb([[row], [{ encryptedKey: "e" }], [{ lastSyncedAt: null }], [row]])
+    await syncIfDue(db, "u1", true)
+    expect(n()).toBeGreaterThan(0)
+  })
 })
