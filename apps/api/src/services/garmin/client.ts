@@ -5,7 +5,8 @@ export type GarminErrorCode = "key_invalid" | "rate_limited" | "garmin_unavailab
 export class GarminError extends Error {
   constructor(
     public code: GarminErrorCode,
-    message: string
+    message: string,
+    public status?: number
   ) {
     super(message)
     this.name = "GarminError"
@@ -21,9 +22,9 @@ const REFRESH_WINDOW_MS = 3600_000
 // Error messages are fixed strings built from status only: never echo response bodies, key or token.
 function fromStatus(status: number): GarminError {
   if (status === 401 || status === 403)
-    return new GarminError("key_invalid", `Garmin rejected credentials (${status})`)
-  if (status === 429) return new GarminError("rate_limited", "Garmin rate limit hit (429)")
-  return new GarminError("garmin_unavailable", `Garmin request failed (${status})`)
+    return new GarminError("key_invalid", `Garmin rejected credentials (${status})`, status)
+  if (status === 429) return new GarminError("rate_limited", "Garmin rate limit hit (429)", status)
+  return new GarminError("garmin_unavailable", `Garmin request failed (${status})`, status)
 }
 
 const unreadable = () => new GarminError("garmin_unavailable", "Garmin response unreadable")
@@ -91,10 +92,12 @@ export function createGarminClient(key: string) {
   }
 
   return {
-    async get<T>(path: string, params?: Record<string, string | number>): Promise<T> {
+    /** null = 204 / empty body (Garmin's "no data for this day"). */
+    async get<T>(path: string, params?: Record<string, string | number>): Promise<T | null> {
       const res = await request(path, "application/json", params)
       try {
-        return (await res.json()) as T
+        const text = await res.text()
+        return res.status === 204 || !text.trim() ? null : (JSON.parse(text) as T)
       } catch {
         throw unreadable()
       }

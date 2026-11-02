@@ -103,6 +103,18 @@ describe("loadActivityStreams", () => {
     expect(getBytes).not.toHaveBeenCalled()
   })
 
+  it("legacy Strava activity: summary polyline from rawData, no download", async () => {
+    getBytes.mockClear()
+    const { db, set } = fakeDb([{ encryptedKey: "x" }])
+    const strava = (rawData: unknown) => act({ source: "strava", rawData })
+    const r = await loadActivityStreams(db, strava({ map: { summary_polyline: "_p~iF" } }), null)
+    expect(r).toEqual({ points: [], hrZones: null, maxHrUsed: null, polyline: "_p~iF" })
+    expect((await loadActivityStreams(db, strava({ map: {} }), null)).polyline).toBeNull()
+    expect((await loadActivityStreams(db, strava(null), null)).polyline).toBeNull()
+    expect(getBytes).not.toHaveBeenCalled()
+    expect(set).not.toHaveBeenCalled()
+  })
+
   it("returns empty and stores nothing when no key or download fails", async () => {
     const a = fakeDb([])
     expect((await loadActivityStreams(a.db, act({}), null)).points).toEqual([])

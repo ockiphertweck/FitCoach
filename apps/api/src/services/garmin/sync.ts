@@ -2,8 +2,9 @@ import { and, between, eq } from "drizzle-orm"
 import { z } from "zod"
 import type { DB } from "../../db/index.js"
 import { type GarminSync, activities, apiKeys, dailyWellness, garminSync } from "../../db/schema.js"
-import { decrypt } from "../encryption.js"
-import { GarminError, type GarminErrorCode, createGarminClient } from "./client.js"
+import { encrypt } from "../encryption.js"
+import { GarminError, type GarminErrorCode } from "./client.js"
+import { type GarminClient, loadGarminClient } from "./load-client.js"
 import { mapGarminActivity, mapWellnessDay } from "./mappers.js"
 
 export const SYNC_GATE_MS = 15 * 60_000
@@ -85,14 +86,19 @@ const setSync = (db: DB, userId: string, set: Partial<typeof garminSync.$inferIn
     .set({ ...set, updatedAt: new Date() })
     .where(eq(garminSync.userId, userId))
 
-type Client = ReturnType<typeof createGarminClient>
 type Row = Record<string, unknown>
 const byDate = (rows: unknown, field: string): Map<string, unknown> =>
   new Map((Array.isArray(rows) ? (rows as Row[]) : []).map((r) => [String(r[field]), r]))
 
 const mapFailed = (userId: string) => console.warn(JSON.stringify({ userId, code: "map_failed" }))
 
-async function syncActivities(db: DB, client: Client, userId: string, from: Date, to: string) {
+async function syncActivities(
+  db: DB,
+  client: GarminClient,
+  userId: string,
+  from: Date,
+  to: string
+) {
   for (let start = 0; ; start += PAGE) {
     const page = await client.get<unknown[]>("/activitylist-service/activities/search/activities", {
       start,
@@ -100,7 +106,7 @@ async function syncActivities(db: DB, client: Client, userId: string, from: Date
       startDate: ymd(from),
       endDate: to,
     })
-    for (const raw of page) {
+    for (const raw of page ?? []) {
       let row: ReturnType<typeof mapGarminActivity>
       try {
         row = mapGarminActivity(raw, userId)
@@ -128,11 +134,24 @@ async function syncActivities(db: DB, client: Client, userId: string, from: Date
           )
         )
     }
-    if (page.length < PAGE) return
+    if ((page ?? []).length < PAGE) return
   }
 }
 
-async function syncWellness(db: DB, client: Client, userId: string, from: string, to: string) {
+// Days without data (no-HRV device, before the watch existed, sleep not synced yet) may 404.
+const noData = <T>(p: Promise<T | null>): Promise<T | null> =>
+  p.catch((e) => {
+    if (e instanceof GarminError && e.status === 404) return null
+    throw e
+  })
+
+async function syncWellness(
+  db: DB,
+  client: GarminClient,
+  userId: string,
+  from: string,
+  to: string
+) {
   const hrv = new Map<string, unknown>()
   const battery = new Map<string, unknown>()
   const stress = new Map<string, unknown>()
@@ -140,20 +159,25 @@ async function syncWellness(db: DB, client: Client, userId: string, from: string
   // Sequential on purpose: no parallel bursts against Garmin.
   for (const [a, b] of dateChunks(from, to, CHUNK_DAYS)) {
     const range = { startDate: a, endDate: b }
-    const h = await client.get<{ hrvSummaries?: unknown }>(`/hrv-service/hrv/daily/${a}/${b}`)
+    const h = await noData(
+      client.get<{ hrvSummaries?: unknown }>(`/hrv-service/hrv/daily/${a}/${b}`)
+    )
     for (const [k, v] of byDate(h?.hrvSummaries, "calendarDate")) hrv.set(k, v)
-    const bb = await client.get<unknown>(
-      "/wellness-service/wellness/bodyBattery/reports/daily",
-      range
+    const bb = await noData(
+      client.get<unknown>("/wellness-service/wellness/bodyBattery/reports/daily", range)
     )
     for (const [k, v] of byDate(bb, "date")) battery.set(k, v)
-    const st = await client.get<unknown>(`/usersummary-service/stats/stress/daily/${a}/${b}`)
+    const st = await noData(
+      client.get<unknown>(`/usersummary-service/stats/stress/daily/${a}/${b}`)
+    )
     for (const [k, v] of byDate(st, "calendarDate")) stress.set(k, v)
-    const su = await client.get<{ data?: unknown }>("/usersummary-service/v2/dailysummaries", range)
+    const su = await noData(
+      client.get<{ data?: unknown }>("/usersummary-service/v2/dailysummaries", range)
+    )
     for (const [k, v] of byDate(su?.data, "calendarDate")) summary.set(k, v)
   }
   for (const [a] of dateChunks(from, to, 1)) {
-    const sleep = await client.get<unknown>("/sleep-service/sleep/dailySleep", { date: a })
+    const sleep = await noData(client.get<unknown>("/sleep-service/sleep/dailySleep", { date: a }))
     let row: ReturnType<typeof mapWellnessDay>
     try {
       row = mapWellnessDay(a, {
@@ -188,18 +212,14 @@ export async function runGarminSync(
 ): Promise<void> {
   try {
     await setSync(db, userId, { status: opts.initial ? "importing" : "syncing" })
-    const [keyRow] = await db
-      .select({ encryptedKey: apiKeys.encryptedKey })
-      .from(apiKeys)
-      .where(and(eq(apiKeys.userId, userId), eq(apiKeys.provider, "garmin")))
-    if (!keyRow) throw new GarminError("key_invalid", "No Garmin key stored")
+    const client = await loadGarminClient(db, userId)
+    if (!client) throw new GarminError("key_invalid", "No Garmin key stored")
     const [prev] = await db
       .select({ lastSyncedAt: garminSync.lastSyncedAt })
       .from(garminSync)
       .where(eq(garminSync.userId, userId))
     const now = new Date()
     const w = syncWindows(now, opts.initial ? null : (prev?.lastSyncedAt ?? null))
-    const client = createGarminClient(decrypt(keyRow.encryptedKey))
     await syncActivities(db, client, userId, w.activitiesFrom, w.wellnessTo)
     await syncWellness(db, client, userId, w.wellnessFrom, w.wellnessTo)
     await setSync(db, userId, {
@@ -226,14 +246,68 @@ export async function runGarminSync(
 // After a failed run, the last attempt (updatedAt) gates auto-syncs so we don't hammer Garmin.
 const gateRef = (row: GarminSync) => (row.status === "error" ? row.updatedAt : row.lastSyncedAt)
 
+/** Runs a sync under the user lock without awaiting it; runGarminSync records its own failures. */
+function startInBackground(db: DB, userId: string, initial: boolean): void {
+  void withUserLock(userId, () => runGarminSync(db, userId, { initial })).catch((e) =>
+    console.error(
+      JSON.stringify({
+        userId,
+        code: "sync_crashed",
+        err: e instanceof Error ? e.constructor.name : typeof e,
+      })
+    )
+  )
+}
+
+/** Stores the (new or renewed) key and syncs in the background: a full import unless one already finished. */
+export async function connectGarmin(
+  db: DB,
+  userId: string,
+  key: string,
+  keyExpiresAt: Date | null
+): Promise<GarminStatus> {
+  const encryptedKey = encrypt(key)
+  const initial = await db.transaction(async (tx) => {
+    const [prev] = await tx
+      .select({ importedAt: garminSync.importedAt })
+      .from(garminSync)
+      .where(eq(garminSync.userId, userId))
+    const initial = !prev?.importedAt
+    const status = initial ? "importing" : "syncing"
+    await tx
+      .insert(apiKeys)
+      .values({ userId, provider: "garmin", encryptedKey })
+      .onConflictDoUpdate({ target: [apiKeys.userId, apiKeys.provider], set: { encryptedKey } })
+    await tx
+      .insert(garminSync)
+      .values({ userId, status, keyExpiresAt })
+      .onConflictDoUpdate({
+        target: garminSync.userId,
+        set: { status, lastError: null, keyExpiresAt, updatedAt: new Date() },
+      })
+    return initial
+  })
+  startInBackground(db, userId, initial)
+  return getGarminStatus(db, userId)
+}
+
 /** Gate + lock + incremental sync for POST /garmin/sync. Returns the status without calling Garmin when skipped. */
 export async function syncIfDue(db: DB, userId: string, force: boolean): Promise<GarminStatus> {
+  let importNeeded = false
   await withUserLock(userId, async () => {
     // Read inside the lock so a concurrent run's result is seen.
     const [row] = await db.select().from(garminSync).where(eq(garminSync.userId, userId))
     if (!row || !isSyncDue(gateRef(row), new Date(), force)) return
-    // Stale "importing" (server restarted mid-import) falls back to a fresh initial import.
-    await runGarminSync(db, userId, { initial: row.importedAt === null })
+    if (row.importedAt === null) {
+      // Failed or stale (server restart) initial import: redo it in the background, as /connect
+      // does, instead of blocking this request for minutes.
+      await setSync(db, userId, { status: "importing" })
+      importNeeded = true
+      return
+    }
+    await runGarminSync(db, userId, { initial: false })
   })
+  // After our lock is released: startInBackground takes it itself (a concurrent run makes it a no-op).
+  if (importNeeded) startInBackground(db, userId, true)
   return getGarminStatus(db, userId)
 }

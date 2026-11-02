@@ -95,6 +95,24 @@ describe("client.get", () => {
     expect(fetchMock.mock.calls[3][1].headers.Authorization).toBe(`Bearer ${t2}`)
   })
 
+  it("returns null for a 204 or an empty body (day without data)", async () => {
+    fetchMock
+      .mockResolvedValueOnce(res(200, jwt(inHours(24))))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(res(200, ""))
+    const c = createGarminClient(KEY)
+    await expect(c.get("/x")).resolves.toBeNull()
+    await expect(c.get("/x")).resolves.toBeNull()
+  })
+
+  it("keeps the HTTP status on errors so callers can treat 404 as no data", async () => {
+    fetchMock.mockResolvedValueOnce(res(200, jwt(inHours(24)))).mockResolvedValueOnce(res(404))
+    const err = await createGarminClient(KEY)
+      .get("/x")
+      .catch((e) => e)
+    expect(err).toMatchObject({ code: "garmin_unavailable", status: 404 })
+  })
+
   it("maps a 200 with a non-JSON body to garmin_unavailable without echoing it", async () => {
     fetchMock
       .mockResolvedValueOnce(res(200, jwt(inHours(24))))

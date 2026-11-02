@@ -26,6 +26,7 @@ vi.mock("../anthropic-client.js", () => {
 })
 
 import {
+  connectGarmin,
   dateChunks,
   isSyncDue,
   runGarminSync,
@@ -64,7 +65,8 @@ function makeDb(selects: unknown[][], failInsert?: string) {
     return c
   }
   const tbl = (t: Parameters<typeof getTableName>[0]) => getTableName(t)
-  const db = {
+  const db: Record<string, unknown> = {
+    transaction: (fn: (tx: unknown) => unknown) => fn(db),
     select: () => chain({ op: "select", table: "" }, () => queue.shift() ?? []),
     insert: (t: Parameters<typeof getTableName>[0]) => {
       const op = { op: "insert", table: tbl(t) }
@@ -241,6 +243,33 @@ describe("runGarminSync", () => {
     expect(w?.set).not.toHaveProperty("date")
   })
 
+  it("a 404 or empty wellness part counts as no data: import completes", async () => {
+    getMock.mockImplementation(async (path: string) => {
+      if (path.includes("activities/search")) return null
+      if (path.includes("hrv/daily")) throw new GarminError("garmin_unavailable", "x", 404)
+      if (path.includes("dailySleep")) return null
+      return []
+    })
+    const { db, ops } = makeDb([keyRow, [{ lastSyncedAt: null }]])
+    await runGarminSync(db, "u1", { initial: true })
+    const last = ops.filter((o) => o.table === "garmin_sync").at(-1)
+    expect(last?.set).toMatchObject({ status: "idle", lastError: null })
+    expect((last?.set as { importedAt?: Date }).importedAt).toBeInstanceOf(Date)
+    expect(ops.filter((o) => o.table === "daily_wellness").length).toBeGreaterThan(0)
+  })
+
+  it("a 404 on the activity list still fails the run", async () => {
+    getMock.mockImplementation(async (path: string) => {
+      if (path.includes("activities/search")) throw new GarminError("garmin_unavailable", "x", 404)
+      return []
+    })
+    const { db, ops } = makeDb([keyRow, [{ lastSyncedAt: null }]])
+    await runGarminSync(db, "u1", { initial: true })
+    expect(ops.filter((o) => o.table === "garmin_sync").at(-1)?.set).toMatchObject({
+      status: "error",
+    })
+  })
+
   it("never loads the Claude client", () => expect(anthropic.touched).toBe(false))
 })
 
@@ -277,5 +306,66 @@ describe("syncIfDue gate", () => {
     const { db } = makeDb([[row], [{ encryptedKey: "e" }], [{ lastSyncedAt: null }], [row]])
     await syncIfDue(db, "u1", true)
     expect(n()).toBeGreaterThan(0)
+  })
+})
+
+describe("connectGarmin", () => {
+  beforeEach(() => getMock.reset())
+  const lastSync = (ops: Op[]) => ops.filter((o) => o.table === "garmin_sync").at(-1)?.set
+
+  it("first connect: stores the key and starts an initial import in the background", async () => {
+    const { db, ops } = makeDb([[], [{ status: "importing" }], [{ encryptedKey: "e" }], []])
+    await connectGarmin(db, "c1", "new-key", null)
+    expect(ops.find((o) => o.table === "api_keys")?.values).toMatchObject({
+      encryptedKey: "new-key",
+    })
+    expect(ops.find((o) => o.table === "garmin_sync")?.values).toMatchObject({
+      status: "importing",
+    })
+    await vi.waitFor(() => expect(lastSync(ops)).toMatchObject({ status: "idle" }))
+    expect((lastSync(ops) as { importedAt?: Date }).importedAt).toBeInstanceOf(Date)
+  })
+
+  it("key renewal after a finished import runs an incremental sync", async () => {
+    const prev = new Date("2026-10-30T10:00:00Z")
+    const starts: unknown[] = []
+    getMock.mockImplementation(async (path: string, q?: unknown) => {
+      if (path.includes("activities/search")) starts.push((q as { startDate: string }).startDate)
+      return path.includes("dailySleep") ? {} : []
+    })
+    const { db, ops } = makeDb([
+      [{ importedAt: new Date("2026-10-01") }],
+      [{ status: "syncing" }],
+      [{ encryptedKey: "e" }],
+      [{ lastSyncedAt: prev }],
+    ])
+    await connectGarmin(db, "c2", "renewed-key", null)
+    expect(ops.find((o) => o.table === "garmin_sync")?.values).toMatchObject({ status: "syncing" })
+    await vi.waitFor(() => expect(lastSync(ops)).toMatchObject({ status: "idle" }))
+    expect(lastSync(ops)).not.toHaveProperty("importedAt")
+    expect(starts).toEqual(["2026-10-28"])
+  })
+})
+
+describe("syncIfDue after a failed initial import", () => {
+  it("returns importing at once and imports in the background", async () => {
+    let started = 0
+    getImpl = () => {
+      started++
+      return new Promise(() => {}) // the import never finishes during the test
+    }
+    const row = {
+      status: "error",
+      lastError: "garmin_unavailable",
+      keyExpiresAt: null,
+      importedAt: null,
+      lastSyncedAt: null,
+      updatedAt: new Date(Date.now() - 20 * 60_000),
+    }
+    const { db, ops } = makeDb([[row], [{ ...row, status: "importing" }], [{ encryptedKey: "e" }]])
+    const status = await syncIfDue(db, "bg1", false)
+    expect(status.status).toBe("importing")
+    expect(ops.find((o) => o.table === "garmin_sync")?.set).toMatchObject({ status: "importing" })
+    await vi.waitFor(() => expect(started).toBe(1))
   })
 })

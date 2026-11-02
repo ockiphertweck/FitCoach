@@ -4,14 +4,12 @@ import { z } from "zod"
 import { db } from "../db/index.js"
 import { apiKeys, garminSync } from "../db/schema.js"
 import { authMiddleware } from "../middleware/auth.js"
-import { encrypt } from "../services/encryption.js"
 import { GarminError, exchangeKey } from "../services/garmin/client.js"
 import {
+  connectGarmin,
   garminStatusSchema,
   getGarminStatus,
-  runGarminSync,
   syncIfDue,
-  withUserLock,
 } from "../services/garmin/sync.js"
 
 const errorSchema = z.object({ error: z.string() })
@@ -40,25 +38,7 @@ const garminRoutes: FastifyPluginAsyncZod = async (fastify) => {
           .code(502)
           .send({ error: e instanceof GarminError ? e.code : "garmin_unavailable" })
       }
-      const encryptedKey = encrypt(key)
-      await db.transaction(async (tx) => {
-        await tx
-          .insert(apiKeys)
-          .values({ userId, provider: "garmin", encryptedKey })
-          .onConflictDoUpdate({ target: [apiKeys.userId, apiKeys.provider], set: { encryptedKey } })
-        await tx
-          .insert(garminSync)
-          .values({ userId, status: "importing", keyExpiresAt })
-          .onConflictDoUpdate({
-            target: garminSync.userId,
-            set: { status: "importing", lastError: null, keyExpiresAt, updatedAt: new Date() },
-          })
-      })
-      // Fire-and-forget: runGarminSync records its own failures in garmin_sync.
-      void withUserLock(userId, () => runGarminSync(db, userId, { initial: true })).catch(() =>
-        request.log.error({ userId, code: "sync_crashed" })
-      )
-      return getGarminStatus(db, userId)
+      return connectGarmin(db, userId, key, keyExpiresAt)
     }
   )
 

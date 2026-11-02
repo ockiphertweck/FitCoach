@@ -7,6 +7,7 @@ import {
   recapWindowStart,
   streamAndSaveRecap,
 } from "./daily-recap.js"
+import { mapWellnessDay } from "./garmin/mappers.js"
 import { settledWellness } from "./wellness.js"
 
 function makeActivity(overrides: Partial<Activity> = {}): Activity {
@@ -197,6 +198,36 @@ describe("computeRecapHash wellness", () => {
       { restingHeartRate: 99 },
     ])
       expect(computeRecapHash({ ...base, wellness: w(o) })).toBe(h)
+  })
+
+  it("is unchanged by daytime Body Battery readings after wake", () => {
+    const sleep = { sleepStartTimestampGMT: 1_000, sleepEndTimestampGMT: 5_000 }
+    const night = [
+      [1_000, 20],
+      [3_000, 60],
+      [5_000, 85],
+    ]
+    // Garmin's calendar-day `charged` keeps rising with daytime recharge.
+    const hash = (values: number[][], charged: number) =>
+      computeRecapHash({
+        ...base,
+        wellness: settledWellness(
+          [
+            wRow("2024-03-01"),
+            {
+              ...wRow("2024-03-02"),
+              ...mapWellnessDay("2024-03-02", {
+                sleep,
+                bodyBattery: { charged, bodyBatteryValuesArray: values },
+              }),
+            },
+          ],
+          "2024-03-02"
+        ),
+      })
+    const h = hash(night, 65)
+    expect(hash([...night, [6_000, 40], [7_000, 70]], 95)).toBe(h)
+    expect(hash([...night, [6_000, 40], [7_000, 70], [8_000, 95]], 120)).toBe(h)
   })
 
   it("changes when sleep score or HRV changes, or a day appears", () => {

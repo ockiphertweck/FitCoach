@@ -89,7 +89,7 @@ describe("mapWellnessDay", () => {
       hrvLastNight: 61,
       hrvWeeklyAvg: 55,
       hrvStatus: "BALANCED",
-      bodyBatteryCharged: 64,
+      bodyBatteryCharged: 53, // overnight: 35 -> 88 between sleep start and end
       bodyBatteryAtWake: 88,
       bodyBatteryCurrent: 71,
       stressAvg: 29,
@@ -105,10 +105,56 @@ describe("mapWellnessDay", () => {
       summary: { bodyBattery: { chargedValue: 66, latestValue: 70 } },
     })
     expect(w.stressAvg).toBe(31)
-    expect(w.bodyBatteryCharged).toBe(66)
+    // Calendar-day "charged" keeps rising during the day: never used for the overnight charge.
+    expect(w.bodyBatteryCharged).toBeNull()
     expect(w.bodyBatteryCurrent).toBe(70)
     expect(w.bodyBatteryAtWake).toBeNull()
   })
+  describe("overnight Body Battery charge", () => {
+    const S = 1_000_000
+    const E = 2_000_000
+    const sleep = { sleepStartTimestampGMT: S, sleepEndTimestampGMT: E }
+    const bb = (values: number[][]) => ({ charged: 99, bodyBatteryValuesArray: values })
+    const night = [
+      [S - 100, 10],
+      [S, 30],
+      [S + 100, 25],
+      [S + 200, 60],
+      [E, 80],
+    ]
+
+    it("sums positive deltas between sleep start and wake, ignoring daytime recharge", () => {
+      const day = [...night, [E + 100, 50], [E + 200, 75]]
+      const w = mapWellnessDay("d", { sleep, bodyBattery: bb(day) })
+      expect(w.bodyBatteryCharged).toBe(55) // (60-25) + (80-60)
+      expect(w.bodyBatteryAtWake).toBe(80)
+      expect(w.bodyBatteryCurrent).toBe(75)
+      const before = mapWellnessDay("d", { sleep, bodyBattery: bb(night) })
+      expect(before.bodyBatteryCharged).toBe(w.bodyBatteryCharged)
+    })
+
+    it("sorts readings by timestamp first", () => {
+      const shuffled = [[E + 100, 50], ...[...night].reverse()]
+      const w = mapWellnessDay("d", { sleep, bodyBattery: bb(shuffled) })
+      expect(w.bodyBatteryCharged).toBe(55)
+      expect(w.bodyBatteryAtWake).toBe(80)
+      expect(w.bodyBatteryCurrent).toBe(50)
+    })
+
+    it("uses all readings up to wake when sleep start is missing", () => {
+      const w = mapWellnessDay("d", {
+        sleep: { sleepEndTimestampGMT: E },
+        bodyBattery: bb(night),
+      })
+      expect(w.bodyBatteryCharged).toBe(75) // (30-10) + (60-25) + (80-60)
+    })
+
+    it("is null without sleep end or readings", () => {
+      expect(mapWellnessDay("d", { bodyBattery: bb(night) }).bodyBatteryCharged).toBeNull()
+      expect(mapWellnessDay("d", { sleep, bodyBattery: bb([]) }).bodyBatteryCharged).toBeNull()
+    })
+  })
+
   it("returns an all-null row for empty parts, keeping the date verbatim", () => {
     const w = mapWellnessDay("2026-11-01", {})
     expect(w.date).toBe("2026-11-01")

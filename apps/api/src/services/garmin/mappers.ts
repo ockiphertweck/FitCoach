@@ -101,7 +101,6 @@ const HrvIn = z
   .passthrough()
 const BatteryIn = z
   .object({
-    charged: num,
     bodyBatteryValuesArray: z.array(z.array(z.number().nullable())).nullish(),
     bodyBatteryValueDescriptorDTOList: z
       .array(
@@ -121,7 +120,7 @@ const SummaryIn = z
     calories: z.object({ burnedTotal: num, burnedActive: num, burnedResting: num }).nullish(),
     heartRate: z.object({ restingValue: num }).nullish(),
     stress: z.object({ avgLevel: num }).nullish(),
-    bodyBattery: z.object({ chargedValue: num, latestValue: num }).nullish(),
+    bodyBattery: z.object({ latestValue: num }).nullish(),
   })
   .passthrough()
 
@@ -153,7 +152,22 @@ export function mapWellnessDay(
   const readings = (bb?.bodyBatteryValuesArray ?? [])
     .map((r) => ({ t: r[ti], level: r[li] }))
     .filter((r): r is { t: number; level: number } => r.t != null && r.level != null)
+    .sort((a, b) => a.t - b.t)
   const sleepEnd = sleep?.sleepEndTimestampGMT
+  const sleepStart = sleep?.sleepStartTimestampGMT
+  const night =
+    sleepEnd == null
+      ? []
+      : readings.filter((r) => r.t <= sleepEnd && (sleepStart == null || r.t >= sleepStart))
+  // Overnight charge, not Garmin's calendar-day `charged`: that keeps rising with daytime
+  // recharge and would churn the recap hash on every sync.
+  const charged =
+    night.length === 0
+      ? null
+      : night.reduce(
+          (sum, r, i) => (i > 0 ? sum + Math.max(0, r.level - night[i - 1].level) : 0),
+          0
+        )
   const atWake = sleepEnd == null ? undefined : readings.filter((r) => r.t <= sleepEnd).at(-1)
 
   return {
@@ -169,7 +183,7 @@ export function mapWellnessDay(
     hrvLastNight: int(hrv?.lastNightAvg),
     hrvWeeklyAvg: int(hrv?.weeklyAvg),
     hrvStatus: hrv?.status ?? null,
-    bodyBatteryCharged: int(bb?.charged ?? sum?.bodyBattery?.chargedValue),
+    bodyBatteryCharged: int(charged),
     bodyBatteryAtWake: atWake?.level ?? null,
     bodyBatteryCurrent: int(readings.at(-1)?.level ?? sum?.bodyBattery?.latestValue),
     stressAvg: int(sum?.stress?.avgLevel ?? stress?.values?.overallStressLevel),
