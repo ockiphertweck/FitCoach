@@ -2,7 +2,7 @@ FROM node:22-alpine AS builder
 
 # Pinned to the "packageManager" version in the root package.json
 RUN --mount=type=cache,id=npm-cache,target=/root/.npm \
-    npm install -g pnpm@10.33.0
+    npm install -g --ignore-scripts pnpm@10.33.0
 
 WORKDIR /workspace
 
