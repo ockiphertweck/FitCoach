@@ -17,6 +17,9 @@ COPY packages/shared/ ./packages/shared/
 COPY apps/frontend/ ./apps/frontend/
 
 RUN pnpm --filter @fitcoach/shared build
+# Inlined into the client bundle at build time (see next.config.ts)
+ARG NEXT_PUBLIC_API_URL=http://localhost:3000
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 RUN pnpm --filter frontend build
 
 # --- Runner ---
