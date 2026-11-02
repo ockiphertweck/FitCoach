@@ -3,7 +3,7 @@ import type { DB } from "../db/index.js"
 import { type DailyWellness, dailyWellness } from "../db/schema.js"
 
 /** Rows for `date-days+1 … date`, ascending. */
-export async function loadWellness(
+export function loadWellness(
   db: DB,
   userId: string,
   date: string,

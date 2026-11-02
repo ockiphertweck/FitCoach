@@ -197,6 +197,16 @@ test.describe("Settings", () => {
         if (r.method() === "POST" && r.url().includes("/ai/recommendation")) posts.push(r.url())
       })
       let keySaved = false
+      // Home gates the recap on a settled Garmin status; unmocked it would hit a real API.
+      const garmin = {
+        connected: false,
+        status: "idle",
+        lastSyncedAt: null,
+        lastError: null,
+        keyExpiresAt: null,
+      }
+      await mockGet(authedPage, "/garmin/status", garmin)
+      await mockPost(authedPage, "/garmin/sync", garmin)
       await mockGet(authedPage, "/activities/stats", { atl: 50, ctl: 55, tsb: -5 })
       await mockGet(authedPage, "/activities?limit=5", { items: [], total: 0 })
       await authedPage.route(/\/ai\/recommendation\?date=/, (route) =>

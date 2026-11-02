@@ -15,7 +15,7 @@ export function PageHeader({
   title,
   subtitle,
   action,
-}: { title: string; subtitle?: string; action?: ReactNode }) {
+}: Readonly<{ title: string; subtitle?: string; action?: ReactNode }>) {
   const [now, setNow] = useState<string>()
   useEffect(() => setNow(today()), [])
   const onSettings = usePathname().startsWith("/settings")

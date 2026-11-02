@@ -30,4 +30,13 @@ describe("buildActivityInsightPrompt (Garmin fields)", () => {
     expect(p).toContain("Aerobic Training Effect: 3.2")
     expect(p).not.toContain("Secret")
   })
+  it("skips non-numeric raw values instead of printing them", () => {
+    const p = buildActivityInsightPrompt(
+      act({ avgPower: { v: 1 }, normPower: "220", anaerobicTrainingEffect: [2] }),
+      null
+    )
+    expect(p).not.toContain("Power")
+    expect(p).not.toContain("Training Effect")
+    expect(p).not.toContain("[object Object]")
+  })
 })

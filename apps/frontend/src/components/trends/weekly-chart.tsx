@@ -68,6 +68,11 @@ export function buildWeeklyChartData(activities: ChartActivity[]): WeeklyPoint[]
     }))
 }
 
+function weekLabel(weekStart: string): string {
+  if (weekStart === mondayKey(new Date())) return "This week"
+  return `Week of ${new Date(weekStart).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" })}`
+}
+
 const tick = { fontSize: 10, fill: "hsl(var(--muted-foreground))" }
 
 export function WeeklyChart({
@@ -77,14 +82,14 @@ export function WeeklyChart({
   color,
   format,
   error = false,
-}: {
+}: Readonly<{
   title: string
   dataKey: "distance" | "duration" | "avgHR"
   data: WeeklyPoint[]
   color: string
   format: (v: number) => string
   error?: boolean
-}) {
+}>) {
   const rows = dataKey === "avgHR" ? data.filter((d) => d.avgHR !== null) : data
   const latest = rows.at(-1)
   const last = latest?.[dataKey] ?? null
@@ -94,11 +99,7 @@ export function WeeklyChart({
     : null
   const prev = rows.find((d) => d.weekStart === prevStart)?.[dataKey] ?? null
   const delta = last !== null && prev ? Math.round(((last - prev) / prev) * 100) : null
-  const label = !latest
-    ? ""
-    : latest.weekStart === mondayKey(new Date())
-      ? "This week"
-      : `Week of ${new Date(latest.weekStart).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" })}`
+  const label = latest ? weekLabel(latest.weekStart) : ""
   const seriesName = { distance: "Distance", duration: "Duration", avgHR: "Avg HR" }[dataKey]
   const gid = `grad-${dataKey}`
 

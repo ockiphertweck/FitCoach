@@ -49,7 +49,7 @@ export function buildStreams(
   const full: StreamPoint[] = distArr.map((d, i) => ({
     distanceKm: Math.round(d / 10) / 100,
     heartrate: hrArr ? (hrArr[i] ?? null) : null,
-    speedKmh: velArr ? (velArr[i] != null ? Math.round(velArr[i] * 3.6 * 10) / 10 : null) : null,
+    speedKmh: velArr?.[i] == null ? null : Math.round(velArr[i] * 3.6 * 10) / 10,
     altitudeM: altArr ? (altArr[i] ?? null) : null,
   }))
 

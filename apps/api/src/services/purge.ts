@@ -9,7 +9,7 @@ import {
 } from "../db/schema.js"
 
 // Wipes Strava-era data. users, api_keys and user_profiles are intentionally untouched.
-export async function purgeLegacyData(db: DB) {
+export function purgeLegacyData(db: DB) {
   return db.transaction(async (tx) => {
     const acts = await tx
       .delete(activities)

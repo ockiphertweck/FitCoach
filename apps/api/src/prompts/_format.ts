@@ -17,6 +17,12 @@ export function formatPace(secPerKm: number): string {
   return `${min}:${String(sec).padStart(2, "0")}/km`
 }
 
+export function formatFormLabel(tsb: number): string {
+  if (tsb > 5) return "(fresh)"
+  if (tsb < -10) return "(fatigued)"
+  return "(moderate)"
+}
+
 export function formatProfileSection(profile: UserProfile | null): string[] {
   const lines = ["## Athlete Profile"]
   if (!profile) {
@@ -69,9 +75,7 @@ export function formatRecoverySection(w: RecapWellness[], date: string): string[
       `- Yesterday: avg stress ${val(prev.stressAvg)}, resting HR ${val(prev.restingHeartRate, " bpm")}`
     )
   }
-  lines.push(
-    `- Trend (date sleep score/HRV): ${w.map((r) => `${r.date.slice(5)} ${val(r.sleepScore)}/${val(r.hrvLastNight)}`).join(", ")}`,
-    ""
-  )
+  const trend = w.map((r) => `${r.date.slice(5)} ${val(r.sleepScore)}/${val(r.hrvLastNight)}`)
+  lines.push(`- Trend (date sleep score/HRV): ${trend.join(", ")}`, "")
   return lines
 }
