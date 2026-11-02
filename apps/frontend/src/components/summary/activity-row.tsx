@@ -44,7 +44,7 @@ export function ActivityRow({ activity: a }: { activity: ActivityItem }) {
         <span className="block font-bold tabular-nums">
           {a.durationSeconds ? formatDuration(a.durationSeconds) : "—"}
         </span>
-        {a.averageHeartRate && (
+        {a.averageHeartRate != null && (
           <span className="block text-xs text-muted-foreground">{a.averageHeartRate} bpm</span>
         )}
       </span>

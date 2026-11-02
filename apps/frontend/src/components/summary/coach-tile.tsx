@@ -14,6 +14,9 @@ interface RecapResponse {
   recap: { content: string; generatedAt: string; stale: boolean } | null
 }
 
+// Module-level so a remounted tile joins a stream that is still running.
+const inflight = new Map<string, Promise<void>>()
+
 export function CoachTile() {
   const qc = useQueryClient()
   const date = localDate()
@@ -31,8 +34,16 @@ export function CoachTile() {
     setStreamed("")
     setFailed(false)
     setStreaming(true)
+    // Reuse a stream already running for this date (e.g. after navigating away and back).
+    let run = inflight.get(date)
+    if (!run) {
+      run = streamPost("/ai/recommendation", { date }, (t) => setStreamed((p) => p + t)).finally(
+        () => inflight.delete(date)
+      )
+      inflight.set(date, run)
+    }
     try {
-      await streamPost("/ai/recommendation", { date }, (t) => setStreamed((p) => p + t))
+      await run
       await qc.invalidateQueries({ queryKey: ["recap", date] })
     } catch {
       setFailed(true)
@@ -41,13 +52,24 @@ export function CoachTile() {
     }
   }, [date, qc])
 
+  // A new generatedAt means new stored content: show it instead of the streamed copy.
+  const key = data ? `${date}:${data.recap?.generatedAt ?? "none"}` : null
+  const lastKey = useRef<string | null>(null)
+  useEffect(() => {
+    if (key === null || key === lastKey.current) return
+    lastKey.current = key
+    setStreamed("")
+    setFailed(false)
+  }, [key])
+
   const needsStream = !!data?.hasKey && (!data.recap || data.recap.stale)
   useEffect(() => {
-    // Guard: one stream per (date, mount), also under StrictMode double-mount.
-    if (!needsStream || started.current === date) return
-    started.current = date
+    // Guard per (date, generatedAt): no loop if a save fails, one retry per new stale recap,
+    // and no double stream under StrictMode.
+    if (!needsStream || key === null || started.current === key) return
+    started.current = key
     void generate()
-  }, [needsStream, date, generate])
+  }, [needsStream, key, generate])
 
   const old = data?.recap?.content
   const shown = streamed || old

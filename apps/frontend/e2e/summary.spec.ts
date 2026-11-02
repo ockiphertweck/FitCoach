@@ -66,14 +66,82 @@ test.describe("Summary", () => {
       pwExpect(posts).toHaveLength(0)
     })
 
-    test("missing recap streams once with the local date", async ({ authedPage }) => {
+    test("missing recap streams once even after the post-DONE refetch", async ({ authedPage }) => {
       const posts = trackPosts(authedPage)
-      await mockGet(authedPage, /\/ai\/recommendation\?date=/, { hasKey: true, recap: null })
+      let gets = 0
+      await authedPage.route(/\/ai\/recommendation\?date=/, (route) => {
+        gets++
+        route.fulfill({ json: { hasKey: true, recap: null } })
+      })
       await mockStream(authedPage, "/ai/recommendation", ["Easy ", "ride"])
       await authedPage.goto("/")
       await expect(authedPage.getByText("Easy ride")).toBeVisible()
+      await pwExpect.poll(() => gets).toBeGreaterThanOrEqual(2)
+      await authedPage.waitForTimeout(300)
       pwExpect(posts).toHaveLength(1)
       pwExpect(JSON.parse(posts[0])).toEqual({ date: localDate() })
+    })
+
+    test("refresh button sends exactly one POST", async ({ authedPage }) => {
+      const posts = trackPosts(authedPage)
+      await mockStream(authedPage, "/ai/recommendation", ["Fresh take"])
+      await authedPage.goto("/")
+      await expect(authedPage.getByText("Cached.")).toBeVisible()
+      await authedPage.getByRole("button", { name: "Refresh recap" }).click()
+      await expect(authedPage.getByText("Fresh take")).toBeVisible()
+      pwExpect(posts).toHaveLength(1)
+    })
+
+    test("sync with a new stale recap triggers exactly one new POST", async ({ authedPage }) => {
+      const posts = trackPosts(authedPage)
+      let n = 0
+      await authedPage.route(/\/ai\/recommendation\?date=/, (route) => {
+        n++
+        route.fulfill({
+          json:
+            n === 1
+              ? { hasKey: true, recap: null }
+              : {
+                  hasKey: true,
+                  recap: {
+                    content: "Stored",
+                    stale: n === 3, // only the first post-sync fetch is stale
+                    generatedAt: `2026-01-0${Math.min(n, 4)}T00:00:00Z`,
+                  },
+                },
+        })
+      })
+      await mockStream(authedPage, "/ai/recommendation", ["Streamed"])
+      await mockPost(authedPage, "/strava/sync", { synced: 1 })
+      await authedPage.goto("/")
+      await expect(authedPage.getByText("Stored")).toBeVisible()
+      await pwExpect.poll(() => posts.length).toBe(1)
+      await authedPage.getByRole("button", { name: "Sync Strava" }).click()
+      await pwExpect.poll(() => posts.length).toBe(2)
+      await authedPage.waitForTimeout(500)
+      pwExpect(posts).toHaveLength(2)
+    })
+
+    test("navigating away and back mid-stream still sends one POST", async ({ authedPage }) => {
+      const posts = trackPosts(authedPage)
+      await mockGet(authedPage, /\/ai\/recommendation\?date=/, { hasKey: true, recap: null })
+      await authedPage.route(`${API_BASE}/ai/recommendation`, async (route) => {
+        await new Promise((r) => setTimeout(r, 1200))
+        route.fulfill({
+          status: 200,
+          contentType: "text/event-stream",
+          body: 'data: {"text":"Done text"}\n\ndata: [DONE]\n\n',
+        })
+      })
+      await authedPage.goto("/")
+      await pwExpect.poll(() => posts.length).toBe(1)
+      await authedPage
+        .getByRole("link", { name: /Activities/i })
+        .first()
+        .click()
+      await authedPage.goBack()
+      await authedPage.waitForTimeout(1800)
+      pwExpect(posts).toHaveLength(1)
     })
 
     test("stale recap shows old text with Updating then new text", async ({ authedPage }) => {
@@ -102,19 +170,21 @@ test.describe("Summary", () => {
       pwExpect(posts).toHaveLength(0)
     })
 
-    test("failed stream shows error and retry", async ({ authedPage }) => {
-      await mockGet(authedPage, /\/ai\/recommendation\?date=/, { hasKey: true, recap: null })
-      await authedPage.route(`${API_BASE}/ai/recommendation`, (route) =>
-        route.fulfill({
-          status: 200,
-          contentType: "text/event-stream",
-          body: 'data: {"text":"Partial"}\n\ndata: {"error":"Recap generation failed"}\n\n',
-        })
-      )
-      await authedPage.goto("/")
-      await expect(authedPage.getByText("Recap generation failed")).toBeVisible()
-      await expect(authedPage.getByRole("button", { name: "Refresh recap" })).toBeVisible()
-    })
+    for (const [name, body] of [
+      ["error event", 'data: {"text":"Partial"}\n\ndata: {"error":"Recap generation failed"}\n\n'],
+      ["end without [DONE]", 'data: {"text":"Partial"}\n\n'],
+    ] as const) {
+      test(`${name} shows error, hides partial text, offers retry`, async ({ authedPage }) => {
+        await mockGet(authedPage, /\/ai\/recommendation\?date=/, { hasKey: true, recap: null })
+        await authedPage.route(`${API_BASE}/ai/recommendation`, (route) =>
+          route.fulfill({ status: 200, contentType: "text/event-stream", body })
+        )
+        await authedPage.goto("/")
+        await expect(authedPage.getByText(/Recap generation failed/)).toBeVisible()
+        await expect(authedPage.getByText("Partial")).toHaveCount(0)
+        await expect(authedPage.getByRole("button", { name: "Refresh recap" })).toBeVisible()
+      })
+    }
   })
 
   test.describe("Recent activities", () => {
