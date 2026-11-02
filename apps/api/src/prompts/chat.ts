@@ -3,7 +3,13 @@ import { and, desc, eq, gte } from "drizzle-orm"
 import type { DB } from "../db/index.js"
 import { activities, userProfiles } from "../db/schema.js"
 import { calculateTrainingLoad } from "../services/atl-ctl.js"
-import { formatDistance, formatDuration, formatProfileSection } from "./_format.js"
+import { loadWellness, settledWellness } from "../services/wellness.js"
+import {
+  formatDistance,
+  formatDuration,
+  formatProfileSection,
+  formatRecoverySection,
+} from "./_format.js"
 import { SYSTEM_PROMPT } from "./system.js"
 
 /**
@@ -17,7 +23,8 @@ export async function buildChatSystemPrompt(userId: string, db: DB): Promise<str
   const fortyTwoDaysAgo = new Date()
   fortyTwoDaysAgo.setDate(fortyTwoDaysAgo.getDate() - 42)
 
-  const [recentActivities, allActivities, profileRows] = await Promise.all([
+  const today = new Date().toISOString().slice(0, 10)
+  const [recentActivities, allActivities, profileRows, wellnessRows] = await Promise.all([
     db
       .select()
       .from(activities)
@@ -30,15 +37,17 @@ export async function buildChatSystemPrompt(userId: string, db: DB): Promise<str
       .where(and(eq(activities.userId, userId), gte(activities.startDate, fortyTwoDaysAgo)))
       .orderBy(desc(activities.startDate)),
     db.select().from(userProfiles).where(eq(userProfiles.userId, userId)).limit(1),
+    loadWellness(db, userId, today),
   ])
 
   const load = calculateTrainingLoad(allActivities)
   const profile = profileRows[0] ?? null
 
   const contextLines: string[] = [
-    `Today: ${new Date().toISOString().slice(0, 10)}`,
+    `Today: ${today}`,
     "",
     ...formatProfileSection(profile),
+    ...formatRecoverySection(settledWellness(wellnessRows, today)),
     "## Current Training Load",
     `- ATL: ${load.atl} | CTL: ${load.ctl} | TSB: ${load.tsb} ${load.tsb > 5 ? "(fresh)" : load.tsb < -10 ? "(fatigued)" : "(moderate)"}`,
     "",

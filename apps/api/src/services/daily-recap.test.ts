@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest"
-import type { Activity, UserProfile } from "../db/schema.js"
+import type { Activity, DailyWellness, UserProfile } from "../db/schema.js"
 import {
   type RecapStreamEvent,
   computeRecapHash,
@@ -7,6 +7,7 @@ import {
   recapWindowStart,
   streamAndSaveRecap,
 } from "./daily-recap.js"
+import { settledWellness } from "./wellness.js"
 
 function makeActivity(overrides: Partial<Activity> = {}): Activity {
   return {
@@ -47,12 +48,33 @@ function makeProfile(overrides: Partial<UserProfile> = {}): UserProfile {
   } as UserProfile
 }
 
+const wRow = (d: string, o: Partial<DailyWellness> = {}) =>
+  ({
+    date: d,
+    sleepScore: 80,
+    sleepSeconds: 27000,
+    deepSleepSeconds: 5000,
+    remSleepSeconds: 6000,
+    lightSleepSeconds: 14000,
+    awakeSeconds: 2000,
+    hrvLastNight: 60,
+    hrvWeeklyAvg: 58,
+    hrvStatus: "BALANCED",
+    bodyBatteryCharged: 70,
+    bodyBatteryAtWake: 85,
+    bodyBatteryCurrent: 40,
+    stressAvg: 30,
+    restingHeartRate: 50,
+    caloriesTotal: 2000,
+    ...o,
+  }) as DailyWellness
+
 const date = "2024-03-01"
 const a1 = makeActivity()
 const a2 = makeActivity({ id: "a2", externalId: "2" })
 
 describe("computeRecapHash", () => {
-  const base = { date, activities: [a1, a2], profile: makeProfile() }
+  const base = { date, activities: [a1, a2], profile: makeProfile(), wellness: [] }
 
   it("is stable and independent of activity order", () => {
     expect(computeRecapHash(base)).toBe(computeRecapHash({ ...base }))
@@ -158,5 +180,33 @@ describe("streamAndSaveRecap empty output", () => {
       streamAndSaveRecap({ stream: events(delta("  \n")), onText: vi.fn(), save })
     ).resolves.toBe("  \n")
     expect(save).not.toHaveBeenCalled()
+  })
+})
+
+describe("computeRecapHash wellness", () => {
+  const w = (o: Partial<DailyWellness> = {}) =>
+    settledWellness([wRow("2024-03-01"), wRow("2024-03-02", o)], "2024-03-02")
+  const base = { date, activities: [a1], profile: makeProfile() }
+
+  it("is unchanged by intraday values of today", () => {
+    const h = computeRecapHash({ ...base, wellness: w() })
+    for (const o of [
+      { caloriesTotal: 9999 },
+      { bodyBatteryCurrent: 1 },
+      { stressAvg: 99 },
+      { restingHeartRate: 99 },
+    ])
+      expect(computeRecapHash({ ...base, wellness: w(o) })).toBe(h)
+  })
+
+  it("changes when sleep score or HRV changes, or a day appears", () => {
+    const h = computeRecapHash({ ...base, wellness: w() })
+    expect(computeRecapHash({ ...base, wellness: w({ sleepScore: 50 }) })).not.toBe(h)
+    expect(computeRecapHash({ ...base, wellness: w({ hrvLastNight: 10 }) })).not.toBe(h)
+    expect(computeRecapHash({ ...base, wellness: w().slice(0, 1) })).not.toBe(h)
+  })
+
+  it("is computable without wellness", () => {
+    expect(computeRecapHash({ ...base, wellness: [] })).toMatch(/^[0-9a-f]{64}$/)
   })
 })

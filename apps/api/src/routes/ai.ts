@@ -6,7 +6,7 @@ import { activities, chatHistory, chatSessions, userProfiles, weeklyReports } fr
 import { env } from "../env.js"
 import { authMiddleware } from "../middleware/auth.js"
 import { buildChatMessages, buildChatSystemPrompt } from "../prompts/chat.js"
-import { buildRecommendationPrompt } from "../prompts/recommendation.js"
+import { buildRecapRequest, buildRecommendationPrompt } from "../prompts/recommendation.js"
 import { SYSTEM_PROMPT } from "../prompts/system.js"
 import { buildWeeklyReportPrompt } from "../prompts/weekly-report.js"
 import { computeInsightHash, generateActivityInsight } from "../services/activity-insight.js"
@@ -175,10 +175,7 @@ const aiRoutes: FastifyPluginAsyncZod = async (fastify) => {
 
       try {
         const stream = await anthropic.messages.create({
-          model: "claude-sonnet-4-6",
-          max_tokens: 1024,
-          system: SYSTEM_PROMPT,
-          messages: [{ role: "user", content: userMessage }],
+          ...buildRecapRequest(userMessage),
           stream: true,
           posthogDistinctId: userId,
         })

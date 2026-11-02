@@ -11,6 +11,7 @@ import {
   userProfiles,
 } from "../db/schema.js"
 import { computeInsightHash } from "./activity-insight.js"
+import { type RecapWellness, loadWellness, settledWellness } from "./wellness.js"
 
 /** Subset of Anthropic stream events used for the recap. */
 export type RecapStreamEvent = { type: string; delta?: unknown }
@@ -20,6 +21,7 @@ export function computeRecapHash(input: {
   date: string
   activities: Activity[]
   profile: UserProfile | null
+  wellness: RecapWellness[]
 }): string {
   const activities = [...input.activities]
     .sort((a, b) => a.id.localeCompare(b.id))
@@ -27,7 +29,12 @@ export function computeRecapHash(input: {
   const profile = input.profile
     ? (({ updatedAt: _u, userId: _id, ...rest }) => rest)(input.profile)
     : null
-  const payload = JSON.stringify({ date: input.date, activities, profile })
+  const payload = JSON.stringify({
+    date: input.date,
+    activities,
+    profile,
+    wellness: input.wellness,
+  })
   return createHash("sha256").update(payload).digest("hex")
 }
 
@@ -70,16 +77,21 @@ export async function loadRecapInputs(
   db: DB,
   userId: string,
   date: string
-): Promise<{ activities: Activity[]; profile: UserProfile | null }> {
+): Promise<{ activities: Activity[]; profile: UserProfile | null; wellness: RecapWellness[] }> {
   const since = recapWindowStart(date)
-  const [acts, profileRows] = await Promise.all([
+  const [acts, profileRows, wellnessRows] = await Promise.all([
     db
       .select()
       .from(activities)
       .where(and(eq(activities.userId, userId), gte(activities.startDate, since))),
     db.select().from(userProfiles).where(eq(userProfiles.userId, userId)).limit(1),
+    loadWellness(db, userId, date),
   ])
-  return { activities: acts, profile: profileRows[0] ?? null }
+  return {
+    activities: acts,
+    profile: profileRows[0] ?? null,
+    wellness: settledWellness(wellnessRows, date),
+  }
 }
 
 export async function getStoredRecap(

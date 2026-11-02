@@ -239,6 +239,7 @@ All routes except `/auth/*` require a valid `fitcoach_token` cookie.
 | `GET` | `/activities` | Paginated list — `limit`, `offset`, `sport`, `from`, `to` |
 | `GET` | `/activities/stats` | Current `{ atl, ctl, tsb }` |
 | `GET` | `/activities/:id` | Single activity |
+| `GET` | `/wellness?date=` | Garmin recovery data — `{ today, days }` (last 7 days) |
 | `GET` | `/ai/recommendation?date=` | Stored daily recap — returns `{ hasKey, recap }` (`recap` includes `stale`) |
 | `POST` | `/ai/recommendation` | Stream daily recap (SSE) — body `{ date }` |
 | `POST` | `/ai/chat` | Stream chat reply (SSE) |
@@ -289,11 +290,11 @@ pgAdmin is available at `http://localhost:5050` when running the override compos
 
 ## Data Privacy
 
-FitCoach is **fully self-hosted** — all activity data, chat history, and credentials live in your local PostgreSQL database. The only external calls are:
+FitCoach is **fully self-hosted** — all activity data, wellness data, chat history, and credentials live in your local PostgreSQL database. The only external calls are:
 
-- **Anthropic Claude API** — recent activities and chat messages are sent to generate AI responses. [Anthropic privacy policy](https://www.anthropic.com/privacy).
-- **Garmin API** — activity data is fetched and stored locally.
-- **PostHog** (optional) — usage analytics only, no health data. EU instance by default.
+- **Anthropic Claude API** — recent activities, sleep, HRV, Body Battery, stress and resting heart rate, plus chat messages, are sent to generate coaching responses. [Anthropic privacy policy](https://www.anthropic.com/privacy).
+- **Garmin** — the data source: activities and daily wellness are fetched and stored locally (Strava is no longer used).
+- **PostHog** (optional) — usage analytics and LLM metrics only. Privacy mode is forced on every Claude call, so PostHog receives no prompt or response content. EU instance by default.
 
 **To delete all data:** `docker compose down -v`
 

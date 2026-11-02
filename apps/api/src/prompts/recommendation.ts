@@ -3,7 +3,24 @@ import type { DB } from "../db/index.js"
 import { chatHistory } from "../db/schema.js"
 import { calculateTrainingLoad } from "../services/atl-ctl.js"
 import { loadRecapInputs, recapWindowStart } from "../services/daily-recap.js"
-import { formatDistance, formatDuration, formatPace, formatProfileSection } from "./_format.js"
+import {
+  formatDistance,
+  formatDuration,
+  formatPace,
+  formatProfileSection,
+  formatRecoverySection,
+} from "./_format.js"
+import { RECAP_SYSTEM_PROMPT } from "./recap-system.js"
+
+/** Request params for the short daily recap (the route adds stream + distinct id). */
+export function buildRecapRequest(userMessage: string) {
+  return {
+    model: "claude-sonnet-4-6",
+    max_tokens: 300,
+    system: RECAP_SYSTEM_PROMPT,
+    messages: [{ role: "user" as const, content: userMessage }],
+  }
+}
 
 export async function buildRecommendationPrompt(
   userId: string,
@@ -12,7 +29,7 @@ export async function buildRecommendationPrompt(
 ): Promise<string> {
   const fourteenDaysAgo = recapWindowStart(date, 14)
 
-  const [{ activities: allActivities, profile }, recentChat] = await Promise.all([
+  const [{ activities: allActivities, profile, wellness }, recentChat] = await Promise.all([
     loadRecapInputs(db, userId, date),
     db
       .select()
@@ -34,6 +51,7 @@ export async function buildRecommendationPrompt(
     `**Date**: ${date}`,
     "",
     ...formatProfileSection(profile),
+    ...formatRecoverySection(wellness),
     "## Training Load (TRIMP-based)",
     `- ATL (Acute / 7-day): ${load.atl}`,
     `- CTL (Chronic / 42-day): ${load.ctl}`,
