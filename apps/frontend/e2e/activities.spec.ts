@@ -325,10 +325,21 @@ test.describe("Activity detail page", () => {
     })
 
     test("shows error when insight API fails", async ({ authedPage }) => {
-      await mockPost(authedPage, "/ai/activity-insight", { error: "No API key configured" }, 400)
+      await mockPost(
+        authedPage,
+        "/ai/activity-insight",
+        {
+          statusCode: 500,
+          error: "Internal Server Error",
+          message: "No Claude API key configured. Add one in Settings.",
+        },
+        500
+      )
       await authedPage.goto(`/activities/${MOCK_ACTIVITY.id}`)
       await authedPage.getByRole("button", { name: "Analyse this activity" }).click()
-      await expect(authedPage.getByText("Something went wrong. Please try again.")).toBeVisible()
+      await expect(
+        authedPage.getByText("No Claude API key configured. Add one in Settings.")
+      ).toBeVisible()
     })
 
     test("Re-analyse replaces existing insight", async ({ authedPage }) => {
@@ -482,4 +493,27 @@ test("English insight request carries lang en", async ({ authedPage }) => {
   await authedPage.getByRole("button", { name: "Analyse this activity" }).click()
   await expect(authedPage.getByText("Nice.")).toBeVisible()
   expect(body).toEqual({ activityId: MOCK_ACTIVITY.id, lang: "en" })
+})
+
+test.describe("Missing Claude key in German", () => {
+  test.use({ locale: "de-DE" })
+
+  test("insight error is translated", async ({ authedPage }) => {
+    await mockGet(authedPage, `/activities/${MOCK_ACTIVITY.id}`, MOCK_ACTIVITY)
+    await mockPost(
+      authedPage,
+      "/ai/activity-insight",
+      {
+        statusCode: 500,
+        error: "Internal Server Error",
+        message: "No Claude API key configured. Add one in Settings.",
+      },
+      500
+    )
+    await authedPage.goto(`/activities/${MOCK_ACTIVITY.id}`)
+    await authedPage.getByRole("button", { name: "Aktivität analysieren" }).click()
+    await expect(
+      authedPage.getByText("Kein Claude-API-Key hinterlegt. Füge ihn in den Einstellungen hinzu.")
+    ).toBeVisible()
+  })
 })

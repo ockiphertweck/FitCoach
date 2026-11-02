@@ -12,7 +12,7 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({ error: res.statusText }))
-    throw new Error(body.error ?? `Request failed: ${res.status}`)
+    throw new Error(body.message ?? body.error ?? `Request failed: ${res.status}`)
   }
 
   return res.json() as Promise<T>
@@ -47,7 +47,7 @@ export async function streamPost(
 
   if (!res.ok) {
     const errBody = await res.json().catch(() => ({ error: res.statusText }))
-    throw new Error(errBody.error ?? `Request failed: ${res.status}`)
+    throw new Error(errBody.message ?? errBody.error ?? `Request failed: ${res.status}`)
   }
 
   if (!res.body) throw new Error("No response body")

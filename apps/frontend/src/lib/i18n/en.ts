@@ -225,6 +225,7 @@ export const en = {
     trendsFailed: "Failed to load trends",
     settingsFailed: "Failed to load settings",
     setupFailed: "Setup failed",
+    noApiKey: "No Claude API key configured. Add one in Settings.",
     generic: "Something went wrong. Please try again.",
   },
   sports: {

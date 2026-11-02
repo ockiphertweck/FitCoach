@@ -137,12 +137,18 @@ test.describe("Trends", () => {
       await mockPost(
         authedPage,
         "/ai/weekly-report",
-        { error: "No API key configured. Add one in Settings." },
-        400
+        {
+          statusCode: 500,
+          error: "Internal Server Error",
+          message: "No Claude API key configured. Add one in Settings.",
+        },
+        500
       )
       await authedPage.goto("/trends")
       await authedPage.getByRole("button", { name: "Generate report" }).click()
-      await expect(authedPage.getByText("Something went wrong. Please try again.")).toBeVisible()
+      await expect(
+        authedPage.getByText("No Claude API key configured. Add one in Settings.")
+      ).toBeVisible()
     })
 
     test("shows N/A for avgHR when no HR data", async ({ authedPage }) => {
@@ -222,12 +228,16 @@ test.describe("Trends — language", () => {
       await mockPost(
         authedPage,
         "/ai/weekly-report",
-        { error: "No API key configured. Add one in Settings." },
-        400
+        {
+          statusCode: 500,
+          error: "Internal Server Error",
+          message: "No Claude API key configured. Add one in Settings.",
+        },
+        500
       )
       await authedPage.goto("/trends")
       await authedPage.getByRole("button", { name: "Bericht erstellen" }).click()
-      await expect(authedPage.getByText("Etwas ist schiefgelaufen")).toBeVisible()
+      await expect(authedPage.getByText("Kein Claude-API-Key hinterlegt")).toBeVisible()
     })
   })
 })

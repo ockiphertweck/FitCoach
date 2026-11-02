@@ -229,6 +229,7 @@ export const de: Dict = {
     trendsFailed: "Trends konnten nicht geladen werden",
     settingsFailed: "Einstellungen konnten nicht geladen werden",
     setupFailed: "Einrichtung fehlgeschlagen",
+    noApiKey: "Kein Claude-API-Key hinterlegt. Füge ihn in den Einstellungen hinzu.",
     generic: "Etwas ist schiefgelaufen. Bitte versuche es erneut.",
   },
   sports: {

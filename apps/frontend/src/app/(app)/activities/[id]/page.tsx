@@ -413,8 +413,8 @@ export default function ActivityDetailPage({ params }: { params: Promise<{ id: s
                       />
                       <YAxis tick={tick} width={36} axisLine={false} tickLine={false} />
                       <Tooltip
-                        formatter={(v: number) => [`${v} bpm`, a.hr]}
-                        labelFormatter={(v) => `${v} km`}
+                        formatter={(v: number) => [`${dec(v, locale, 0)} bpm`, a.hr]}
+                        labelFormatter={(v) => `${dec(v, locale, 1)} km`}
                         contentStyle={chartTooltipStyle}
                       />
                       <Area
@@ -470,8 +470,8 @@ export default function ActivityDetailPage({ params }: { params: Promise<{ id: s
                       />
                       <YAxis tick={tick} width={36} axisLine={false} tickLine={false} />
                       <Tooltip
-                        formatter={(v: number) => [`${v} km/h`, a.speed]}
-                        labelFormatter={(v) => `${v} km`}
+                        formatter={(v: number) => [`${dec(v, locale, 1)} km/h`, a.speed]}
+                        labelFormatter={(v) => `${dec(v, locale, 1)} km`}
                         contentStyle={chartTooltipStyle}
                       />
                       <Area
@@ -528,7 +528,7 @@ export default function ActivityDetailPage({ params }: { params: Promise<{ id: s
                       <YAxis tick={tick} width={40} axisLine={false} tickLine={false} />
                       <Tooltip
                         formatter={(v: number) => [`${Math.round(v)} m`, a.altitude]}
-                        labelFormatter={(v) => `${v} km`}
+                        labelFormatter={(v) => `${dec(v, locale, 1)} km`}
                         contentStyle={chartTooltipStyle}
                       />
                       <Area

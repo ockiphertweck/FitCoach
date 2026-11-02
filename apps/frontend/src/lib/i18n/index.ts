@@ -18,6 +18,7 @@ const API_ERRORS: Record<string, keyof Dict["errors"]> = {
   "User already exists. FitCoach is single-user.": "userExists",
   "Recap generation failed": "recapFailed",
   key_invalid: "keyInvalid",
+  "No Claude API key configured. Add one in Settings.": "noApiKey",
   not_connected: "notConnected",
   "Activity not found": "activityNotFound",
   "Session not found": "sessionNotFound",
