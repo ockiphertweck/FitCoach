@@ -16,6 +16,11 @@ function FitBounds({ positions }: { positions: [number, number][] }) {
 }
 
 export default function ActivityMap({ polyline }: { polyline: string }) {
+  // Client-only component: resolve the theme token at mount (leaflet needs a concrete colour).
+  const token = getComputedStyle(document.documentElement)
+    .getPropertyValue("--chart-duration")
+    .trim()
+  const color = token ? `hsl(${token})` : "hsl(221, 83%, 53%)"
   const positions = polylineDecode.decode(polyline) as [number, number][]
 
   if (positions.length === 0) return null
@@ -35,7 +40,7 @@ export default function ActivityMap({ polyline }: { polyline: string }) {
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        <Polyline positions={positions} color="hsl(221, 83%, 53%)" weight={3} />
+        <Polyline positions={positions} color={color} weight={3} />
         <FitBounds positions={positions} />
       </MapContainer>
     </div>

@@ -123,3 +123,8 @@
     }
   }
 }
+
+/* OSM tiles are always light; dim them in dark mode. Tile pane only, so the polyline (overlay pane) and markers keep their colours. */
+.dark .leaflet-tile-pane {
+  filter: invert(1) hue-rotate(180deg) brightness(0.9) contrast(0.9);
+}
