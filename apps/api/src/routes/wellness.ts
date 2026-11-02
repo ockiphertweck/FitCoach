@@ -9,7 +9,8 @@ type WellnessDay = Omit<DailyWellness, "id" | "userId" | "updatedAt">
 
 const toDay = ({ id: _i, userId: _u, updatedAt: _t, ...day }: DailyWellness): WellnessDay => day
 
-const wellnessRoutes: FastifyPluginAsyncZod = async (fastify) => {
+// Fastify plugin convention (as in the other route files): async without await is intended.
+const wellnessRoutes: FastifyPluginAsyncZod = async (fastify) /* NOSONAR */ => {
   fastify.addHook("preHandler", authMiddleware)
 
   fastify.get("/wellness", { schema: { querystring: recapDateSchema } }, async (request) => {

@@ -14,7 +14,8 @@ import {
 
 const errorSchema = z.object({ error: z.string() })
 
-const garminRoutes: FastifyPluginAsyncZod = async (fastify) => {
+// Fastify plugin convention (as in the other route files): async without await is intended.
+const garminRoutes: FastifyPluginAsyncZod = async (fastify) /* NOSONAR */ => {
   fastify.addHook("preHandler", authMiddleware)
 
   fastify.post(
