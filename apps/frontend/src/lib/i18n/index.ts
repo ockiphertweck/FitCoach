@@ -14,7 +14,7 @@ export function localeOf(lang: Lang): "de-DE" | "en-GB" {
 
 // API keeps returning its English messages / codes; the frontend translates the known ones.
 const API_ERRORS: Record<string, keyof Dict["errors"]> = {
-  "Invalid email or password": "invalidCredentials",
+  "Invalid email or password": "invalidCredentials", // NOSONAR: API error text, not a credential
   "User already exists. FitCoach is single-user.": "userExists",
   "Recap generation failed": "recapFailed",
   key_invalid: "keyInvalid",
