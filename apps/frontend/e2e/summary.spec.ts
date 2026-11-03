@@ -153,7 +153,7 @@ test.describe("Summary", () => {
       await page.getByRole("link", { name: "Übersicht" }).first().click()
       await expect(page.getByRole("heading", { name: "Übersicht" })).toBeVisible()
       await expect(page.getByText("Cached.")).toBeVisible()
-      await page.waitForTimeout(500)
+      await page.waitForLoadState("networkidle")
       pwExpect(posts).toHaveLength(0)
     })
 

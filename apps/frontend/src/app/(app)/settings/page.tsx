@@ -82,7 +82,7 @@ export default function SettingsPage() {
   const [langChoice, setLangChoice] = useState<Lang | "auto">("auto")
   // Cookie absent = automatic; read after mount like the theme above.
   useEffect(() => {
-    const value = document.cookie.match(new RegExp(`(?:^|; )${LANG_COOKIE}=([^;]*)`))?.[1]
+    const value = new RegExp(`(?:^|; )${LANG_COOKIE}=([^;]*)`).exec(document.cookie)?.[1]
     setLangChoice(parseLang(value) ?? "auto")
   }, [])
   const { saved: keySaved, flash: flashKeySaved } = useFlashSaved()
@@ -166,14 +166,18 @@ export default function SettingsPage() {
     onSuccess: () => setGarmin(GARMIN_NOT_CONNECTED),
   })
   const syncGarmin = useMutation({ mutationFn: () => syncNow(qc) })
-  const connectError = (code: string) =>
-    code === "rate_limited"
-      ? t.settings.garminBusy
-      : code === "garmin_unavailable"
-        ? t.settings.garminUnavailable
-        : code === "key_invalid"
-          ? t.errors.keyInvalid
-          : t.settings.connectionFailed
+  const connectError = (code: string) => {
+    switch (code) {
+      case "rate_limited":
+        return t.settings.garminBusy
+      case "garmin_unavailable":
+        return t.settings.garminUnavailable
+      case "key_invalid":
+        return t.errors.keyInvalid
+      default:
+        return t.settings.connectionFailed
+    }
+  }
   const garminKeyForm = (
     <div className="space-y-3">
       <div className="space-y-1">

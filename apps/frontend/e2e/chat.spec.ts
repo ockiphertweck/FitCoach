@@ -342,9 +342,7 @@ test.describe("AI Coach — retry on failure", () => {
 test.describe("AI Coach — language", () => {
   test("sends lang with the chat message", async ({ authedPage }) => {
     await setupChat(authedPage)
-    let body: Record<string, unknown> = {}
     await authedPage.route(`${API_BASE}/ai/chat`, (route) => {
-      body = route.request().postDataJSON()
       route.fulfill({
         status: 200,
         contentType: "text/event-stream",
@@ -352,9 +350,10 @@ test.describe("AI Coach — language", () => {
       })
     })
     await authedPage.goto("/coach")
+    const request = authedPage.waitForRequest(`${API_BASE}/ai/chat`)
     await authedPage.getByPlaceholder(/Ask your coach/).fill("Hello")
     await authedPage.getByPlaceholder(/Ask your coach/).press("Enter")
-    await expect.poll(() => body.lang).toBe("en")
+    expect((await request).postDataJSON().lang).toBe("en")
   })
 
   test.describe("German", () => {
