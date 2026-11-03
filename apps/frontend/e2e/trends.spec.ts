@@ -137,12 +137,18 @@ test.describe("Trends", () => {
       await mockPost(
         authedPage,
         "/ai/weekly-report",
-        { error: "No API key configured. Add one in Settings." },
-        400
+        {
+          statusCode: 500,
+          error: "Internal Server Error",
+          message: "No Claude API key configured. Add one in Settings.",
+        },
+        500
       )
       await authedPage.goto("/trends")
       await authedPage.getByRole("button", { name: "Generate report" }).click()
-      await expect(authedPage.getByText("No API key configured.")).toBeVisible()
+      await expect(
+        authedPage.getByText("No Claude API key configured. Add one in Settings.")
+      ).toBeVisible()
     })
 
     test("shows N/A for avgHR when no HR data", async ({ authedPage }) => {
@@ -153,6 +159,97 @@ test.describe("Trends", () => {
       await authedPage.goto("/trends")
       await authedPage.getByRole("button", { name: "Generate report" }).click()
       await expect(authedPage.getByText("N/A")).toBeVisible()
+    })
+  })
+})
+
+test.describe("Trends — language", () => {
+  test("sends lang with the weekly report request", async ({ authedPage }) => {
+    await mockGet(authedPage, /\/activities\?limit=200/, { items: ACTIVITIES_8W, total: 3 })
+    let body: Record<string, unknown> = {}
+    await authedPage.route(`${API_BASE}/ai/weekly-report`, (route) => {
+      body = route.request().postDataJSON()
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(WEEKLY_REPORT),
+      })
+    })
+    await authedPage.goto("/trends")
+    await authedPage.getByRole("button", { name: "Generate report" }).click()
+    await expect(authedPage.getByText("32.5 km")).toBeVisible()
+    expect(body.lang).toBe("en")
+  })
+
+  test.describe("German", () => {
+    test.use({ locale: "de-DE" })
+
+    test("translates charts and report, sends lang=de", async ({ authedPage }) => {
+      await mockGet(authedPage, /\/activities\?limit=200/, { items: ACTIVITIES_8W, total: 3 })
+      let body: Record<string, unknown> = {}
+      await authedPage.route(`${API_BASE}/ai/weekly-report`, (route) => {
+        body = route.request().postDataJSON()
+        route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify(WEEKLY_REPORT),
+        })
+      })
+      await authedPage.goto("/trends")
+      await expect(authedPage.getByText("Distanz", { exact: true }).first()).toBeVisible()
+      await expect(authedPage.getByText("Woche vom 30. März").first()).toBeVisible()
+      await authedPage.getByRole("button", { name: "Bericht erstellen" }).click()
+      await expect(authedPage.getByText("32,5 km")).toBeVisible()
+      expect(body.lang).toBe("de")
+    })
+
+    test("localizes chart header decimals and report metric labels", async ({ authedPage }) => {
+      await mockGet(authedPage, /\/activities\?limit=200/, {
+        items: [
+          {
+            startDate: "2026-03-31T07:00:00.000Z",
+            durationSeconds: 3600,
+            distanceMeters: 12500,
+            averageHeartRate: 145,
+          },
+        ],
+        total: 1,
+      })
+      await mockPost(authedPage, "/ai/weekly-report", WEEKLY_REPORT)
+      await authedPage.goto("/trends")
+      await expect(authedPage.getByText("12,5 km").first()).toBeVisible()
+      await authedPage.getByRole("button", { name: "Bericht erstellen" }).click()
+      await expect(authedPage.getByText("Ø HF", { exact: true }).last()).toBeVisible()
+      await expect(authedPage.getByText("Avg HR")).toHaveCount(0)
+    })
+
+    test("formats report ATL and CTL with a decimal comma", async ({ authedPage }) => {
+      await mockGet(authedPage, /\/activities\?limit=200/, { items: ACTIVITIES_8W, total: 3 })
+      await mockPost(authedPage, "/ai/weekly-report", {
+        ...WEEKLY_REPORT,
+        metrics: { ...WEEKLY_REPORT.metrics, atl: 45.3, ctl: 51.7 },
+      })
+      await authedPage.goto("/trends")
+      await authedPage.getByRole("button", { name: "Bericht erstellen" }).click()
+      await expect(authedPage.getByText("45,3", { exact: true })).toBeVisible()
+      await expect(authedPage.getByText("51,7", { exact: true })).toBeVisible()
+    })
+
+    test("shows translated API error", async ({ authedPage }) => {
+      await mockGet(authedPage, /\/activities\?limit=200/, { items: ACTIVITIES_8W, total: 3 })
+      await mockPost(
+        authedPage,
+        "/ai/weekly-report",
+        {
+          statusCode: 500,
+          error: "Internal Server Error",
+          message: "No Claude API key configured. Add one in Settings.",
+        },
+        500
+      )
+      await authedPage.goto("/trends")
+      await authedPage.getByRole("button", { name: "Bericht erstellen" }).click()
+      await expect(authedPage.getByText("Kein Claude-API-Schlüssel hinterlegt")).toBeVisible()
     })
   })
 })

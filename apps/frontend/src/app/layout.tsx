@@ -1,13 +1,15 @@
 import { PostHogProvider } from "@/components/posthog-provider"
+import { I18nProvider } from "@/lib/i18n/client"
+import { getI18n } from "@/lib/i18n/server"
 import { QueryProvider } from "@/lib/query-client"
 import { THEME_COOKIE, parseTheme } from "@/lib/theme"
 import type { Metadata } from "next"
 import { cookies } from "next/headers"
 import "./globals.css"
 
-export const metadata: Metadata = {
-  title: "FitCoach",
-  description: "Self-hosted AI training coach powered by Garmin and Claude",
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getI18n()
+  return { title: "FitCoach", description: t.common.appDescription }
 }
 
 // Runs before first paint so "system" never flashes the wrong scheme; always present so switching to System in-session tracks the OS.
@@ -15,9 +17,10 @@ const SYSTEM_THEME_SCRIPT = `(function(){var m=matchMedia("(prefers-color-scheme
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const theme = parseTheme((await cookies()).get(THEME_COOKIE)?.value)
+  const { lang } = await getI18n()
   return (
     <html
-      lang="en"
+      lang={lang}
       className={theme === "dark" ? "dark" : undefined}
       data-theme={theme}
       suppressHydrationWarning
@@ -28,7 +31,9 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
       </head>
       <body>
         <PostHogProvider>
-          <QueryProvider>{children}</QueryProvider>
+          <I18nProvider lang={lang}>
+            <QueryProvider>{children}</QueryProvider>
+          </I18nProvider>
         </PostHogProvider>
       </body>
     </html>

@@ -3,6 +3,8 @@
 import { Markdown } from "@/components/markdown"
 import { Card, MetricLabel } from "@/components/ui/card"
 import { api, streamPost } from "@/lib/api"
+import type { Dict } from "@/lib/i18n"
+import { useI18n } from "@/lib/i18n/client"
 import { localDate } from "@/lib/utils"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { RefreshCw } from "lucide-react"
@@ -25,10 +27,16 @@ const MAX_AUTO_STREAMS = 2
 const autoStreams = new Map<string, number>()
 
 // Reuse a stream already running for this date (e.g. after navigating away and back).
-function joinOrStartStream(date: string, onChunk: (t: string) => void): Promise<void> {
+function joinOrStartStream(
+  date: string,
+  lang: string,
+  onChunk: (t: string) => void
+): Promise<void> {
   let run = inflight.get(date)
   if (!run) {
-    run = streamPost("/ai/recommendation", { date }, onChunk).finally(() => inflight.delete(date))
+    run = streamPost("/ai/recommendation", { date, lang }, onChunk).finally(() =>
+      inflight.delete(date)
+    )
     inflight.set(date, run)
   }
   return run
@@ -47,6 +55,7 @@ function claimAutoStream(date: string, key: string): boolean {
 // Streamed recap text for `date`. `key` = (date, generatedAt) of the stored recap; a new key
 // drops the streamed copy so the newly stored content shows instead.
 function useRecapStream(date: string, key: string | null) {
+  const { lang } = useI18n()
   const qc = useQueryClient()
   const [streamed, setStreamed] = useState("")
   const [streaming, setStreaming] = useState(false)
@@ -58,7 +67,7 @@ function useRecapStream(date: string, key: string | null) {
     streamedRef.current = ""
     setFailed(false)
     setStreaming(true)
-    const run = joinOrStartStream(date, (t) => {
+    const run = joinOrStartStream(date, lang, (t) => {
       streamedRef.current += t
       setStreamed((p) => p + t)
     })
@@ -73,7 +82,7 @@ function useRecapStream(date: string, key: string | null) {
     } finally {
       setStreaming(false)
     }
-  }, [date, qc])
+  }, [date, lang, qc])
 
   const lastKey = useRef<string | null>(null)
   useEffect(() => {
@@ -95,6 +104,7 @@ export function CoachTile({
   enabled,
   importing = false,
 }: Readonly<{ enabled: boolean; importing?: boolean }>) {
+  const { t } = useI18n()
   const date = localDate()
   const { data, isFetching, isError, refetch } = useQuery<RecapResponse>({
     queryKey: ["recap", date],
@@ -115,11 +125,11 @@ export function CoachTile({
   return (
     <Card data-testid="coach-tile">
       <div className="flex items-center justify-between">
-        <MetricLabel color="coach">Coach · Today</MetricLabel>
+        <MetricLabel color="coach">{t.coach.tileLabel}</MetricLabel>
         {data?.hasKey && (
           <button
             type="button"
-            aria-label="Refresh recap"
+            aria-label={t.coach.refreshRecap}
             disabled={streaming}
             onClick={() => void generate()}
             className="rounded-full p-1 text-muted-foreground hover:text-foreground disabled:opacity-50"
@@ -137,6 +147,7 @@ export function CoachTile({
           failed={failed}
           streaming={streaming}
           streamed={streamed}
+          t={t}
           onRetry={() => void refetch()}
         />
       </div>
@@ -145,9 +156,9 @@ export function CoachTile({
 }
 
 // Placeholder while there is no recap text yet: sync/import gate first, then fetch/generation.
-function pendingText(enabled: boolean, importing: boolean, hasData: boolean): string {
-  if (!enabled) return importing ? "Waiting for Garmin import…" : "Syncing…"
-  return hasData ? "Writing your recap…" : "Loading…"
+function pendingText(enabled: boolean, importing: boolean, hasData: boolean, t: Dict): string {
+  if (!enabled) return importing ? t.coach.waitingImport : t.coach.syncing
+  return hasData ? t.coach.writing : t.coach.loading
 }
 
 function RecapBody({
@@ -158,6 +169,7 @@ function RecapBody({
   failed,
   streaming,
   streamed,
+  t,
   onRetry,
 }: Readonly<{
   data: RecapResponse | undefined
@@ -167,14 +179,15 @@ function RecapBody({
   failed: boolean
   streaming: boolean
   streamed: string
+  t: Dict
   onRetry: () => void
 }>) {
   if (data && !data.hasKey) {
     return (
       <p>
-        Add your Claude API key in{" "}
+        {t.coach.addKeyIn}{" "}
         <Link href="/settings" className="font-medium underline">
-          Settings
+          {t.nav.settings}
         </Link>
       </p>
     )
@@ -182,17 +195,17 @@ function RecapBody({
   if (isError && !data) {
     return (
       <p className="text-destructive">
-        Couldn't load your recap.{" "}
+        {t.coach.loadFailed}{" "}
         <button type="button" className="underline" onClick={onRetry}>
-          Retry
+          {t.coach.retry}
         </button>
       </p>
     )
   }
-  if (failed) return <p className="text-destructive">Recap generation failed. Try refreshing.</p>
+  if (failed) return <p className="text-destructive">{t.coach.generationFailed}</p>
   const shown = streamed || data?.recap?.content
   if (!shown) {
-    return <p className="text-muted-foreground">{pendingText(enabled, importing, !!data)}</p>
+    return <p className="text-muted-foreground">{pendingText(enabled, importing, !!data, t)}</p>
   }
   const updating = streaming && !streamed
   return (
@@ -200,7 +213,7 @@ function RecapBody({
       className={`[&_h3]:text-lg [&_h3]:font-extrabold [&_h3]:tracking-tight [&_h3]:text-foreground ${updating ? "opacity-50" : ""}`}
     >
       <Markdown>{shown.replace(/^(→ .+)$/m, "**$1**")}</Markdown>
-      {updating && <p className="mt-2 text-xs text-muted-foreground">Updating…</p>}
+      {updating && <p className="mt-2 text-xs text-muted-foreground">{t.coach.updating}</p>}
     </div>
   )
 }

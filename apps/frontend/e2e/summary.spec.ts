@@ -82,6 +82,18 @@ test.describe("Summary", () => {
     await expect(authedPage.getByText("14", { exact: true })).toBeVisible()
   })
 
+  test.describe("German", () => {
+    test.use({ locale: "de-DE" })
+
+    test("formats ATL, CTL and TSB with a decimal comma", async ({ authedPage }) => {
+      await mockGet(authedPage, "/activities/stats", { atl: 45.3, ctl: 52.1, tsb: 6.8 })
+      await authedPage.goto("/")
+      await expect(authedPage.getByText("45,3", { exact: true })).toBeVisible()
+      await expect(authedPage.getByText("52,1", { exact: true })).toBeVisible()
+      await expect(authedPage.getByText("6,8", { exact: true })).toBeVisible()
+    })
+  })
+
   for (const [stats, label] of [
     [STATS_FRESH, "Fresh"],
     [STATS_FATIGUED, "Fatigued"],
@@ -117,7 +129,32 @@ test.describe("Summary", () => {
       await pwExpect.poll(() => gets).toBeGreaterThanOrEqual(2)
       await authedPage.waitForTimeout(300)
       pwExpect(posts).toHaveLength(1)
-      pwExpect(JSON.parse(posts[0])).toEqual({ date: localDate() })
+      pwExpect(JSON.parse(posts[0])).toEqual({ date: localDate(), lang: "en" })
+    })
+
+    test("switching to Deutsch with a stored recap sends no recap POST", async ({
+      authedPage: page,
+    }) => {
+      const posts = trackPosts(page)
+      await mockGet(page, "/settings/apikey", { providers: [] })
+      await mockGet(page, "/settings/profile", {
+        sex: null,
+        weightKg: null,
+        heightCm: null,
+        maxHeartRate: null,
+        ftpWatts: null,
+      })
+      await page.goto("/settings")
+      await page
+        .getByRole("radiogroup", { name: "Language" })
+        .getByRole("radio", { name: "Deutsch" })
+        .click()
+      await expect(page.getByRole("heading", { name: "Einstellungen" })).toBeVisible()
+      await page.getByRole("link", { name: "Übersicht" }).first().click()
+      await expect(page.getByRole("heading", { name: "Übersicht" })).toBeVisible()
+      await expect(page.getByText("Cached.")).toBeVisible()
+      await page.waitForLoadState("networkidle")
+      pwExpect(posts).toHaveLength(0)
     })
 
     test("refresh button sends exactly one POST", async ({ authedPage }) => {

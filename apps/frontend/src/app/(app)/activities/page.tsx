@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Segmented } from "@/components/ui/segmented"
 import { api } from "@/lib/api"
+import { useI18n } from "@/lib/i18n/client"
 import { useQuery } from "@tanstack/react-query"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import { useState } from "react"
@@ -23,25 +24,20 @@ interface Activity {
   averagePaceSecondsPerKm: number | null
 }
 
-const SPORTS = ["all", "run", "ride", "swim", "walk", "hike", "workout"].map((s) => ({
-  value: s,
-  label: s.charAt(0).toUpperCase() + s.slice(1),
-}))
+const SPORTS = ["all", "run", "ride", "swim", "walk", "hike", "workout"]
 const PAGE_SIZE = 20
 
-const monthLabel = (iso: string) =>
-  new Date(iso).toLocaleDateString("en-GB", { month: "long", year: "numeric" })
-
-function groupByMonth(items: Activity[]) {
+function groupByMonth(items: Activity[], locale: string) {
   const groups = new Map<string, Activity[]>()
   for (const a of items) {
-    const key = monthLabel(a.startDate)
+    const key = new Date(a.startDate).toLocaleDateString(locale, { month: "long", year: "numeric" })
     groups.set(key, [...(groups.get(key) ?? []), a])
   }
   return [...groups.entries()]
 }
 
 export default function ActivitiesPage() {
+  const { t, locale } = useI18n()
   const [sport, setSport] = useState("all")
   const [page, setPage] = useState(0)
   const [from, setFrom] = useState("")
@@ -64,15 +60,19 @@ export default function ActivitiesPage() {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Activities" subtitle={`${data?.total ?? 0} total activities`} />
+      <PageHeader title={t.activities.title} subtitle={t.activities.total(data?.total ?? 0)} />
 
       {/* Filters */}
       <Card className="space-y-3">
         <div className="-mx-1 overflow-x-auto px-1 pb-1">
           <Segmented
-            aria-label="Sport"
+            aria-label={t.activities.sport}
             value={sport}
-            options={SPORTS}
+            options={SPORTS.map((s) => ({
+              value: s,
+              label:
+                s === "all" ? t.activities.all : ((t.sports as Record<string, string>)[s] ?? s),
+            }))}
             onChange={(v) => {
               setSport(v)
               setPage(0)
@@ -88,9 +88,9 @@ export default function ActivitiesPage() {
               setPage(0)
             }}
             className="w-36 text-sm"
-            placeholder="From"
+            placeholder={t.activities.from}
           />
-          <span className="text-muted-foreground text-sm">to</span>
+          <span className="text-muted-foreground text-sm">{t.activities.to}</span>
           <Input
             type="date"
             value={to}
@@ -99,7 +99,7 @@ export default function ActivitiesPage() {
               setPage(0)
             }}
             className="w-36 text-sm"
-            placeholder="To"
+            placeholder={t.activities.to}
           />
           {(from || to) && (
             <Button
@@ -111,7 +111,7 @@ export default function ActivitiesPage() {
                 setPage(0)
               }}
             >
-              Clear
+              {t.activities.clear}
             </Button>
           )}
         </div>
@@ -126,10 +126,10 @@ export default function ActivitiesPage() {
         </Card>
       ) : !data?.items.length ? (
         <Card>
-          <p className="text-sm text-muted-foreground text-center py-8">No activities found.</p>
+          <p className="text-sm text-muted-foreground text-center py-8">{t.activities.none}</p>
         </Card>
       ) : (
-        groupByMonth(data.items).map(([month, items]) => (
+        groupByMonth(data.items, locale).map(([month, items]) => (
           <section key={month} className="space-y-2">
             <h2 className="px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               {month}
@@ -144,7 +144,7 @@ export default function ActivitiesPage() {
       )}
 
       <p className="text-center text-xs text-muted-foreground">
-        Page {page + 1} of {totalPages || 1}
+        {t.activities.page(page + 1, totalPages || 1)}
       </p>
 
       {/* Pagination */}

@@ -1,4 +1,8 @@
+"use client"
+
 import { Card, MetricLabel } from "@/components/ui/card"
+import type { Dict } from "@/lib/i18n"
+import { useI18n } from "@/lib/i18n/client"
 import type { ComponentProps, ReactNode } from "react"
 
 export interface WellnessDay {
@@ -28,19 +32,19 @@ type Color = ComponentProps<typeof MetricLabel>["color"]
 
 const hm = (s: number) => `${Math.floor(s / 3600)}h ${Math.round((s % 3600) / 60)}m`
 // Garmin's sleep score bands.
-function sleepLabel(n: number): string {
-  if (n >= 90) return "Excellent"
-  if (n >= 80) return "Good"
-  if (n >= 60) return "Fair"
-  return "Poor"
+function sleepLabel(n: number, t: Dict): string {
+  if (n >= 90) return t.home.sleepExcellent
+  if (n >= 80) return t.home.sleepGood
+  if (n >= 60) return t.home.sleepFair
+  return t.home.sleepPoor
 }
 const cap = (s: string) => s.charAt(0) + s.slice(1).toLowerCase()
 
 // No sleep score (spec Fallbacks): show duration + stages instead.
-function sleepTile(t: WellnessDay | null) {
-  const duration = t?.sleepSeconds == null ? undefined : hm(t.sleepSeconds)
-  if (t?.sleepScore == null) return { value: duration ?? null, caption: "Duration" }
-  return { value: t.sleepScore, unit: sleepLabel(t.sleepScore), caption: duration }
+function sleepTile(w: WellnessDay | null, t: Dict) {
+  const duration = w?.sleepSeconds == null ? undefined : hm(w.sleepSeconds)
+  if (w?.sleepScore == null) return { value: duration ?? null, caption: t.home.duration }
+  return { value: w.sleepScore, unit: sleepLabel(w.sleepScore, t), caption: duration }
 }
 
 function Tile({
@@ -62,6 +66,7 @@ function Tile({
   className?: string
   children?: ReactNode
 }>) {
+  const { t } = useI18n()
   const has = value !== null && value !== undefined
   return (
     <Card data-testid={`tile-${id}`} className={className}>
@@ -72,7 +77,7 @@ function Tile({
           <small className="ml-1 text-xs font-semibold text-muted-foreground">{unit}</small>
         )}
       </p>
-      <p className="text-xs text-muted-foreground">{has ? caption : "No data"}</p>
+      <p className="text-xs text-muted-foreground">{has ? caption : t.home.noData}</p>
       {has && children}
     </Card>
   )
@@ -118,10 +123,11 @@ export function RecoveryTiles({
   loading,
   importing = false,
 }: Readonly<{ data: WellnessData | undefined; loading: boolean; importing?: boolean }>) {
+  const { t: dict, locale } = useI18n()
   if (loading || importing)
     return (
       <div>
-        {importing && <p className="pb-2 text-sm text-muted-foreground">Importing from Garmin…</p>}
+        {importing && <p className="pb-2 text-sm text-muted-foreground">{dict.home.importing}</p>}
         <div
           data-testid="recovery-skeleton"
           className="grid grid-cols-2 gap-3 lg:grid-cols-[repeat(5,minmax(0,1fr))]"
@@ -133,6 +139,7 @@ export function RecoveryTiles({
       </div>
     )
   const t = data?.today ?? null
+  const n = (v: number) => v.toLocaleString(locale)
   const hrv = (data?.days ?? []).flatMap((d) => (d.hrvLastNight === null ? [] : [d.hrvLastNight]))
   const stages = (
     t
@@ -147,18 +154,19 @@ export function RecoveryTiles({
   const cal = t?.caloriesTotal
   return (
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-[repeat(5,minmax(0,1fr))]">
-      <Tile id="sleep" label="Sleep" color="sleep" {...sleepTile(t)}>
+      <Tile id="sleep" label={dict.home.sleep} color="sleep" {...sleepTile(t, dict)}>
         {stages.length > 0 && <Bar parts={stages} />}
       </Tile>
       <Tile
         id="hrv"
-        label="HRV"
+        label={dict.home.hrv}
         color="hrv"
         value={t?.hrvLastNight}
         unit="ms"
         caption={[
-          t?.hrvStatus && cap(t.hrvStatus),
-          t?.hrvWeeklyAvg != null && `7-day avg ${t.hrvWeeklyAvg}`,
+          t?.hrvStatus &&
+            ((dict.home.hrvStatus as Record<string, string>)[t.hrvStatus] ?? cap(t.hrvStatus)),
+          t?.hrvWeeklyAvg != null && dict.home.sevenDayAvg(t.hrvWeeklyAvg),
         ]
           .filter(Boolean)
           .join(" · ")}
@@ -167,31 +175,33 @@ export function RecoveryTiles({
       </Tile>
       <Tile
         id="battery"
-        label="Body Battery"
+        label={dict.home.bodyBattery}
         color="battery"
         value={t?.bodyBatteryCurrent}
         unit="/100"
         caption={
-          t?.bodyBatteryCharged != null ? `+${t.bodyBatteryCharged} charged overnight` : "Current"
+          t?.bodyBatteryCharged != null
+            ? dict.home.chargedOvernight(t.bodyBatteryCharged)
+            : dict.home.current
         }
       />
       <Tile
         id="stress"
-        label="Stress"
+        label={dict.home.stress}
         color="stress"
         value={t?.stressAvg}
-        caption="Today's average"
+        caption={dict.home.todaysAverage}
       />
       <Tile
         id="calories"
-        label="Calories"
+        label={dict.home.calories}
         color="calories"
-        value={cal?.toLocaleString("en-US")}
+        value={cal == null ? cal : n(cal)}
         unit="kcal"
         className="col-span-2 lg:col-span-1"
         caption={
           t?.caloriesActive != null && t.caloriesResting != null
-            ? `Active ${t.caloriesActive.toLocaleString("en-US")} · Resting ${t.caloriesResting.toLocaleString("en-US")}`
+            ? dict.home.caloriesSplit(n(t.caloriesActive), n(t.caloriesResting))
             : undefined
         }
       >

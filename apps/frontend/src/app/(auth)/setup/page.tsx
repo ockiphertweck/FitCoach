@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { api } from "@/lib/api"
+import { translateApiError } from "@/lib/i18n"
+import { useI18n } from "@/lib/i18n/client"
 import { useMutation } from "@tanstack/react-query"
 import { Dumbbell, Eye, EyeOff } from "lucide-react"
 import { useRouter } from "next/navigation"
@@ -12,6 +14,7 @@ import { useState } from "react"
 
 export default function SetupPage() {
   const router = useRouter()
+  const { t } = useI18n()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [confirm, setConfirm] = useState("")
@@ -32,11 +35,11 @@ export default function SetupPage() {
     e.preventDefault()
     setValidationError("")
     if (password !== confirm) {
-      setValidationError("Passwords do not match")
+      setValidationError(t.auth.passwordMismatch)
       return
     }
     if (password.length < 8) {
-      setValidationError("Password must be at least 8 characters")
+      setValidationError(t.auth.passwordTooShort)
       return
     }
     setupMutation.mutate()
@@ -49,36 +52,33 @@ export default function SetupPage() {
           <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-primary-foreground mb-4">
             <Dumbbell className="h-7 w-7" />
           </div>
-          <h1 className="text-3xl font-bold tracking-tight">Welcome to FitCoach</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Create your account to get started. FitCoach is single-user — this is your private
-            training hub.
-          </p>
+          <h1 className="text-3xl font-bold tracking-tight">{t.auth.setupTitle}</h1>
+          <p className="text-sm text-muted-foreground mt-1">{t.auth.setupSubtitle}</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1.5">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email">{t.auth.email}</Label>
             <Input
               id="email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
+              placeholder={t.auth.emailPlaceholder}
               required
               autoFocus
             />
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="password">Password</Label>
+            <Label htmlFor="password">{t.auth.password}</Label>
             <div className="relative">
               <Input
                 id="password"
                 type={showPassword ? "text" : "password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Min. 8 characters"
+                placeholder={t.auth.minPassword}
                 required
                 className="pr-10"
               />
@@ -94,14 +94,14 @@ export default function SetupPage() {
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="confirm">Confirm password</Label>
+            <Label htmlFor="confirm">{t.auth.confirmPassword}</Label>
             <div className="relative">
               <Input
                 id="confirm"
                 type={showPassword ? "text" : "password"}
                 value={confirm}
                 onChange={(e) => setConfirm(e.target.value)}
-                placeholder="Repeat password"
+                placeholder={t.auth.repeatPassword}
                 required
                 className="pr-10"
               />
@@ -110,7 +110,10 @@ export default function SetupPage() {
 
           {(validationError || setupMutation.isError) && (
             <Alert variant="destructive">
-              <AlertDescription>{validationError || setupMutation.error?.message}</AlertDescription>
+              <AlertDescription>
+                {validationError ||
+                  (setupMutation.error && translateApiError(setupMutation.error.message, t))}
+              </AlertDescription>
             </Alert>
           )}
 
@@ -119,7 +122,7 @@ export default function SetupPage() {
             className="w-full mt-2 h-11"
             disabled={setupMutation.isPending || !email || !password || !confirm}
           >
-            {setupMutation.isPending ? "Creating account…" : "Create account"}
+            {setupMutation.isPending ? t.auth.creatingAccount : t.auth.createAccount}
           </Button>
         </form>
       </div>

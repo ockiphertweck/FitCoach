@@ -13,8 +13,8 @@
     "build": "pnpm --filter shared build && pnpm --filter api build && pnpm --filter frontend build",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
-    "test": "pnpm --filter shared build && pnpm --filter api test",
-    "test:e2e": "pnpm --filter frontend test:e2e",
+    "test": "pnpm --filter shared build && pnpm --filter shared test && pnpm --filter api test",
+    "test:e2e": "pnpm --filter shared build && pnpm --filter frontend test:e2e",
     "prepare": "husky"
   },
   "devDependencies": {

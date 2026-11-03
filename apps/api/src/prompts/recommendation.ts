@@ -1,3 +1,4 @@
+import type { Lang } from "@fitcoach/shared"
 import { desc, eq } from "drizzle-orm"
 import type { DB } from "../db/index.js"
 import { type Activity, chatHistory } from "../db/schema.js"
@@ -14,11 +15,11 @@ import {
 import { RECAP_SYSTEM_PROMPT } from "./recap-system.js"
 
 /** Request params for the short daily recap (the route adds stream + distinct id). */
-export function buildRecapRequest(userMessage: string) {
+export function buildRecapRequest(userMessage: string, lang: Lang) {
   return {
     model: "claude-sonnet-4-6",
     max_tokens: 300,
-    system: RECAP_SYSTEM_PROMPT,
+    system: RECAP_SYSTEM_PROMPT[lang],
     messages: [{ role: "user" as const, content: userMessage }],
   }
 }

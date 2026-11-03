@@ -89,7 +89,7 @@ test.describe("Settings", () => {
       await authedPage.goto("/settings")
       await authedPage.getByLabel("Garmin key").fill("bad")
       await authedPage.getByRole("button", { name: "Connect", exact: true }).click()
-      await expect(authedPage.getByText("Key invalid", { exact: true })).toBeVisible()
+      await expect(authedPage.getByText("Key invalid or expired", { exact: true })).toBeVisible()
       await expect(authedPage.getByLabel("Garmin key")).toHaveValue("bad")
     })
 

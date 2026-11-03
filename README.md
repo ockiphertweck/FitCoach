@@ -23,6 +23,7 @@ FitCoach connects to your Garmin account, computes training load metrics (ATL/CT
 - **Athlete profile** — weight, height, max HR, FTP, sex — passed to Claude for personalised advice
 - **BYOK** — Claude API key stored AES-256-GCM encrypted; set it in Settings without redeploying
 - **Appearance** — light, dark or system theme
+- **Language** — German or English (follows the browser, switchable in Settings); the coach answers in the chosen language
 - **Single-user** — first registered account locks the instance; designed for personal self-hosting
 
 ---

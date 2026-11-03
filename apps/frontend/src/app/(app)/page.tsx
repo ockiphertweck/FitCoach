@@ -9,6 +9,7 @@ import { RecoveryTiles, type WellnessData } from "@/components/summary/recovery-
 import { Card, MetricLabel } from "@/components/ui/card"
 import { api } from "@/lib/api"
 import { syncNow, useGarminSync } from "@/lib/garmin"
+import { useI18n } from "@/lib/i18n/client"
 import { localDate } from "@/lib/utils"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { RefreshCw } from "lucide-react"
@@ -21,13 +22,13 @@ interface TrainingLoad {
   tsb: number
 }
 
-const GARMIN_ERRORS = {
-  key_invalid: "Garmin key invalid or expired — update it in Settings",
-  rate_limited: "Garmin is busy, try again later",
-  garmin_unavailable: "Garmin is busy, try again later",
-} as const
-
 export default function HomePage() {
+  const { t, locale } = useI18n()
+  const garminErrors = {
+    key_invalid: t.home.keyInvalid,
+    rate_limited: t.home.garminBusy,
+    garmin_unavailable: t.home.garminBusy,
+  } as const
   const qc = useQueryClient()
   const date = localDate()
   const { status, settled } = useGarminSync()
@@ -53,13 +54,13 @@ export default function HomePage() {
   return (
     <div className="space-y-3">
       <PageHeader
-        title="Home"
+        title={t.home.title}
         action={
           status?.connected && (
             <button
               type="button"
-              aria-label="Sync with Garmin"
-              title="Sync with Garmin"
+              aria-label={t.home.syncWithGarmin}
+              title={t.home.syncWithGarmin}
               disabled={!settled || busy || syncing}
               onClick={() => {
                 setSyncing(true)
@@ -74,18 +75,18 @@ export default function HomePage() {
       />
       {settled && status && !status.connected ? (
         <Link href="/settings" className="block">
-          <Card className="text-sm font-medium">Connect Garmin in Settings</Card>
+          <Card className="text-sm font-medium">{t.home.connectGarmin}</Card>
         </Link>
       ) : (
         <>
-          {status?.lastError && GARMIN_ERRORS[status.lastError] && (
+          {status?.lastError && garminErrors[status.lastError] && (
             <p className="text-sm text-destructive">
-              {GARMIN_ERRORS[status.lastError]}
+              {garminErrors[status.lastError]}
               {status.lastError === "key_invalid" && (
                 <>
                   {" "}
                   <Link href="/settings" className="underline">
-                    Settings
+                    {t.home.settings}
                   </Link>
                 </>
               )}
@@ -107,13 +108,15 @@ export default function HomePage() {
           />
           <Card>
             <div className="flex items-center justify-between pb-1">
-              <h2 className="font-semibold">Recent</h2>
+              <h2 className="font-semibold">{t.home.recent}</h2>
               <Link href="/activities" className="text-sm text-primary">
-                Show all
+                {t.home.showAll}
               </Link>
             </div>
             {recentData?.items.length === 0 ? (
-              <p className="py-4 text-center text-sm text-muted-foreground">No activities yet</p>
+              <p className="py-4 text-center text-sm text-muted-foreground">
+                {t.home.noActivities}
+              </p>
             ) : (
               <div className="divide-y divide-border">
                 {recentData?.items.map((a) => (
@@ -125,14 +128,26 @@ export default function HomePage() {
         </div>
 
         <div data-testid="load-col" className="space-y-3 lg:self-start">
-          <MetricTile label="Fatigue" color="fatigue" value={stats?.atl} caption="7-day load" />
-          <MetricTile label="Fitness" color="fitness" value={stats?.ctl} caption="42-day load" />
+          <MetricTile
+            label={t.home.fatigue}
+            color="fatigue"
+            value={stats?.atl.toLocaleString(locale)}
+            caption={t.home.load7}
+          />
+          <MetricTile
+            label={t.home.fitness}
+            color="fitness"
+            value={stats?.ctl.toLocaleString(locale)}
+            caption={t.home.load42}
+          />
           <Card>
             <div className="flex items-baseline justify-between">
-              <MetricLabel color="form">Form</MetricLabel>
-              {stats && <span className="text-sm font-semibold">{formLabel(stats.tsb)}</span>}
+              <MetricLabel color="form">{t.home.form}</MetricLabel>
+              {stats && <span className="text-sm font-semibold">{formLabel(stats.tsb, t)}</span>}
             </div>
-            <p className="mt-1 text-4xl font-bold tabular-nums">{stats?.tsb ?? "—"}</p>
+            <p className="mt-1 text-4xl font-bold tabular-nums">
+              {stats?.tsb.toLocaleString(locale) ?? "—"}
+            </p>
             <div className="mt-3">
               <FormScale tsb={stats?.tsb ?? 0} />
             </div>

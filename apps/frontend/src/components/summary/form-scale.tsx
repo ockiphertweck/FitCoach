@@ -1,7 +1,9 @@
-export function formLabel(tsb: number) {
-  if (tsb > 5) return "Fresh"
-  if (tsb < -10) return "Fatigued"
-  return "Balanced"
+import type { Dict } from "@/lib/i18n"
+
+export function formLabel(tsb: number, t: Dict) {
+  if (tsb > 5) return t.home.formFresh
+  if (tsb < -10) return t.home.formFatigued
+  return t.home.formBalanced
 }
 
 export function FormScale({ tsb }: Readonly<{ tsb: number }>) {

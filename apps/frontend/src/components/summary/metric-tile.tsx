@@ -9,7 +9,7 @@ export function MetricTile({
 }: Readonly<{
   label: string
   color: ComponentProps<typeof MetricLabel>["color"]
-  value: number | undefined
+  value: string | undefined
   caption: string
 }>) {
   return (
